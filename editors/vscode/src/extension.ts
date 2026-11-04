@@ -9,8 +9,8 @@ import {
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  const config = vscode.workspace.getConfiguration("strizh");
-  const command = config.get<string>("serverPath") || "strizh";
+  const config = vscode.workspace.getConfiguration("ink");
+  const command = config.get<string>("serverPath") || "ink";
   const serverOptions: ServerOptions = {
     command,
     args: ["lsp"],
@@ -20,12 +20,12 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: "file", language: "strizh" }],
+    documentSelector: [{ scheme: "file", language: "ink" }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.str"),
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.ink"),
     },
   };
-  client = new LanguageClient("strizh", "Strizh", serverOptions, clientOptions);
+  client = new LanguageClient("ink", "Ink", serverOptions, clientOptions);
   void client.start();
   context.subscriptions.push({
     dispose: () => {

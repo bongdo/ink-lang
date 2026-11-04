@@ -11,7 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const FileName = "strizh.toml"
+const FileName = "ink.toml"
 
 type Config struct {
 	Name   string `toml:"name"`

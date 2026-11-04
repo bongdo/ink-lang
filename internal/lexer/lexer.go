@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/token"
 )
 
 type Comment struct {
@@ -17,6 +17,7 @@ type Comment struct {
 
 type Error struct {
 	Pos token.Pos
+	End token.Pos
 	Msg string
 }
 
@@ -122,7 +123,11 @@ func (l *lexer) invalid(start token.Pos, off int, msg string) {
 		Pos:  start,
 		End:  l.pos(),
 	})
-	l.errors = append(l.errors, Error{Pos: start, Msg: msg})
+	l.errorAt(start, msg)
+}
+
+func (l *lexer) errorAt(start token.Pos, msg string) {
+	l.errors = append(l.errors, Error{Pos: start, End: l.pos(), Msg: msg})
 }
 
 func (l *lexer) reject(start token.Pos, off, size int, msg string) {
@@ -280,19 +285,19 @@ func (l *lexer) quoted(kind token.Kind, quote byte) {
 			return
 		}
 		if c == '\n' || c == '\r' {
-			l.errors = append(l.errors, Error{Pos: start, Msg: "newline in " + name + " literal"})
+			l.errorAt(start, "newline in "+name+" literal")
 			l.emit(kind, start, off)
 			return
 		}
 		if c == '\\' {
 			l.advanceN(1)
 			if l.i >= len(l.src) {
-				l.errors = append(l.errors, Error{Pos: start, Msg: "unterminated " + name + " literal"})
+				l.errorAt(start, "unterminated "+name+" literal")
 				l.emit(kind, start, off)
 				return
 			}
 			if c2 := l.src[l.i]; c2 == '\n' || c2 == '\r' {
-				l.errors = append(l.errors, Error{Pos: start, Msg: "newline in " + name + " literal"})
+				l.errorAt(start, "newline in "+name+" literal")
 				l.emit(kind, start, off)
 				return
 			}
@@ -301,7 +306,7 @@ func (l *lexer) quoted(kind token.Kind, quote byte) {
 		}
 		l.advance()
 	}
-	l.errors = append(l.errors, Error{Pos: start, Msg: "unterminated " + name + " literal"})
+	l.errorAt(start, "unterminated "+name+" literal")
 	l.emit(kind, start, off)
 }
 
@@ -316,7 +321,7 @@ func (l *lexer) rawString() {
 		}
 		l.advance()
 	}
-	l.errors = append(l.errors, Error{Pos: start, Msg: "unterminated raw string literal"})
+	l.errorAt(start, "unterminated raw string literal")
 	l.emit(token.RawString, start, off)
 }
 
@@ -339,7 +344,7 @@ func (l *lexer) blockComment() {
 		}
 		l.advance()
 	}
-	l.errors = append(l.errors, Error{Pos: start, Msg: "block comments are not supported; use //"})
+	l.errorAt(start, "block comments are not supported; use //")
 }
 
 func (l *lexer) symbol() {

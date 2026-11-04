@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
+	"github.com/bongdo/ink/internal/ast"
 )
 
 func (g *generator) decl(w *writer, d ast.Decl) {
@@ -331,8 +331,12 @@ func (g *generator) packageVar(w *writer, d *ast.VarDecl) {
 	if d.Const {
 		prefix = "const"
 	}
+	typePart := ""
+	if d.Type != nil {
+		typePart = " " + w.typeStr(d.Type)
+	}
 	w.directive(d)
-	w.line(prefix + " " + strings.Join(d.Names, ", ") + " = " + strings.Join(values, ", "))
+	w.line(prefix + " " + strings.Join(d.Names, ", ") + typePart + " = " + strings.Join(values, ", "))
 	w.line("")
 }
 

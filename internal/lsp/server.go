@@ -13,22 +13,26 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/config"
-	"github.com/bongdo/strizh/internal/format"
-	"github.com/bongdo/strizh/internal/parser"
-	"github.com/bongdo/strizh/internal/sema"
-	"github.com/bongdo/strizh/internal/token"
-	"github.com/bongdo/strizh/internal/typecheck"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/config"
+	"github.com/bongdo/ink/internal/diag"
+	"github.com/bongdo/ink/internal/format"
+	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink/internal/sema"
+	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink/internal/typecheck"
 )
 
 const (
-	serverName           = "strizh"
+	serverName           = "ink"
 	serverVersion        = "0.2.0"
 	textDocumentSyncFull = 1
+	typecheckDelay       = 150 * time.Millisecond
 )
 
 const (
@@ -92,6 +96,8 @@ type analysis struct {
 	files    map[string]*fileInfo
 	nodeFile map[ast.Node]string
 	diags    map[string][]Diagnostic
+	parsed   map[string][]*ast.File
+	prog     *sema.Program
 }
 
 type server struct {
@@ -104,6 +110,10 @@ type server struct {
 	cache     map[string]*sema.GoPkg
 	last      *analysis
 	published map[string]bool
+
+	mu    sync.Mutex
+	gen   int
+	timer *time.Timer
 }
 
 func Run(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) error {
@@ -171,7 +181,10 @@ func (s *server) serve() error {
 			return err
 		}
 		if m.Method == "initialize" {
-			if err := s.reload(true); err != nil {
+			s.mu.Lock()
+			err := s.reload(true)
+			s.mu.Unlock()
+			if err != nil {
 				return err
 			}
 		}
@@ -179,6 +192,8 @@ func (s *server) serve() error {
 }
 
 func (s *server) handleRequest(method string, params json.RawMessage) (any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	switch method {
 	case "initialize":
 		var p InitializeParams
@@ -193,8 +208,12 @@ func (s *server) handleRequest(method string, params json.RawMessage) (any, erro
 				TextDocumentSync:           textDocumentSyncFull,
 				HoverProvider:              true,
 				DefinitionProvider:         true,
+				ReferencesProvider:         true,
+				RenameProvider:             true,
+				CodeActionProvider:         true,
 				CompletionProvider:         &CompletionOptions{TriggerCharacters: []string{".", ":"}},
 				DocumentSymbolProvider:     true,
+				WorkspaceSymbolProvider:    true,
 				DocumentFormattingProvider: true,
 				SignatureHelpProvider:      &SignatureHelpOptions{TriggerCharacters: []string{"(", ","}},
 			},
@@ -214,6 +233,36 @@ func (s *server) handleRequest(method string, params json.RawMessage) (any, erro
 			return nil, errInvalidParams
 		}
 		return s.definition(p)
+	case "textDocument/references":
+		var p ReferenceParams
+		if err := decodeParams(params, &p); err != nil {
+			return nil, errInvalidParams
+		}
+		return s.references(p)
+	case "textDocument/prepareRename":
+		var p TextDocumentPositionParams
+		if err := decodeParams(params, &p); err != nil {
+			return nil, errInvalidParams
+		}
+		return s.prepareRename(p)
+	case "textDocument/rename":
+		var p RenameParams
+		if err := decodeParams(params, &p); err != nil {
+			return nil, errInvalidParams
+		}
+		return s.rename(p)
+	case "textDocument/codeAction":
+		var p CodeActionParams
+		if err := decodeParams(params, &p); err != nil {
+			return nil, errInvalidParams
+		}
+		return s.codeActions(p)
+	case "workspace/symbol":
+		var p WorkspaceSymbolParams
+		if err := decodeParams(params, &p); err != nil {
+			return nil, errInvalidParams
+		}
+		return s.workspaceSymbols(p)
 	case "textDocument/completion":
 		var p CompletionParams
 		if err := decodeParams(params, &p); err != nil {
@@ -243,6 +292,8 @@ func (s *server) handleRequest(method string, params json.RawMessage) (any, erro
 }
 
 func (s *server) handleNotify(method string, params json.RawMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	switch method {
 	case "initialized":
 		return nil
@@ -302,6 +353,10 @@ func (s *server) handleNotify(method string, params json.RawMessage) error {
 		if err != nil {
 			s.logf("didClose: %v", err)
 			return nil
+		}
+		uri := pathToURI(path)
+		if err := s.conn.Notify("textDocument/publishDiagnostics", PublishDiagnosticsParams{URI: uri, Diagnostics: []Diagnostic{}}); err != nil {
+			return err
 		}
 		delete(s.docs, path)
 		return s.reload(true)
@@ -379,7 +434,7 @@ func findProjectRoot(dir string) string {
 }
 
 func (s *server) logf(format string, args ...any) {
-	fmt.Fprintf(s.stderr, "strizh lsp: %s\n", fmt.Sprintf(format, args...))
+	fmt.Fprintf(s.stderr, "ink lsp: %s\n", fmt.Sprintf(format, args...))
 }
 
 func pathToURI(path string) string {
@@ -444,6 +499,12 @@ func applyChanges(text string, changes []TextDocumentChange) string {
 }
 
 func (s *server) reload(typecheckOn bool) error {
+	s.gen++
+	if s.timer != nil {
+		s.timer.Stop()
+		s.timer = nil
+	}
+	gen := s.gen
 	a := &analysis{
 		files:    make(map[string]*fileInfo),
 		nodeFile: make(map[ast.Node]string),
@@ -473,7 +534,7 @@ func (s *server) reload(typecheckOn bool) error {
 				}
 				return nil
 			}
-			if !strings.HasSuffix(name, ".str") {
+			if !strings.HasSuffix(name, ".ink") {
 				return nil
 			}
 			full := filepath.Clean(path)
@@ -532,19 +593,18 @@ func (s *server) reload(typecheckOn bool) error {
 		if prog != nil {
 			semaErrs = append(semaErrs, prog.Errors...)
 		}
+		a.prog = prog
+		a.parsed = parsed
 		for rel, files := range parsed {
 			for _, f := range files {
 				a.files[f.Path] = &fileInfo{path: f.Path, rel: rel, src: f.Src, file: f, prog: prog}
 			}
 		}
-		if typecheckOn && prog != nil && s.canTypecheck() && !hasFatalErrors(parseErrs, prog.Errors) {
-			for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: s.root, Module: s.module}) {
-				fi := a.files[canonicalPath(e.Path)]
-				if fi == nil {
-					s.logf("typecheck: %s", e.Msg)
-					continue
-				}
-				a.diags[fi.path] = append(a.diags[fi.path], diagnosticAt(fi.src, e.Pos, e.Msg, false))
+		if prog != nil && s.canTypecheck() && !hasFatalErrors(parseErrs, prog.Errors) {
+			if typecheckOn {
+				s.addTypecheckDiags(a, prog, parsed)
+			} else {
+				s.scheduleTypecheck(a, gen)
 			}
 		}
 	}
@@ -577,6 +637,65 @@ func (s *server) reload(typecheckOn bool) error {
 
 	s.last = a
 	return s.publish(a)
+}
+
+func (s *server) addTypecheckDiags(a *analysis, prog *sema.Program, parsed map[string][]*ast.File) {
+	s.mergeDiags(a, s.typecheckDiagnostics(a, prog, parsed))
+}
+
+func (s *server) typecheckDiagnostics(a *analysis, prog *sema.Program, parsed map[string][]*ast.File) map[string][]Diagnostic {
+	out := make(map[string][]Diagnostic)
+	if prog == nil {
+		return out
+	}
+	for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: s.root, Module: s.module, Tests: true}) {
+		fi := a.files[canonicalPath(e.Path)]
+		if fi == nil {
+			s.logf("typecheck: %s", e.Msg)
+			continue
+		}
+		d := diagnosticAt(fi.src, e.Pos, e.Msg, false)
+		d.Code = diag.Typecheck(e.Msg).Code
+		out[fi.path] = append(out[fi.path], d)
+	}
+	return out
+}
+
+func (s *server) mergeDiags(a *analysis, diags map[string][]Diagnostic) {
+	for path, list := range diags {
+		a.diags[path] = append(a.diags[path], list...)
+	}
+	for _, list := range a.diags {
+		sortDiagnostics(list)
+	}
+}
+
+func (s *server) scheduleTypecheck(a *analysis, gen int) {
+	s.timer = time.AfterFunc(typecheckDelay, func() {
+		s.runTypecheck(a, gen)
+	})
+}
+
+func (s *server) runTypecheck(a *analysis, gen int) {
+	s.mu.Lock()
+	if s.last != a || s.gen != gen {
+		s.mu.Unlock()
+		return
+	}
+	prog, parsed := a.prog, a.parsed
+	s.mu.Unlock()
+
+	diags := s.typecheckDiagnostics(a, prog, parsed)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.last != a || s.gen != gen {
+		return
+	}
+	s.mergeDiags(a, diags)
+	if err := s.publish(a); err != nil {
+		s.logf("typecheck publish: %v", err)
+	}
 }
 
 func (s *server) canTypecheck() bool {
@@ -679,7 +798,7 @@ func relDir(root, dir string) string {
 }
 
 func projectFile(root, path string) bool {
-	if root == "" || !strings.HasSuffix(path, ".str") {
+	if root == "" || !strings.HasSuffix(path, ".ink") {
 		return false
 	}
 	rel, err := filepath.Rel(root, path)
@@ -705,7 +824,7 @@ func diagnosticAt(src []byte, pos token.Pos, msg string, warning bool) Diagnosti
 	if warning {
 		severity = 2
 	}
-	return Diagnostic{Range: rangeAt(src, pos), Severity: severity, Source: "strizh", Message: msg}
+	return Diagnostic{Range: rangeAt(src, pos), Severity: severity, Code: diag.Classify(msg).Code, Source: "ink", Message: msg}
 }
 
 func rangeAt(src []byte, pos token.Pos) Range {
@@ -874,7 +993,7 @@ func hoverText(node ast.Node) string {
 }
 
 func codeBlock(text string) string {
-	return "```strizh\n" + text + "\n```"
+	return "```ink\n" + text + "\n```"
 }
 
 func identHover(id *ast.Ident) string {
@@ -1056,7 +1175,11 @@ func varDeclText(v *ast.VarDecl) string {
 	if v.Const {
 		keyword = "const"
 	}
-	return keyword + " " + strings.Join(v.Names, ", ")
+	text := keyword + " " + strings.Join(v.Names, ", ")
+	if t := formatType(v.Type); t != "" {
+		text += ": " + t
+	}
+	return text
 }
 
 func formatType(t ast.Type) string {
@@ -1937,12 +2060,12 @@ func (s *server) signature(fi *fileInfo, call *ast.CallExpr, offset int) *Signat
 	switch fun := call.Fun.(type) {
 	case *ast.Ident:
 		if fun.Ref != nil && fun.Ref.Func != nil {
-			label, params = strizhSignature(fun.Ref.Func)
+			label, params = inkSignature(fun.Ref.Func)
 		}
 	case *ast.SelectorExpr:
 		if fun.Ref != nil {
 			if fun.Ref.Func != nil {
-				label, params = strizhSignature(fun.Ref.Func)
+				label, params = inkSignature(fun.Ref.Func)
 			} else if goFunc, ok := fun.Ref.Go.(*types.Func); ok {
 				if sig, ok := goFunc.Type().(*types.Signature); ok {
 					goLabel, goParams := goSignature(sig, fi)
@@ -1970,7 +2093,7 @@ func (s *server) signature(fi *fileInfo, call *ast.CallExpr, offset int) *Signat
 	}
 }
 
-func strizhSignature(fn *ast.FuncDecl) (string, []ParameterInformation) {
+func inkSignature(fn *ast.FuncDecl) (string, []ParameterInformation) {
 	params := make([]ParameterInformation, 0, len(fn.Params))
 	for _, param := range fn.Params {
 		params = append(params, ParameterInformation{Label: paramLabel(param)})

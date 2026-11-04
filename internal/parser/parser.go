@@ -8,15 +8,16 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/lexer"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/lexer"
+	"github.com/bongdo/ink/internal/token"
 )
 
 const maxErrors = 100
 
 type Error struct {
 	Pos token.Pos
+	End token.Pos
 	Msg string
 }
 
@@ -33,7 +34,7 @@ func Parse(path string, src []byte) (*ast.File, []Error) {
 	p := &parser{toks: toks}
 	f := &ast.File{Path: path, Src: src}
 	for _, e := range lexErrs {
-		p.addError(e.Pos, e.Msg)
+		p.addError(e.Pos, e.End, e.Msg)
 	}
 	for _, c := range comments {
 		f.Comments = append(f.Comments, &ast.Comment{
@@ -138,18 +139,32 @@ func spanOf(t token.Token) ast.Span {
 	return ast.Span{Start: t.Pos, End: t.End}
 }
 
-func (p *parser) addError(pos token.Pos, msg string) {
+func (p *parser) addError(pos, end token.Pos, msg string) {
 	if len(p.errs) >= maxErrors {
 		return
 	}
-	p.errs = append(p.errs, Error{Pos: pos, Msg: msg})
+	p.errs = append(p.errs, Error{Pos: pos, End: end, Msg: msg})
 }
 
 func (p *parser) errorf(pos token.Pos, format string, args ...any) {
 	if p.silent > 0 {
 		return
 	}
-	p.addError(pos, fmt.Sprintf(format, args...))
+	p.addError(pos, p.endAt(pos), fmt.Sprintf(format, args...))
+}
+
+func (p *parser) endAt(pos token.Pos) token.Pos {
+	t := p.tok()
+	if t.Pos == pos && t.End.Offset > pos.Offset {
+		return t.End
+	}
+	if p.i > 0 {
+		prev := p.toks[p.i-1]
+		if prev.Pos == pos && prev.End.Offset > pos.Offset {
+			return prev.End
+		}
+	}
+	return token.Pos{Offset: pos.Offset + 1, Line: pos.Line, Col: pos.Col + 1}
 }
 
 func describe(t token.Token) string {
@@ -223,11 +238,15 @@ func (p *parser) parseUse() *ast.Use {
 	start := p.tok().Pos
 	p.next()
 	u := &ast.Use{}
+	quoted := false
+	pathPos := start
 	switch p.kind() {
 	case token.Ident:
 		u.Path = p.next().Lit
 	case token.String, token.RawString:
 		t := p.next()
+		quoted = true
+		pathPos = t.Pos
 		u.Path = p.stringLit(t)
 		u.Local = strings.HasPrefix(u.Path, "./") || strings.HasPrefix(u.Path, "../")
 		if !u.Local && !strings.ContainsAny(u.Path, "/.") {
@@ -242,9 +261,30 @@ func (p *parser) parseUse() *ast.Use {
 			u.Alias = t.Lit
 		}
 	}
+	if quoted && !u.Local && u.Alias == "" && versionSegment(u.Path) {
+		p.errorf(pathPos, "versioned import path %q requires an alias: use %q as <name>;", u.Path, u.Path)
+	}
 	p.consumeSemi()
 	u.Span = p.fin(start)
 	return u
+}
+
+func versionSegment(path string) bool {
+	path = strings.TrimSuffix(path, "/")
+	if i := strings.LastIndexByte(path, '/'); i >= 0 {
+		path = path[i+1:]
+	}
+	if len(path) < 2 || path[0] != 'v' {
+		return false
+	}
+	n := 0
+	for _, r := range path[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n >= 2
 }
 
 func (p *parser) parseFuncDecl(owner *ast.TypeDecl) *ast.FuncDecl {
@@ -265,14 +305,13 @@ func (p *parser) parseFuncDecl(owner *ast.TypeDecl) *ast.FuncDecl {
 		fd.Err = true
 	}
 	if p.at(token.Assign) {
+		p.errorf(p.tok().Pos, "function bodies are declared without '='")
 		p.next()
-		if p.at(token.LBrace) {
-			fd.Body = p.parseBlock()
-		} else {
-			p.errorf(p.tok().Pos, "expected function body, found %s", describe(p.tok()))
-		}
+	}
+	if p.at(token.LBrace) {
+		fd.Body = p.parseBlock()
 	} else {
-		p.errorf(p.tok().Pos, "expected '=' and function body, found %s", describe(p.tok()))
+		p.errorf(p.tok().Pos, "expected function body, found %s", describe(p.tok()))
 	}
 	p.consumeSemi()
 	fd.Span = p.fin(start)
@@ -400,7 +439,16 @@ func (p *parser) parseTypeDecl() *ast.TypeDecl {
 	if p.at(token.LBracket) {
 		td.TypeParams = p.parseTypeParams()
 	}
-	p.expect(token.Assign)
+	assign := false
+	var assignPos token.Pos
+	if p.at(token.Assign) {
+		assignPos = p.tok().Pos
+		p.next()
+		assign = true
+	}
+	if assign && (p.at(token.Struct) || p.at(token.Enum) || p.at(token.Interface)) {
+		p.errorf(assignPos, "type definitions are declared without '='")
+	}
 	switch p.kind() {
 	case token.Struct:
 		td.Kind = ast.TypeStruct
@@ -415,6 +463,9 @@ func (p *parser) parseTypeDecl() *ast.TypeDecl {
 		p.next()
 		p.parseInterfaceBody(td)
 	default:
+		if !assign {
+			p.errorf(p.tok().Pos, "expected '=', found %s", describe(p.tok()))
+		}
 		td.Kind = ast.TypeAlias
 		td.Target = p.parseType()
 	}
@@ -537,6 +588,7 @@ func (p *parser) parseInterfaceBody(td *ast.TypeDecl) {
 func (p *parser) parseIFaceMethod() *ast.IFaceMethod {
 	start := p.tok().Pos
 	if p.at(token.Fn) {
+		p.errorf(p.tok().Pos, "interface methods are declared without 'fn'")
 		p.next()
 	}
 	m := &ast.IFaceMethod{}
@@ -592,6 +644,10 @@ func (p *parser) parseVarDecl(requireSemi bool) *ast.VarDecl {
 	}
 	if len(vd.Names) == 0 {
 		p.errorf(p.tok().Pos, "expected variable name, found %s", describe(p.tok()))
+	}
+	if p.at(token.Colon) {
+		p.next()
+		vd.Type = p.parseType()
 	}
 	if p.at(token.Assign) {
 		p.next()
@@ -1465,6 +1521,23 @@ func (p *parser) parsePattern() *ast.Pattern {
 			Span:    spanOf(t),
 			Literal: &ast.BasicLit{Span: spanOf(t), Kind: t.Kind, Value: value},
 		}
+	case token.Minus:
+		p.next()
+		lit := p.tok()
+		switch lit.Kind {
+		case token.Int, token.Float, token.Duration:
+			p.next()
+			span := ast.Span{Start: start, End: lit.End}
+			return &ast.Pattern{
+				Span:    span,
+				Literal: &ast.BasicLit{Span: span, Kind: lit.Kind, Value: "-" + lit.Lit},
+			}
+		}
+		p.errorf(lit.Pos, "expected number after '-' in pattern, found %s", describe(lit))
+		return nil
+	case token.Nil:
+		lit := p.parseNilLit().(*ast.NilLit)
+		return &ast.Pattern{Span: lit.Span, Literal: lit}
 	case token.Star:
 		typ := p.parseType()
 		pat := &ast.Pattern{Span: spanOf(t), TypePat: typ}

@@ -1,3 +1,5 @@
+> **Historical.** The current language is [`SPEC.md`](SPEC.md); the agent workflow is [`AGENTS.md`](../AGENTS.md).
+
 # nil: аудит двух форм и варианты упрощения
 
 Дата: 2026-10-27. Ветка: `oneway-nil`. Код не менялся; это проектное решение.
@@ -147,8 +149,8 @@ expected type. `checkPackageVars` (`internal/sema/resolve.go:438`) устрое�
 
 - `internal/sema/new_syntax_test.go` — позитивный `TestBareNilExpected`
   (`return nil`, `e == nil`) станет ошибкой; тест нужно удалить или инвертировать.
-- `tests/cases/multires/main.str:21,27,33,35` — четыре bare `nil`.
-- `tests/smoke/bubbletea/main.str:8,23` — `return nil` / `return self, nil`;
+- `tests/cases/multires/main.ink:21,27,33,35` — четыре bare `nil`.
+- `tests/smoke/bubbletea/main.ink:8,23` — `return nil` / `return self, nil`;
   станет `nil[tea.Cmd]`.
 - `internal/format/format_test.go:114` — sample `var x = nil` (только форматтер,
   но канонический пример надо обновить).
@@ -177,7 +179,7 @@ expected type. `checkPackageVars` (`internal/sema/resolve.go:438`) устрое�
 подставляет тип, codegen по-прежнему печатает `(T)(nil)`. Ломается объявление
 nil-переменной:
 
-```strizh
+```ink
 var p = nil;          // нельзя: нет expected type
 var cmd = nil;        // нельзя: tea.Cmd — функция
 var handler = nil;    // нельзя: функция
@@ -198,8 +200,8 @@ var err = nil;        // нельзя: интерфейс
   `internal/gen/gen_test.go:439,460,568,592`,
   `internal/lexer/lexer_test.go:485`,
   `internal/parser/parser_test.go:559`,
-  `tests/cases/nilmap/main.str:9,10`,
-  `tests/cases/ctxcall/main.str:7`.
+  `tests/cases/nilmap/main.ink:9,10`,
+  `tests/cases/ctxcall/main.ink:7`.
 - Из них сравнения (`err == nil[error]`, `ctx != nil[context.Context]`) и
   `return 4, nil[error]` переписываются в bare и работают.
 - `nilmap` (`var p = nil[*Node]`), `gen_test.go:568` (`var zero = nil[error]`) и
@@ -216,7 +218,7 @@ var err = nil;        // нельзя: интерфейс
 
 **Идея.** Убрать `nil[T]`, но добавить тип в объявление:
 
-```strizh
+```ink
 var p: *Node = nil;
 var cmd: tea.Cmd = nil;
 var handler: fn(i32) i32 = nil;
@@ -311,7 +313,7 @@ assignability. Если typed var должен проверяться как п�
 
 - Прочитаны parser/AST/sema/codegen/formatter и все вхождения `nil`/`nil[T]` в
   тестах и `tests/`.
-- На baseline собрал `cmd/strizh` и прогнал probe: `check(nil[*i32])` в
+- На baseline собрал `cmd/ink` и прогнал probe: `check(nil[*i32])` в
   параметре `any` даёт `non-nil`, `check(nil[any])` — `nil`; это подтверждает
   ловушку explicit concrete type в A.
 - Полный `bin/check` не завершён (тесты шли дольше лимита под параллельной

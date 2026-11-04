@@ -1,4 +1,4 @@
-module github.com/bongdo/strizh
+module github.com/bongdo/ink
 
 go 1.27
 

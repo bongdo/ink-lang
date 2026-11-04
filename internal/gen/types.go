@@ -3,7 +3,7 @@ package gen
 import (
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
+	"github.com/bongdo/ink/internal/ast"
 )
 
 var builtinGo = map[string]string{
@@ -302,7 +302,7 @@ func identChar(b byte) bool {
 	return b == '_' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
 }
 
-func isStrizhBuiltinType(name string) bool {
+func isInkBuiltinType(name string) bool {
 	if name == "Duration" || name == "Type" {
 		return true
 	}

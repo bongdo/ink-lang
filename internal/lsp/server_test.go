@@ -13,23 +13,23 @@ import (
 	"time"
 )
 
-const validSrc = `type User = struct {
+const validSrc = `type User struct {
     Name: str,
 
-    fn hello() str = {
+    fn hello() str {
         return "hi " + Name;
     };
 };
 
-fn greet(name: str) str = {
+fn greet(name: str) str {
     return "hi " + name;
 };
 
-fn add(a: int, b: int) int = {
+fn add(a: int, b: int) int {
     return a + b;
 };
 
-fn main() void = {
+fn main() void {
     var total = 1;
 
     var n = add(1, 2);
@@ -206,10 +206,10 @@ func newProject(t *testing.T, src string) (string, string, string) {
 	t.Helper()
 	root := t.TempDir()
 	config := []byte("name = \"hello\"\nmodule = \"example.com/hello\"\n")
-	if err := os.WriteFile(filepath.Join(root, "strizh.toml"), config, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "ink.toml"), config, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(root, "main.str")
+	path := filepath.Join(root, "main.ink")
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestInitializeCapabilities(t *testing.T) {
 	if caps.SignatureHelpProvider == nil || !hasString(caps.SignatureHelpProvider.TriggerCharacters, "(") || !hasString(caps.SignatureHelpProvider.TriggerCharacters, ",") {
 		t.Fatalf("signature help provider: %+v", caps.SignatureHelpProvider)
 	}
-	if result.ServerInfo.Name != "strizh" || result.ServerInfo.Version != "0.2.0" {
+	if result.ServerInfo.Name != "ink" || result.ServerInfo.Version != "0.2.0" {
 		t.Fatalf("server info: %+v", result.ServerInfo)
 	}
 	diags := c.waitDiagnostics(uri, func(*PublishDiagnosticsParams) bool { return true })
@@ -280,7 +280,7 @@ func TestDiagnostics(t *testing.T) {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: uri, LanguageID: "strizh", Version: 1, Text: invalidSrc},
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: invalidSrc},
 	})
 	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		if params.Version == nil || *params.Version != 1 {
@@ -302,7 +302,7 @@ func TestDiagnostics(t *testing.T) {
 	if found == nil {
 		t.Fatalf("missing diagnostic: %+v", diags.Diagnostics)
 	}
-	if found.Severity != 1 || found.Source != "strizh" {
+	if found.Severity != 1 || found.Source != "ink" {
 		t.Fatalf("diagnostic: %+v", found)
 	}
 	if found.Range.Start.Line == 0 && found.Range.Start.Character == 0 {
@@ -344,16 +344,16 @@ func TestDiagnostics(t *testing.T) {
 func TestTypeDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"strizh.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
-		"go.mod":      "module example.com/hello\n\ngo 1.27\n",
+		"ink.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
+		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
 	}
-	src := "use fmt;\n\nfn main() void or error = {\n    var n = 1 + \"x\";\n    fmt.Println(n) or return;\n};\n"
+	src := "use fmt;\n\nfn main() void or error {\n    var n = 1 + \"x\";\n    fmt.Println(n) or return;\n};\n"
 	for name, text := range files {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	path := filepath.Join(root, "main.str")
+	path := filepath.Join(root, "main.ink")
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +361,7 @@ func TestTypeDiagnostics(t *testing.T) {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: uri, LanguageID: "strizh", Version: 1, Text: src},
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: src},
 	})
 	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		for _, diag := range params.Diagnostics {
@@ -419,7 +419,7 @@ func TestFeatures(t *testing.T) {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: uri, LanguageID: "strizh", Version: 1, Text: validSrc},
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: validSrc},
 	})
 	openDiags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		return params.Version != nil && *params.Version == 1
@@ -568,7 +568,7 @@ func TestFeatures(t *testing.T) {
 func TestGoImportCompletion(t *testing.T) {
 	src := `use fmt;
 
-fn main() void = {
+fn main() void {
     fmt.Println("hi");
 };
 `
@@ -580,7 +580,7 @@ fn main() void = {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: uri, LanguageID: "strizh", Version: 1, Text: src},
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: src},
 	})
 	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		return params.Version != nil && *params.Version == 1
@@ -626,14 +626,14 @@ func TestParseErrorFormatting(t *testing.T) {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: uri, LanguageID: "strizh", Version: 1, Text: broken},
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: broken},
 	})
 	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		if params.Version == nil || *params.Version != 1 {
 			return false
 		}
 		for _, diag := range params.Diagnostics {
-			if diag.Severity == 1 && diag.Source == "strizh" {
+			if diag.Severity == 1 && diag.Source == "ink" {
 				return true
 			}
 		}
@@ -658,7 +658,7 @@ func TestParseErrorFormatting(t *testing.T) {
 func TestLocalImport(t *testing.T) {
 	mainSrc := `use "./lib" as lib;
 
-fn main() void = {
+fn main() void {
     var s = lib.Hello();
 };
 `
@@ -667,8 +667,8 @@ fn main() void = {
 	if err := os.MkdirAll(libDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	libSrc := "fn Hello() str = {\n    return \"hi\";\n};\n"
-	libPath := filepath.Join(libDir, "lib.str")
+	libSrc := "fn Hello() str {\n    return \"hi\";\n};\n"
+	libPath := filepath.Join(libDir, "lib.ink")
 	if err := os.WriteFile(libPath, []byte(libSrc), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -676,7 +676,7 @@ fn main() void = {
 	c := startClient(t, root)
 	c.request("initialize", InitializeParams{})
 	c.notify("textDocument/didOpen", DidOpenParams{
-		TextDocument: TextDocumentItem{URI: mainURI, LanguageID: "strizh", Version: 1, Text: mainSrc},
+		TextDocument: TextDocumentItem{URI: mainURI, LanguageID: "ink", Version: 1, Text: mainSrc},
 	})
 	diags := c.waitDiagnostics(mainURI, func(params *PublishDiagnosticsParams) bool {
 		return params.Version != nil && *params.Version == 1
@@ -748,7 +748,7 @@ func TestErrors(t *testing.T) {
 }
 
 func TestApplyChanges(t *testing.T) {
-	src := "fn main() void = {\n    var x = 1;\n};\n"
+	src := "fn main() void {\n    var x = 1;\n};\n"
 	full := applyChanges(src, []TextDocumentChange{{Text: "replacement"}})
 	if full != "replacement" {
 		t.Fatalf("full change = %q", full)

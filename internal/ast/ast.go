@@ -1,6 +1,6 @@
 package ast
 
-import "github.com/bongdo/strizh/internal/token"
+import "github.com/bongdo/ink/internal/token"
 
 type Node interface {
 	Pos() token.Pos
@@ -130,6 +130,7 @@ type IFaceMethod struct {
 type VarDecl struct {
 	Span
 	Names  []string
+	Type   Type
 	Values []Expr
 	Const  bool
 }

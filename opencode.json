@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "ink": {
+      "command": ["bin/ink", "lsp"],
+      "extensions": [".ink"]
+    }
+  },
+  "formatter": {
+    "ink": {
+      "command": ["bin/ink", "fmt", "-w", "$FILE"],
+      "extensions": [".ink"]
+    }
+  }
+}

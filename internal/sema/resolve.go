@@ -4,7 +4,8 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 var builtinTypes = map[string]string{
@@ -143,6 +144,7 @@ func (p *Program) resolveIfaceMethod(fc *fileCtx, m *ast.IFaceMethod, outer map[
 		}
 		seen[param.Name] = true
 		param.Type = p.resolveType(fc, param.Type, outer)
+		p.rejectVoid(fc, param.Type, param.Pos())
 	}
 	m.Results = p.normalizeResults(fc, m.Results, outer)
 }
@@ -182,21 +184,30 @@ func (p *Program) resolveType(fc *fileCtx, t ast.Type, tparams map[string]bool) 
 		return p.resolveNamed(fc, t, tparams)
 	case *ast.SliceType:
 		t.Elem = p.resolveType(fc, t.Elem, tparams)
+		p.rejectVoid(fc, t.Elem, t.Pos())
 		return t
 	case *ast.ArrayType:
 		t.Elem = p.resolveType(fc, t.Elem, tparams)
+		p.rejectVoid(fc, t.Elem, t.Pos())
+		if n, ok := t.Elem.(*ast.NamedType); ok && n.Decl != nil && len(n.Decl.TypeParams) > 0 {
+			p.errorf(fc.file.Path, t.Pos(), "generic type %s requires type arguments", n.Name)
+		}
 		t.Len = p.resolveConstExpr(fc, t.Len)
 		return t
 	case *ast.MapType:
 		t.Key = p.resolveType(fc, t.Key, tparams)
 		t.Value = p.resolveType(fc, t.Value, tparams)
+		p.rejectVoid(fc, t.Key, t.Pos())
+		p.rejectVoid(fc, t.Value, t.Pos())
 		return t
 	case *ast.PointerType:
 		t.Elem = p.resolveType(fc, t.Elem, tparams)
+		p.rejectVoid(fc, t.Elem, t.Pos())
 		return t
 	case *ast.FuncType:
 		for i, param := range t.Params {
 			t.Params[i] = p.resolveType(fc, param, tparams)
+			p.rejectVoid(fc, t.Params[i], t.Pos())
 		}
 		t.Results = p.normalizeResults(fc, t.Results, tparams)
 		return t
@@ -208,6 +219,7 @@ func (p *Program) resolveType(fc *fileCtx, t ast.Type, tparams map[string]bool) 
 	case *ast.StructType:
 		for _, f := range t.Fields {
 			f.Type = p.resolveType(fc, f.Type, tparams)
+			p.rejectVoid(fc, f.Type, f.Pos())
 		}
 		return t
 	case *ast.GenericType:
@@ -338,13 +350,14 @@ func (p *Program) resolveGeneric(fc *fileCtx, t *ast.GenericType, tparams map[st
 			}
 			for i, a := range t.Args {
 				t.Args[i] = p.resolveType(fc, a, tparams)
+				p.rejectVoid(fc, t.Args[i], t.Pos())
 			}
 			return t
 		}
 		if named.Decl == nil && named.PkgAlias != "" {
 			return t
 		}
-		if IsBuiltinType(named.Name) && len(t.Args) == 1 {
+		if len(t.Args) == 1 {
 			if lit := constExprOf(t.Args[0]); lit != nil {
 				e := p.resolveConstExpr(fc, lit)
 				return &ast.ArrayType{Span: t.Span, Elem: base, Len: e}
@@ -356,8 +369,15 @@ func (p *Program) resolveGeneric(fc *fileCtx, t *ast.GenericType, tparams map[st
 }
 
 func constExprOf(t ast.Type) ast.Expr {
-	if n, ok := t.(*ast.NamedType); ok && n.Package == "" {
-		return &ast.Ident{Span: n.Span, Name: n.Name}
+	if n, ok := t.(*ast.NamedType); ok {
+		if n.Package == "" {
+			return &ast.Ident{Span: n.Span, Name: n.Name}
+		}
+		return &ast.SelectorExpr{
+			Span: n.Span,
+			X:    &ast.Ident{Span: n.Span, Name: n.Package},
+			Name: n.Name,
+		}
 	}
 	return nil
 }
@@ -373,6 +393,38 @@ func (p *Program) resolveConstExpr(fc *fileCtx, e ast.Expr) ast.Expr {
 			p.errorf(fc.file.Path, e.Pos(), "%s is not a constant", e.Name)
 			return e
 		}
+		e.Ref = &ast.Ref{Kind: ast.RefConst, Name: e.Name, Decl: d, Path: fc.file.Path}
+		return e
+	case *ast.SelectorExpr:
+		id, ok := e.X.(*ast.Ident)
+		if !ok {
+			p.errorf(fc.file.Path, e.Pos(), "array length must be a constant expression")
+			return e
+		}
+		imp := fc.imports[id.Name]
+		if imp == nil {
+			p.errorf(fc.file.Path, e.Pos(), "unknown package %s", id.Name)
+			return e
+		}
+		if imp.Local == nil {
+			p.errorf(fc.file.Path, e.Pos(), "constant %s.%s must be declared in a local package", id.Name, e.Name)
+			return e
+		}
+		d, ok := imp.Local.Vars[e.Name]
+		if !ok {
+			p.errorf(fc.file.Path, e.Pos(), "package %s has no constant %s", id.Name, e.Name)
+			return e
+		}
+		if !d.Const {
+			p.errorf(fc.file.Path, e.Pos(), "%s.%s is not a constant", id.Name, e.Name)
+			return e
+		}
+		if !exported(e.Name) && imp.Local != fc.pkg {
+			p.errorf(fc.file.Path, e.Pos(), "constant %s is not exported by %s", e.Name, id.Name)
+			return e
+		}
+		fc.mark(id.Name)
+		id.Ref = &ast.Ref{Kind: ast.RefPackage, Name: id.Name, Use: fc.uses[id.Name]}
 		e.Ref = &ast.Ref{Kind: ast.RefConst, Name: e.Name, Decl: d, Path: fc.file.Path}
 		return e
 	case *ast.BasicLit:
@@ -400,6 +452,12 @@ func (p *Program) resolveConstExpr(fc *fileCtx, e ast.Expr) ast.Expr {
 func isVoidType(t ast.Type) bool {
 	n, ok := t.(*ast.NamedType)
 	return ok && n.Package == "" && n.Name == "void"
+}
+
+func (p *Program) rejectVoid(fc *fileCtx, t ast.Type, pos token.Pos) {
+	if isVoidType(t) {
+		p.errorf(fc.file.Path, pos, "void is only allowed as a function result")
+	}
 }
 
 func exported(name string) bool {
@@ -438,8 +496,28 @@ func (p *Program) checkMain() {
 	}
 }
 
+func (p *Program) checkEnumVariants(pkg *Package) {
+	seen := make(map[string]*ast.TypeDecl)
+	for _, f := range pkg.Files {
+		for _, d := range f.Decls {
+			td, ok := d.(*ast.TypeDecl)
+			if !ok || td.Kind != ast.TypeEnum {
+				continue
+			}
+			for _, v := range td.Variants {
+				if prev := seen[v.Name]; prev != nil && prev != td {
+					p.errorf(f.Path, v.Pos(), "enum variant %s is already declared in %s", v.Name, prev.Name)
+					continue
+				}
+				seen[v.Name] = td
+			}
+		}
+	}
+}
+
 func (p *Program) checkPackageVars() {
 	for _, pkg := range p.Packages {
+		p.checkEnumVariants(pkg)
 		p.global[pkg] = make(map[string]ast.Type)
 		for name := range pkg.Vars {
 			p.global[pkg][name] = nil
@@ -452,11 +530,24 @@ func (p *Program) checkPackageVars() {
 					continue
 				}
 				c := &checker{p: p, fc: fc}
+				var declType ast.Type
+				if v.Type != nil {
+					if v.Const {
+						p.errorf(f.Path, v.Pos(), "const cannot have a type")
+					}
+					declType = c.resolveType(v.Type)
+					v.Type = declType
+					p.rejectVoid(fc, declType, v.Pos())
+				}
 				for _, val := range v.Values {
 					if _, ok := val.(*ast.OrExpr); ok {
 						p.errorf(f.Path, val.Pos(), "or is not allowed in a package-level initializer")
 					}
+					c.applyNil(val, declType)
+					c.checkMatchValue(val)
 					c.resolveExpr(val, true)
+					c.checkVoidValue(val)
+					c.checkAssign(declType, val)
 				}
 				var ts []ast.Type
 				for _, val := range v.Values {
@@ -466,8 +557,8 @@ func (p *Program) checkPackageVars() {
 					if name == "_" {
 						continue
 					}
-					var t ast.Type
-					if len(ts) == len(v.Names) {
+					t := declType
+					if t == nil && len(ts) == len(v.Names) {
 						t = ts[i]
 					}
 					p.global[pkg][name] = t

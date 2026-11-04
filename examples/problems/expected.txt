@@ -1,0 +1,15 @@
+30:5:const-local:const is only allowed at package level
+31:17:semantic:N is not a constant
+38:13:generic-args:generic type Stack requires type arguments
+45:12:match-block-value:match with block arms cannot be used as an expression
+56:13:nil-untyped:cannot infer type of nil
+64:5:err-manual:use or return instead of if err != nil { return err }
+75:9:par-map-write:writing to map m inside par
+83:14:par-map-range:map iteration is not allowed in par for
+94:9:par-capture-write:writing to p captured from outside par
+103:13:par-break:break cannot leave a par block
+112:9:par-loop:for () is not allowed inside par
+122:14:match-nil-any:case nil is not supported on any or interface
+131:14:match-nil-enum:case nil is not supported on enum E
+139:17:array-const:constant strconv.IntSize must be declared in a local package
+150:13:void-value:void is not a value

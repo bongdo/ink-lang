@@ -4,8 +4,8 @@ import (
 	"go/types"
 	"strconv"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 type symbol struct {
@@ -32,15 +32,15 @@ type parFrame struct {
 }
 
 type checker struct {
-	p          *Program
-	fc         *fileCtx
-	fn         *funcInfo
-	scopes     []*scope
-	loopDepth  int
-	matchDepth int
-	parFrames  []parFrame
-	inPar      bool
-	tparams    map[string]bool
+	p           *Program
+	fc          *fileCtx
+	fn          *funcInfo
+	scopes      []*scope
+	loopDepth   int
+	parFrames   []parFrame
+	parLoopBase []int
+	inPar       bool
+	tparams     map[string]bool
 }
 
 func (c *checker) push() {
@@ -251,10 +251,12 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			lhsTypes = append(lhsTypes, c.resolveExpr(e, false))
 		}
 		for i, e := range s.Rhs {
+			c.checkMatchValue(e)
 			if len(s.Rhs) == len(lhsTypes) {
 				c.applyNil(e, lhsTypes[i])
 			}
 			c.resolveExpr(e, true)
+			c.checkVoidValue(e)
 			if len(s.Rhs) == len(lhsTypes) {
 				c.checkAssign(lhsTypes[i], e)
 			}
@@ -262,6 +264,11 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				if call, ok := e.(*ast.CallExpr); ok && call.Info != nil && call.Info.Results > 1 {
 					c.p.errorf(c.fc.file.Path, call.Pos(), "multi-result call needs matching names")
 				}
+			}
+		}
+		if len(s.Rhs) == 1 {
+			if call, ok := orCall(s.Rhs[0]); ok && call.Info.Results != len(s.Lhs) {
+				c.p.errorf(c.fc.file.Path, call.Pos(), "wrong number of results: got %d, want %d", call.Info.Results, len(s.Lhs))
 			}
 		}
 		if len(s.Rhs) > 1 {
@@ -272,6 +279,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 	case *ast.ExprStmt:
+		if m, ok := unparen(s.X).(*ast.MatchExpr); !ok || m.IsExpr {
+			c.checkMatchValue(s.X)
+		}
 		c.resolveExpr(s.X, true)
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
@@ -300,7 +310,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 		for i, e := range s.Results {
+			c.checkMatchValue(e)
 			c.resolveExpr(e, true)
+			c.checkVoidValue(e)
 			var want ast.Type
 			if c.fn != nil {
 				if i < len(c.fn.results) {
@@ -320,7 +332,15 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		if c.fn != nil {
 			n := len(c.fn.results)
-			if len(s.Results) != n && !(c.fn.err && len(s.Results) == n+1) {
+			var orc *ast.CallExpr
+			if len(s.Results) == 1 {
+				orc, _ = orCall(s.Results[0])
+			}
+			switch {
+			case orc != nil && orc.Info.Results != n:
+				c.p.errorf(c.fc.file.Path, s.Pos(), "wrong number of return values: got %d, want %d", orc.Info.Results, n)
+			case orc != nil:
+			case len(s.Results) != n && !(c.fn.err && len(s.Results) == n+1):
 				if n == 0 && !c.fn.err && len(s.Results) > 0 {
 					c.p.errorf(c.fc.file.Path, s.Pos(), "return value in a void function")
 				} else if len(s.Results) == 1 {
@@ -340,17 +360,14 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "break outside a loop")
 		}
-		if c.matchDepth > 0 {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "break inside a match case is not supported")
-		}
-		if c.inPar {
+		if c.crossesPar() {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "break cannot leave a par block")
 		}
 	case *ast.ContinueStmt:
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "continue outside a loop")
 		}
-		if c.inPar {
+		if c.crossesPar() {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "continue cannot leave a par block")
 		}
 	case *ast.DeferStmt:
@@ -444,6 +461,9 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 		f.Range.IsMap = isMap
 		f.Range.KeyType = key
 		f.Range.ElemType = elem
+		if f.Par && isMap {
+			c.p.errorf(c.fc.file.Path, f.Range.Pos(), "map iteration is not allowed in par for; collect keys into a slice first")
+		}
 		switch len(f.Range.Names) {
 		case 1:
 			if isMap {
@@ -465,7 +485,9 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			oldInPar := c.inPar
 			c.inPar = true
 			c.loopDepth++
+			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
+			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
 			c.parFrames = c.parFrames[:len(c.parFrames)-1]
@@ -476,6 +498,9 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.loopDepth--
 		}
 	} else {
+		if f.Init == nil && f.Cond == nil && f.Post == nil && (c.inPar || f.Par) {
+			c.p.errorf(c.fc.file.Path, f.Pos(), "for () is not allowed inside par; use a bounded loop")
+		}
 		if f.Init != nil {
 			c.checkStmt(f.Init)
 		}
@@ -528,7 +553,9 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			oldInPar := c.inPar
 			c.inPar = true
 			c.loopDepth++
+			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
+			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
 			c.parFrames = c.parFrames[:len(c.parFrames)-1]
@@ -588,12 +615,34 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 	if v == nil {
 		return
 	}
+	if v.Const {
+		c.p.errorf(c.fc.file.Path, v.Pos(), "const is only allowed at package level; use var")
+		if v.Type != nil {
+			c.p.errorf(c.fc.file.Path, v.Pos(), "const cannot have a type")
+		}
+	}
+	var declType ast.Type
+	if v.Type != nil {
+		declType = c.resolveType(v.Type)
+		v.Type = declType
+		c.p.rejectVoid(c.fc, declType, v.Pos())
+	}
 	var types []ast.Type
 	for _, val := range v.Values {
+		c.applyNil(val, declType)
+		c.checkMatchValue(val)
 		types = append(types, c.resolveExpr(val, true))
+		c.checkVoidValue(val)
+		c.checkAssign(declType, val)
 	}
 	if len(v.Values) == 1 {
-		if call, ok := v.Values[0].(*ast.CallExpr); ok && call.Info != nil && len(call.Info.ResultTypes) > 0 {
+		if call, ok := orCall(v.Values[0]); ok {
+			if call.Info.Results == len(v.Names) {
+				types = call.Info.ResultTypes[:call.Info.Results]
+			} else {
+				c.p.errorf(c.fc.file.Path, call.Pos(), "wrong number of results: got %d, want %d", call.Info.Results, len(v.Names))
+			}
+		} else if call, ok := v.Values[0].(*ast.CallExpr); ok && call.Info != nil && len(call.Info.ResultTypes) > 0 {
 			switch {
 			case len(call.Info.ResultTypes) == len(v.Names):
 				types = call.Info.ResultTypes
@@ -615,11 +664,28 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		if name == "_" {
 			continue
 		}
-		var t ast.Type
-		if len(types) == len(v.Names) {
+		t := declType
+		if t == nil && len(types) == len(v.Names) {
 			t = types[i]
 		}
 		c.declare(&symbol{name: name, kind: ast.RefLocal, typ: t, goType: c.goTypeOf(t), decl: v})
+	}
+}
+
+func (c *checker) voidValue(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.OrExpr:
+		return c.voidValue(e.X)
+	case *ast.CallExpr:
+		return e.Info != nil && e.Info.Results == 0 && !e.Info.HasError
+	}
+	t := c.exprType(e)
+	return t != nil && isVoidType(t)
+}
+
+func (c *checker) checkVoidValue(e ast.Expr) {
+	if c.voidValue(e) {
+		c.p.errorf(c.fc.file.Path, e.Pos(), "void is not a value")
 	}
 }
 
@@ -627,6 +693,7 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	c.needCtx()
 	frame := parFrame{plain: true}
 	c.parFrames = append(c.parFrames, frame)
+	c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 	oldInPar := c.inPar
 	c.inPar = true
 	c.push()
@@ -637,8 +704,13 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	}
 	c.pop()
 	c.inPar = oldInPar
+	c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 	c.parFrames = c.parFrames[:len(c.parFrames)-1]
 	c.checkParWrites(body, frame)
+}
+
+func (c *checker) crossesPar() bool {
+	return c.inPar && len(c.parLoopBase) > 0 && c.loopDepth <= c.parLoopBase[len(c.parLoopBase)-1]
 }
 
 func (c *checker) needCtx() {
@@ -682,6 +754,18 @@ func hasOr(e ast.Expr) bool {
 		return true
 	})
 	return found
+}
+
+func orCall(e ast.Expr) (*ast.CallExpr, bool) {
+	or, ok := e.(*ast.OrExpr)
+	if !ok {
+		return nil, false
+	}
+	call, ok := or.X.(*ast.CallExpr)
+	if !ok || call.Info == nil || !call.Info.HasError {
+		return nil, false
+	}
+	return call, true
 }
 
 func stmtHasOr(s ast.Stmt) bool {

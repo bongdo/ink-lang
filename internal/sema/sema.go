@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 	"golang.org/x/tools/go/packages"
 )
 

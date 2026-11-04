@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="strizh-logo-title">
-  <title id="strizh-logo-title">Strizh</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="ink-logo-title">
+  <title id="ink-logo-title">Ink</title>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
     <path d="M19 53 L45 13" stroke="#e0a458" stroke-width="3.2"/>
     <path d="M45.4 12.6 L50 7 L47.2 15.8 Z" fill="#e0a458" stroke="none"/>

@@ -68,8 +68,62 @@ type DidSaveParams struct {
 type Diagnostic struct {
 	Range    Range  `json:"range"`
 	Severity int    `json:"severity,omitempty"`
+	Code     string `json:"code,omitempty"`
 	Source   string `json:"source,omitempty"`
 	Message  string `json:"message"`
+}
+
+type ReferenceContext struct {
+	IncludeDeclaration bool `json:"includeDeclaration"`
+}
+
+type ReferenceParams struct {
+	TextDocumentPositionParams
+	Context ReferenceContext `json:"context"`
+}
+
+type RenameParams struct {
+	TextDocumentPositionParams
+	NewName string `json:"newName"`
+}
+
+type PrepareRenameResult struct {
+	Range       Range  `json:"range"`
+	Placeholder string `json:"placeholder"`
+}
+
+type WorkspaceEdit struct {
+	Changes map[string][]TextEdit `json:"changes"`
+}
+
+type CodeActionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Range        Range                  `json:"range"`
+	Context      CodeActionContext      `json:"context"`
+}
+
+type CodeActionContext struct {
+	Diagnostics []Diagnostic `json:"diagnostics"`
+	Only        []string     `json:"only,omitempty"`
+}
+
+type CodeAction struct {
+	Title       string         `json:"title"`
+	Kind        string         `json:"kind,omitempty"`
+	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
+	Edit        *WorkspaceEdit `json:"edit,omitempty"`
+	IsPreferred bool           `json:"isPreferred,omitempty"`
+}
+
+type WorkspaceSymbolParams struct {
+	Query string `json:"query"`
+}
+
+type SymbolInformation struct {
+	Name          string   `json:"name"`
+	Kind          int      `json:"kind"`
+	Location      Location `json:"location"`
+	ContainerName string   `json:"containerName,omitempty"`
 }
 
 type PublishDiagnosticsParams struct {
@@ -166,8 +220,12 @@ type ServerCapabilities struct {
 	TextDocumentSync           int                   `json:"textDocumentSync"`
 	HoverProvider              bool                  `json:"hoverProvider"`
 	DefinitionProvider         bool                  `json:"definitionProvider"`
+	ReferencesProvider         bool                  `json:"referencesProvider"`
+	RenameProvider             bool                  `json:"renameProvider"`
+	CodeActionProvider         bool                  `json:"codeActionProvider"`
 	CompletionProvider         *CompletionOptions    `json:"completionProvider,omitempty"`
 	DocumentSymbolProvider     bool                  `json:"documentSymbolProvider"`
+	WorkspaceSymbolProvider    bool                  `json:"workspaceSymbolProvider"`
 	DocumentFormattingProvider bool                  `json:"documentFormattingProvider"`
 	SignatureHelpProvider      *SignatureHelpOptions `json:"signatureHelpProvider,omitempty"`
 }

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ink",
+  "scopeName": "source.ink",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#functions" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.ink", "match": "//.*$" },
+        { "name": "comment.block.ink", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double.ink", "begin": "\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.ink", "match": "\\\\." }] },
+        { "name": "string.quoted.single.ink", "begin": "'", "end": "'", "patterns": [{ "name": "constant.character.escape.ink", "match": "\\\\." }] },
+        { "name": "string.quoted.raw.ink", "begin": "`", "end": "`" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.duration.ink", "match": "\\b[0-9][0-9_]*(?:\\.[0-9_]+)?(?:ns|us|µs|ms|s|m|h)\\b" },
+        { "name": "constant.numeric.hex.ink", "match": "\\b0x[0-9a-fA-F_]+\\b" },
+        { "name": "constant.numeric.binary.ink", "match": "\\b0b[01_]+\\b" },
+        { "name": "constant.numeric.octal.ink", "match": "\\b0o[0-7_]+\\b" },
+        { "name": "constant.numeric.float.ink", "match": "\\b[0-9][0-9_]*(?:\\.[0-9_]+)?(?:[eE][+-]?[0-9]+)\\b" },
+        { "name": "constant.numeric.integer.ink", "match": "\\b[0-9][0-9_]*\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.ink", "match": "\\b(if|else|for|in|match|case|return|break|continue|defer|par|within|limit|or)\\b" },
+        { "name": "keyword.other.ink", "match": "\\b(use|as|fn|type|struct|enum|interface|var|const|test|nil|true|false)\\b" }
+      ]
+    },
+    "types": {
+      "patterns": [
+        { "name": "storage.type.ink", "match": "\\b(void|bool|i8|i16|i32|i64|u8|u16|u32|u64|int|uint|usize|isize|f32|f64|str|rune|byte|any|error|Duration|Type|map)\\b" },
+        { "name": "entity.name.type.ink", "match": "\\b[A-Z][A-Za-z0-9_]*\\b" }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        { "name": "entity.name.function.ink", "match": "\\bfn\\s+([a-z_][A-Za-z0-9_]*)" },
+        { "name": "keyword.operator.ink", "match": "=>|->" }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.ink", "match": "(<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|<<|>>|=>|\\.\\.\\.|[+\\-*/%&|^~!<>=])" }
+      ]
+    }
+  }
+}

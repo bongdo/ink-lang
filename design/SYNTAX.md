@@ -1,4 +1,6 @@
-# Strizh — syntax v0
+> **Historical.** The current language is [`SPEC.md`](SPEC.md); the agent workflow is [`AGENTS.md`](../AGENTS.md).
+
+# Ink — syntax v0
 
 - **Статус:** исторический снимок v0 (до 0.2). Не источник истины: актуальная
   спецификация — [`SPEC.md`](SPEC.md).
@@ -14,7 +16,7 @@
 
 ## 0. Идентичность
 
-Strizh = **Go runtime + Hare-подобный синтаксис + sum types + scoped parallelism**.
+Ink = **Go runtime + Hare-подобный синтаксис + sum types + scoped parallelism**.
 
 - Не системный язык с C backend. «C speed» не обещаем; обещаем Go speed,
   а в hot path — значения и срезы.
@@ -51,7 +53,7 @@ use mypkg as m;
 ```
 
 - `use fmt;` — Go-пакет; дальше `fmt.Println`.
-- `use mypkg;` — модуль Strizh; дальше `mypkg.Foo`.
+- `use mypkg;` — модуль Ink; дальше `mypkg.Foo`.
 - `use mypkg as m;` — алиас.
 - Go-имена внутри импортированных пакетов остаются Go-именами:
   `fmt.Println`, `strings.ToUpper`, `os.Open`.
@@ -440,12 +442,12 @@ if (cache.Has(key)) {
   иначе Go-экосистема недоступна.
 - `context` в app-коде не появляется; `par`/`within` прячут его (§10.7).
 - Кодоген в Go:
-  - `//line`-директивы, чтобы stack traces/Delve показывали Strizh-файлы;
+  - `//line`-директивы, чтобы stack traces/Delve показывали Ink-файлы;
   - `go/format`.
 - `unsafe` не нужен ни в кодогене, ни в прикладном коде.
 - Маппинг типов:
 
-| Strizh | Go |
+| Ink | Go |
 |---|---|
 | `str` | `string` |
 | `u8` / `u16` / `u32` / `u64` | `uint8` / `uint16` / `uint32` / `uint64` |
@@ -462,7 +464,7 @@ if (cache.Has(key)) {
 | `interface` | Go interface |
 | `enum` | tagged struct/interface (TBD) |
 
-- Методы внутри Strizh-типа кодоген выносит наружу:
+- Методы внутри Ink-типа кодоген выносит наружу:
   `fn Write` → `func (self *T) Write`.
 - Видимость по регистру совпадает с Go: `Write` → `Write`, `write` → `write`.
 
@@ -647,13 +649,13 @@ par for (var i = 0; i < n; i += 1) {
 ### 10.7. `context` не существует
 
 `par`/`within` создают контекст сами, отменяют его при ошибке, панике и
-выходе из функции. В Strizh-коде `ctx` не пишется нигде: ни в сигнатурах,
+выходе из функции. В Ink-коде `ctx` не пишется нигде: ни в сигнатурах,
 ни в вызовах, ни в типах. Кодоген подставляет его в Go-вызовы, у которых
 он первый параметр.
 
 На границе Go-интерфейса (например, `tea.Model.Update`) кодоген генерирует
 публичную обёртку с точной Go-сигнатурой и внутреннюю ctx-версию. Пользователь
-пишет один метод; обёртка скрыта в `zz_strizh.go` (G10).
+пишет один метод; обёртка скрыта в `zz_ink.go` (G10).
 
 ### 10.8. Кодоген и замеры
 
@@ -707,7 +709,7 @@ boundary на воркер; у каждого воркера свой `DeferStac
 - динамического race detector в компиляторе нет: `go build -race` — оракул
   (G11).
 
-Инфраструктуру (прокси, драйверы, брокеры) на Strizh не пишем — берём из Go.
+Инфраструктуру (прокси, драйверы, брокеры) на Ink не пишем — берём из Go.
 
 ---
 
@@ -753,10 +755,10 @@ boundary на воркер; у каждого воркера свой `DeferStac
 
 **Модули и процесс**
 
-- `use mypkg`: где ищется пакет, как группируются файлы, `strizh.toml`.
+- `use mypkg`: где ищется пакет, как группируются файлы, `ink.toml`.
 - Верхнеуровневые `var` и порядок инициализации.
 - Строковые escapes, интерполяция.
-- Build/tooling: `strizh build/run/test`, LSP.
+- Build/tooling: `ink build/run/test`, LSP.
 - Тесты: синтаксис `test`-функций.
 - FFI: cgo/manifest; не приоритет.
 - Многопоточка: потоки без материализации и параллельные пайплайны — когда

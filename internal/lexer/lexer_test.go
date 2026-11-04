@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func mustLex(t *testing.T, src string) ([]token.Token, []Comment, []Error) {

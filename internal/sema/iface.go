@@ -5,7 +5,7 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
+	"github.com/bongdo/ink/internal/ast"
 )
 
 type sign struct {

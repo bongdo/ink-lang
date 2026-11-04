@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0f1115">
-<title>Strizh — язык приложений на рантайме Go</title>
-<meta name="description" content="Strizh: Go runtime, Hare-подобный синтаксис, sum types и структурная конкурентность. 0.2 preview: multiple results, type patterns, Go context wrappers.">
+<title>Ink — язык приложений на рантайме Go</title>
+<meta name="description" content="Ink: Go runtime, Hare-подобный синтаксис, sum types и структурная конкурентность. 0.2 preview: multiple results, type patterns, Go context wrappers.">
 <style>
     :root {
         --bg: #0f1115;
@@ -1148,21 +1148,21 @@
 <a class="skip" href="#deck">К содержанию</a>
 
 <header class="topbar">
-    <a class="brand" href="#s1" aria-label="Strizh, к началу">
+    <a class="brand" href="#s1" aria-label="Ink, к началу">
         <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
             <path d="M24 3.5 L34 19.5 L24 44.5 L14 19.5 Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
             <path d="M24 3.5 L24 31" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
             <circle cx="24" cy="36.5" r="2.4" fill="#6fb3a8"/>
         </svg>
-        <span>Strizh</span>
+        <span>Ink</span>
         <span class="brand-sub">0.2 preview</span>
     </a>
-    <span class="topbar-section" id="sectionLabel">00 · Strizh</span>
+    <span class="topbar-section" id="sectionLabel">00 · Ink</span>
     <button class="print-btn" id="printBtn" type="button" hidden>Печать / PDF</button>
 </header>
 
 <main id="deck" tabindex="-1">
-    <section class="slide hero" id="s1" data-title="Strizh" data-section="00 · Strizh">
+    <section class="slide hero" id="s1" data-title="Ink" data-section="00 · Ink">
         <div class="wrap">
             <div class="hero-main">
                 <div class="hero-mark">
@@ -1173,7 +1173,7 @@
                     </svg>
                     <span class="hero-kicker">прикладной язык · рабочее имя</span>
                 </div>
-                <h1>Strizh</h1>
+                <h1>Ink</h1>
                 <p class="lead">Go-рантайм и вся экосистема. Hare-подобный синтаксис. Sum types. Структурная конкурентность блоками.</p>
                 <div class="chips">
                     <span class="chip"><span class="chip-dot"></span>0.2 preview · компилятор, форматтер, LSP</span>
@@ -1181,7 +1181,7 @@
                 </div>
                 <p class="hint js-only">← → ↑ ↓ · Space · PageUp / PageDown · P — печать</p>
             </div>
-            <aside class="equation" aria-label="Формула Strizh">
+            <aside class="equation" aria-label="Формула Ink">
                 <span class="eq-caption">уравнение языка</span>
                 <div class="eq-line"><span class="eq-term">Go runtime</span></div>
                 <div class="eq-op">+</div>
@@ -1191,7 +1191,7 @@
                 <div class="eq-op">+</div>
                 <div class="eq-line"><span class="eq-term">scoped parallelism</span></div>
                 <div class="eq-rule"></div>
-                <div class="eq-result">Strizh</div>
+                <div class="eq-result">Ink</div>
             </aside>
         </div>
     </section>
@@ -1200,7 +1200,7 @@
         <div class="wrap">
             <p class="kicker">01 · Проблема</p>
             <h2 class="wide">Go-экосистема без Go-церемоний.</h2>
-            <p class="sub">Strizh не заменяет Go. Он даёт другой фасад для тех же библиотек: меньше форм, меньше шума, больше намерения в коде.</p>
+            <p class="sub">Ink не заменяет Go. Он даёт другой фасад для тех же библиотек: меньше форм, меньше шума, больше намерения в коде.</p>
             <div class="grid three">
                 <article class="card">
                     <span class="num">01</span>
@@ -1215,7 +1215,7 @@
                 <article class="card">
                     <span class="num">03</span>
                     <h3>Go — через границу</h3>
-                    <p>Тот же <code>use</code>, но Go-типы не протекают в app API. Сложные библиотеки — через тонкий Strizh-фасад; raw Go — escape hatch.</p>
+                    <p>Тот же <code>use</code>, но Go-типы не протекают в app API. Сложные библиотеки — через тонкий Ink-фасад; raw Go — escape hatch.</p>
                 </article>
             </div>
             <p class="callout">В прикладном коде нет видимого <code>context</code>. Нет «цвета функций». Нет <code>unsafe</code>.</p>
@@ -1255,7 +1255,7 @@
                 <article class="principle">
                     <span class="num">06</span>
                     <h3>FFI с тонким фасадом</h3>
-                    <p>Go остаётся Go. App-код видит Strizh API; адаптер живёт на границе, а не в каждом вызове.</p>
+                    <p>Go остаётся Go. App-код видит Ink API; адаптер живёт на границе, а не в каждом вызове.</p>
                 </article>
             </div>
             <p class="callout teal">Цель — не заменить Go. Цель — убрать из прикладного кода всё, что не является задачей.</p>
@@ -1266,7 +1266,7 @@
         <div class="wrap">
             <p class="kicker">03 · Синтаксис</p>
             <h2>Каркас: импорты, значения, формы типов.</h2>
-            <p class="sub">Точка выбирает, скобки вызывают. Тип — в значении; <code>var</code> всегда с initializer.</p>
+            <p class="sub">Точка выбирает, скобки вызывают. Тип можно написать в <code>var</code> или вывести из значения; initializer обязателен.</p>
             <div class="grid two">
                 <div class="stack">
                     <figure class="code">
@@ -1276,17 +1276,17 @@
 <span class="kw">use</span> <span class="st">"charm.land/bubbletea/v2"</span> <span class="kw">as</span> tea;</code></pre>
                     </figure>
                     <figure class="code">
-                        <figcaption><span>main.str</span><span class="badge teal">значения</span></figcaption>
+                        <figcaption><span>main.ink</span><span class="badge teal">значения</span></figcaption>
                         <pre><code><span class="kw">use</span> fmt;
 
 <span class="kw">const</span> MaxUsers = <span class="nu">100</span>;
 
-<span class="kw">type</span> Point = <span class="kw">struct</span> {
+<span class="kw">type</span> Point <span class="kw">struct</span> {
     x: <span class="ty">f64</span>,
     y: <span class="ty">f64</span>,
 };
 
-<span class="kw">fn</span> main() <span class="ty">void</span> <span class="kw">or</span> <span class="ty">error</span> = {
+<span class="kw">fn</span> main() <span class="ty">void</span> <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> n = <span class="nu">42</span>;
     <span class="kw">var</span> xs = <span class="ty">i32</span>[] {<span class="nu">1</span>, <span class="nu">2</span>, <span class="nu">3</span>};
     <span class="kw">var</span> grid = <span class="ty">i32</span>[<span class="nu">4</span>] {};
@@ -1330,17 +1330,17 @@
             <p class="sub">Поля и методы — внутри типа. Получатель всегда <code>*T</code> и никогда не пишется в сигнатуре.</p>
             <div class="grid two">
                 <figure class="code">
-                    <figcaption><span>buffer.str</span><span class="badge">struct · self</span></figcaption>
-                    <pre><code><span class="kw">type</span> Buffer = <span class="kw">struct</span> {
+                    <figcaption><span>buffer.ink</span><span class="badge">struct · self</span></figcaption>
+                    <pre><code><span class="kw">type</span> Buffer <span class="kw">struct</span> {
     data: <span class="ty">u8</span>[],
     name: <span class="ty">str</span>,
 
-    <span class="kw">fn</span> Write(p: <span class="ty">u8</span>[]) <span class="ty">int</span> <span class="kw">or</span> <span class="ty">error</span> = {
+    <span class="kw">fn</span> Write(p: <span class="ty">u8</span>[]) <span class="ty">int</span> <span class="kw">or</span> <span class="ty">error</span> {
         data = append(data, p...);
         <span class="kw">return</span> len(p);
     };
 
-    <span class="kw">fn</span> WithName(name: <span class="ty">str</span>) *Buffer = {
+    <span class="kw">fn</span> WithName(name: <span class="ty">str</span>) *Buffer {
         <span class="self">self</span>.name = name;
         <span class="kw">return</span> <span class="self">self</span>;
     };
@@ -1358,7 +1358,7 @@
                     </div>
                     <figure class="code">
                         <figcaption><span>чтение по значению</span><span class="badge teal">free function</span></figcaption>
-                        <pre><code><span class="kw">fn</span> nameOf(b: Buffer) <span class="ty">str</span> = {
+                        <pre><code><span class="kw">fn</span> nameOf(b: Buffer) <span class="ty">str</span> {
     <span class="kw">return</span> b.name;
 };</code></pre>
                     </figure>
@@ -1374,8 +1374,8 @@
             <p class="sub">Enum — sealed-тип. <code>match</code> обязан покрыть все варианты; <code>_</code> для enum не нужен.</p>
             <div class="grid two">
                 <figure class="code">
-                    <figcaption><span>shape.str</span><span class="badge">sealed enum</span></figcaption>
-                    <pre><code><span class="kw">type</span> Shape = <span class="kw">enum</span> {
+                    <figcaption><span>shape.ink</span><span class="badge">sealed enum</span></figcaption>
+                    <pre><code><span class="kw">type</span> Shape <span class="kw">enum</span> {
     Circle { radius: <span class="ty">f64</span> },
     Rect { w: <span class="ty">f64</span>, h: <span class="ty">f64</span> },
     Empty,
@@ -1383,7 +1383,7 @@
                 </figure>
                 <figure class="code">
                     <figcaption><span>area</span><span class="badge teal">exhaustive match</span></figcaption>
-                    <pre><code><span class="kw">fn</span> area(s: <span class="ty">Shape</span>) <span class="ty">f64</span> = {
+                    <pre><code><span class="kw">fn</span> area(s: <span class="ty">Shape</span>) <span class="ty">f64</span> {
     <span class="kw">return</span> <span class="kw">match</span> (s) {
     <span class="kw">case</span> Circle { radius } =&gt; <span class="nu">3.14159</span> * radius * radius;
     <span class="kw">case</span> Rect { w, h } =&gt; w * h;
@@ -1407,7 +1407,7 @@
                         <figcaption><span>read</span><span class="badge">T or error</span></figcaption>
                         <pre><code><span class="kw">use</span> os;
 
-<span class="kw">fn</span> read(path: <span class="ty">str</span>) <span class="ty">u8</span>[] <span class="kw">or</span> <span class="ty">error</span> = {
+<span class="kw">fn</span> read(path: <span class="ty">str</span>) <span class="ty">u8</span>[] <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> f = os.Open(path) <span class="kw">or</span> <span class="kw">return</span>;
     defer f.Close();
 
@@ -1448,14 +1448,14 @@
             <div class="grid two">
                 <figure class="code">
                     <figcaption><span>Stack</span><span class="badge">generic type</span></figcaption>
-                    <pre><code><span class="kw">type</span> Stack[Item] = <span class="kw">struct</span> {
+                    <pre><code><span class="kw">type</span> Stack[Item] <span class="kw">struct</span> {
     data: Item[],
 
-    <span class="kw">fn</span> Push(x: Item) <span class="ty">void</span> = {
+    <span class="kw">fn</span> Push(x: Item) <span class="ty">void</span> {
         data = append(data, x);
     };
 
-    <span class="kw">fn</span> Len() <span class="ty">int</span> = {
+    <span class="kw">fn</span> Len() <span class="ty">int</span> {
         <span class="kw">return</span> len(data);
     };
 };
@@ -1464,7 +1464,7 @@
                 </figure>
                 <figure class="code">
                     <figcaption><span>Map</span><span class="badge teal">generic function</span></figcaption>
-                    <pre><code><span class="kw">fn</span> Map[In, Out](xs: In[], f: <span class="kw">fn</span>(In) Out) Out[] = {
+                    <pre><code><span class="kw">fn</span> Map[In, Out](xs: In[], f: <span class="kw">fn</span>(In) Out) Out[] {
     <span class="kw">var</span> out = Out[] {};
     <span class="kw">for</span> (<span class="kw">var</span> x <span class="kw">in</span> xs) {
         out = append(out, f(x));
@@ -1488,18 +1488,18 @@
             <div class="compare">
                 <figure class="code">
                     <figcaption><span>0.1 · через struct</span><span class="badge">было</span></figcaption>
-                    <pre><code><span class="kw">type</span> Pair = <span class="kw">struct</span> {
+                    <pre><code><span class="kw">type</span> Pair <span class="kw">struct</span> {
     left: <span class="ty">i32</span>,
     right: <span class="ty">i32</span>,
 };
 
-<span class="kw">fn</span> pair() Pair = {
+<span class="kw">fn</span> pair() Pair {
     <span class="kw">return</span> Pair { left = <span class="nu">3</span>, right = <span class="nu">7</span> };
 };</code></pre>
                 </figure>
                 <figure class="code">
                     <figcaption><span>0.2 · список</span><span class="badge teal">стало</span></figcaption>
-                    <pre><code><span class="kw">fn</span> pair() <span class="ty">i32</span>, <span class="ty">i32</span> = {
+                    <pre><code><span class="kw">fn</span> pair() <span class="ty">i32</span>, <span class="ty">i32</span> {
     <span class="kw">return</span> <span class="nu">3</span>, <span class="nu">7</span>;
 };
 
@@ -1510,7 +1510,7 @@
                 <div class="card">
                     <h3>Синтаксис</h3>
                     <ul class="rules">
-                        <li>В объявлении — через запятую: <code>fn f() A, B or error = { ... };</code></li>
+                        <li>В объявлении — через запятую: <code>fn f() A, B or error { ... };</code></li>
                         <li>В типе функции — в скобках: <code>fn(i32) (str, bool)</code>.</li>
                         <li><code>T or error</code> — сахар для последнего <code>error</code>.</li>
                     </ul>
@@ -1528,7 +1528,7 @@
                 <figcaption><span>parse</span><span class="badge">результат + error</span></figcaption>
                 <pre><code><span class="kw">use</span> strconv;
 
-<span class="kw">fn</span> parse(s: <span class="ty">str</span>) <span class="ty">int</span>, <span class="ty">bool</span> <span class="kw">or</span> <span class="ty">error</span> = {
+<span class="kw">fn</span> parse(s: <span class="ty">str</span>) <span class="ty">int</span>, <span class="ty">bool</span> <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> n = strconv.Atoi(s) <span class="kw">or</span> <span class="kw">return</span>;
     <span class="kw">return</span> n, <span class="kw">true</span>;
 };</code></pre>
@@ -1546,7 +1546,7 @@
                     <figcaption><span>describe</span><span class="badge teal">0.2</span></figcaption>
                     <pre><code><span class="kw">use</span> <span class="st">"charm.land/bubbletea/v2"</span> <span class="kw">as</span> tea;
 
-<span class="kw">fn</span> describe(msg: <span class="ty">tea.Msg</span>) <span class="ty">str</span> = {
+<span class="kw">fn</span> describe(msg: <span class="ty">tea.Msg</span>) <span class="ty">str</span> {
     <span class="kw">return</span> <span class="kw">match</span> (msg) {
     <span class="kw">case</span> <span class="ty">tea.KeyPressMsg</span> <span class="kw">as</span> k =&gt; <span class="st">"key: "</span> + k.String();
     <span class="kw">case</span> <span class="ty">tea.WindowSizeMsg</span> =&gt; <span class="st">"resize"</span>;
@@ -1585,41 +1585,41 @@
                 <div class="stack">
                     <figure class="code">
                         <figcaption><span>nil</span><span class="badge teal">0.2</span></figcaption>
-                        <pre><code><span class="kw">fn</span> stop() <span class="ty">tea.Cmd</span> = {
+                        <pre><code><span class="kw">fn</span> stop() <span class="ty">tea.Cmd</span> {
     <span class="kw">return</span> <span class="kw">nil</span>;
 };
 
-<span class="kw">type</span> Model = <span class="kw">struct</span> {
-    <span class="kw">fn</span> Update(msg: <span class="ty">tea.Msg</span>) <span class="ty">tea.Model</span>, <span class="ty">tea.Cmd</span> = {
+<span class="kw">type</span> Model <span class="kw">struct</span> {
+    <span class="kw">fn</span> Update(msg: <span class="ty">tea.Msg</span>) <span class="ty">tea.Model</span>, <span class="ty">tea.Cmd</span> {
         <span class="kw">return</span> <span class="self">self</span>, <span class="kw">nil</span>;
     };
 };
 
-<span class="kw">var</span> cmd = <span class="kw">nil</span>[<span class="ty">tea.Cmd</span>];</code></pre>
+<span class="kw">var</span> cmd: <span class="ty">tea.Cmd</span> = <span class="kw">nil</span>;</code></pre>
                     </figure>
                     <div class="card">
                         <h3>Правило</h3>
                         <ul class="rules">
-                            <li>Известен ожидаемый тип — можно <code>nil</code>: <code>return nil;</code>, <code>return self, nil;</code>, аргумент.</li>
-                            <li>Неоднозначно — <code>nil[T]</code>: <code>var cmd = nil[tea.Cmd];</code>.</li>
+                            <li>Известен ожидаемый тип — можно <code>nil</code>: <code>var p: *Node = nil;</code>, <code>return nil;</code>, <code>return self, nil;</code>, аргумент.</li>
+                            <li><code>nil[T]</code> — explicit escape hatch для <code>any</code>/interface, не обычная форма.</li>
                             <li><code>nil</code> — для указателей, срезов, map, функций и интерфейсов.</li>
                         </ul>
-                        <p class="footnote">0.1: <code>return nil[tea.Cmd];</code> → 0.2: <code>return nil;</code></p>
+                        <p class="footnote">0.1: <code>return nil[tea.Cmd];</code> → 0.2: <code>var cmd: tea.Cmd = nil;</code></p>
                     </div>
                 </div>
                 <div class="stack">
                     <figure class="code">
                         <figcaption><span>self</span><span class="badge">остаётся</span></figcaption>
-                        <pre><code><span class="kw">type</span> User = <span class="kw">struct</span> {
+                        <pre><code><span class="kw">type</span> User <span class="kw">struct</span> {
     Name: <span class="ty">str</span>,
     age: <span class="ty">u32</span>,
 
-    <span class="kw">fn</span> WithAge(age: <span class="ty">u32</span>) *User = {
+    <span class="kw">fn</span> WithAge(age: <span class="ty">u32</span>) *User {
         <span class="self">self</span>.age = age;
         <span class="kw">return</span> <span class="self">self</span>;
     };
 
-    <span class="kw">fn</span> Rename(Name: <span class="ty">str</span>) <span class="ty">void</span> = {
+    <span class="kw">fn</span> Rename(Name: <span class="ty">str</span>) <span class="ty">void</span> {
         <span class="self">self</span>.Name = Name;
     };
 };</code></pre>
@@ -1644,8 +1644,8 @@
             <p class="sub">Внутри <code>par</code> — независимые операторы. На <code>}</code> блок дожидается всех; утечь нечему.</p>
             <div class="grid two">
                 <figure class="code">
-                    <figcaption><span>dashboard.str</span><span class="badge teal">par</span></figcaption>
-                    <pre><code><span class="kw">fn</span> loadDashboard(id: <span class="ty">u64</span>) Dashboard <span class="kw">or</span> <span class="ty">error</span> = {
+                    <figcaption><span>dashboard.ink</span><span class="badge teal">par</span></figcaption>
+                    <pre><code><span class="kw">fn</span> loadDashboard(id: <span class="ty">u64</span>) Dashboard <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> users = User[] {};
     <span class="kw">var</span> orders = Order[] {};
 
@@ -1683,7 +1683,7 @@
                     <figcaption><span>fetchAll</span><span class="badge teal">par for + within</span></figcaption>
                     <pre><code><span class="kw">const</span> MaxURLs = <span class="nu">64</span>;
 
-<span class="kw">fn</span> fetchAll(urls: <span class="ty">str</span>[]) Page[] <span class="kw">or</span> <span class="ty">error</span> = {
+<span class="kw">fn</span> fetchAll(urls: <span class="ty">str</span>[]) Page[] <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> pages = Page[MaxURLs] {};
 
     <span class="kw">within</span> <span class="nu">30s</span> {
@@ -1700,7 +1700,7 @@
                         <h3>Правила</h3>
                         <ul class="rules">
                             <li><code>limit N</code> — потолок одновременных итераций; по умолчанию — <code>GOMAXPROCS</code>.</li>
-                            <li>Ошибка отменяет остальные; возвращается ошибка с наименьшим индексом. Для map индекса нет: побеждает первая дошедшая.</li>
+                            <li>Ошибка отменяет остальные; возвращается ошибка с наименьшим индексом. <code>par for</code> по map запрещён: сначала ключи в slice. <code>for ()</code> внутри <code>par</code> тоже запрещён.</li>
                             <li><code>within</code> работает и без <code>par</code>; вложенность берёт минимальный дедлайн; внутри воркера дедлайн не меняет соседей.</li>
                             <li><code>par for (var x in xs)</code> работает так же.</li>
                             <li><code>defer</code> блочный: в обычном цикле ресурс закрывается на итерации; внутри <code>par</code> — свой stack воркера, очистка на его выходе.</li>
@@ -1719,13 +1719,13 @@
             <p class="sub"><code>tea.Model</code> — обычный Go-интерфейс. <code>*Model</code> реализует его структурно: три метода, ни одного <code>ctx</code>.</p>
             <div class="grid two">
                 <figure class="code">
-                    <figcaption><span>main.str</span><span class="badge teal">0.2 · bubbletea/v2.1.0</span></figcaption>
+                    <figcaption><span>main.ink</span><span class="badge teal">0.2 · bubbletea/v2.1.0</span></figcaption>
                     <pre><code><span class="kw">use</span> <span class="st">"charm.land/bubbletea/v2"</span> <span class="kw">as</span> tea;
 
-<span class="kw">type</span> Model = <span class="kw">struct</span> {
-    <span class="kw">fn</span> Init() <span class="ty">tea.Cmd</span> = { <span class="kw">return</span> <span class="kw">nil</span>; };
+<span class="kw">type</span> Model <span class="kw">struct</span> {
+    <span class="kw">fn</span> Init() <span class="ty">tea.Cmd</span> { <span class="kw">return</span> <span class="kw">nil</span>; };
 
-    <span class="kw">fn</span> Update(msg: <span class="ty">tea.Msg</span>) <span class="ty">tea.Model</span>, <span class="ty">tea.Cmd</span> = {
+    <span class="kw">fn</span> Update(msg: <span class="ty">tea.Msg</span>) <span class="ty">tea.Model</span>, <span class="ty">tea.Cmd</span> {
         <span class="kw">match</span> (msg) {
         <span class="kw">case</span> <span class="ty">tea.KeyPressMsg</span> <span class="kw">as</span> k =&gt; {
             <span class="kw">if</span> (k.String() == <span class="st">"q"</span>) {
@@ -1737,10 +1737,10 @@
         <span class="kw">return</span> <span class="self">self</span>, <span class="kw">nil</span>;
     };
 
-    <span class="kw">fn</span> View() <span class="ty">tea.View</span> = { <span class="kw">return</span> tea.NewView(<span class="st">"press q to quit"</span>); };
+    <span class="kw">fn</span> View() <span class="ty">tea.View</span> { <span class="kw">return</span> tea.NewView(<span class="st">"press q to quit"</span>); };
 };
 
-<span class="kw">fn</span> main() <span class="ty">void</span> <span class="kw">or</span> <span class="ty">error</span> = {
+<span class="kw">fn</span> main() <span class="ty">void</span> <span class="kw">or</span> <span class="ty">error</span> {
     <span class="kw">var</span> m = Model {};
     <span class="kw">var</span> p = tea.NewProgram(&amp;m);
     p.Run() <span class="kw">or</span> <span class="kw">return</span>;
@@ -1770,13 +1770,13 @@
             <p class="sub"><code>par</code> и <code>within</code> — фича языка. Context остаётся внутри кодогена, даже когда метод реализует Go-интерфейс.</p>
             <div class="g10">
                 <div class="g10-col">
-                    <span class="g10-label">Strizh</span>
+                    <span class="g10-label">Ink</span>
                     <div class="g10-box">fn Update(msg: tea.Msg) tea.Model, tea.Cmd<span>один метод, без ctx</span></div>
                     <div class="g10-box">тело с par / within<span>без ctx в сигнатуре</span></div>
                 </div>
                 <div class="g10-arrow" aria-hidden="true">→</div>
                 <div class="g10-col">
-                    <span class="g10-label">zz_strizh.go</span>
+                    <span class="g10-label">zz_ink.go</span>
                     <div class="g10-box">Update(...) — публичная обёртка<span>точная Go-сигнатура</span></div>
                     <div class="g10-box">_s_Model_Update_ctx(self, _s_ctx, …) — тело<span>здесь живут par / within</span></div>
                 </div>
@@ -1787,7 +1787,7 @@
                     <ul class="rules">
                         <li>Генерирует обёртку с точной Go-сигнатурой.</li>
                         <li>Внутренняя версия получает скрытый <code>ctx</code> и вызывает <code>par</code>/<code>within</code>.</li>
-                        <li>Обёртка скрыта в <code>zz_strizh.go</code>; пользователь пишет один метод.</li>
+                        <li>Обёртка скрыта в <code>zz_ink.go</code>; пользователь пишет один метод.</li>
                     </ul>
                 </div>
                 <div class="card">
@@ -1806,7 +1806,7 @@
     <section class="slide" id="s16" data-title="Внутренняя кухня" data-section="07 · Внутри">
         <div class="wrap">
             <p class="kicker">07 · Внутри</p>
-            <h2>От <code>.str</code> до Go binary.</h2>
+            <h2>От <code>.ink</code> до Go binary.</h2>
             <p class="sub">Один компилятор: build, run, check, test, fmt и lsp используют один parser и один sema.</p>
             <div class="grid two">
                 <div class="flow">
@@ -1822,16 +1822,16 @@
                 </div>
                 <div class="stack">
                     <div class="card">
-                        <h3>zz_strizh.go</h3>
+                        <h3>zz_ink.go</h3>
                         <p>Сгенерированный Go рядом с исходниками; форматируется <code>go/format</code>.</p>
                     </div>
                     <div class="card">
-                        <h3>.strizh/runtime</h3>
+                        <h3>.ink/runtime</h3>
                         <p>Support-пакет: <code>DeferStack</code>, asserts, <code>has</code>, помощники <code>par</code>.</p>
                     </div>
                     <div class="card">
                         <h3>//line</h3>
-                        <p>Ошибки Go и stack traces показывают <code>.str</code>, а не сгенерированный файл.</p>
+                        <p>Ошибки Go и stack traces показывают <code>.ink</code>, а не сгенерированный файл.</p>
                     </div>
                     <div class="card">
                         <h3>LSP</h3>
@@ -1839,11 +1839,11 @@
                     </div>
                     <div class="card">
                         <h3>typecheck</h3>
-                        <p><code>internal/typecheck</code>: Go в памяти, <code>go/packages</code> + overlay, позиции через <code>//line</code>. Работает в <code>strizh check</code> и LSP.</p>
+                        <p><code>internal/typecheck</code>: Go в памяти, <code>go/packages</code> + overlay, позиции через <code>//line</code>. Работает в <code>ink check</code> и LSP.</p>
                     </div>
                 </div>
             </div>
-            <p class="callout">Sema проверяет Strizh-правила и method sets; <code>strizh check</code> прогоняет Go typecheck через <code>internal/typecheck</code>. <code>go build</code> остаётся финальным оракулом.</p>
+            <p class="callout">Sema проверяет Ink-правила и method sets; <code>ink check</code> прогоняет Go typecheck через <code>internal/typecheck</code>. <code>go build</code> остаётся финальным оракулом.</p>
             <p class="footnote"><a href="internals.html">Подробнее — internals.html →</a></p>
         </div>
     </section>
@@ -1895,10 +1895,10 @@
                         <path d="M24 3.5 L24 31" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
                         <circle cx="24" cy="36.5" r="2.4" fill="#6fb3a8"/>
                     </svg>
-                    <h2>Strizh</h2>
+                    <h2>Ink</h2>
                 </div>
                 <p class="sub">Прикладной язык с рантаймом Go. 0.2 preview — multiple results, type patterns, G10, typecheck и par core; остальное — текущие пределы или осознанный отказ.</p>
-                <p class="footnote">Strizh — рабочее имя.<br>0.2 preview — текущая линия; 1.0 не обещан.</p>
+                <p class="footnote">Ink — рабочее имя.<br>0.2 preview — текущая линия; 1.0 не обещан.</p>
             </div>
             <nav class="links" aria-label="Документы">
                 <a href="../../design/SPEC.md"><span class="link-name">Спецификация</span><span class="link-path">design/SPEC.md</span></a>
@@ -1982,9 +1982,9 @@
             if (i === index) dot.setAttribute('aria-current', 'true');
             else dot.removeAttribute('aria-current');
         });
-        document.title = (slides[index].dataset.title || 'Strizh') === 'Strizh'
-            ? 'Strizh — язык приложений на рантайме Go'
-            : `${slides[index].dataset.title} — Strizh`;
+        document.title = (slides[index].dataset.title || 'Ink') === 'Ink'
+            ? 'Ink — язык приложений на рантайме Go'
+            : `${slides[index].dataset.title} — Ink`;
     }
 
     function update() {

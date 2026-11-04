@@ -1,4 +1,4 @@
-# Strizh — граница Go (FFI)
+# Ink — граница Go (FFI)
 
 **Статус:** концепция для 1.0. Описывает целевую границу, а не только 0.2.
 **Связано:** [ONE_WAY.md](ONE_WAY.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
@@ -6,13 +6,13 @@
 
 ## 1. Позиция
 
-Strizh не заменяет Go runtime и экосистему. Он компилируется в Go, живёт на
+Ink не заменяет Go runtime и экосистему. Он компилируется в Go, живёт на
 Go scheduler/GC и вызывает Go-пакеты. Это не временное решение, а основа
 языка.
 
 Обратная сторона: Go не должен стать вторым языком приложения. Если
 `context.Context`, `*http.Client`, `sync.Mutex` и `if err != nil` расходятся
-по домену, Strizh превращается в Go с точками с запятой. Граница должна быть
+по домену, Ink превращается в Go с точками с запятой. Граница должна быть
 явной и узкой.
 
 Правило:
@@ -20,16 +20,16 @@ Go scheduler/GC и вызывает Go-пакеты. Это не временн�
 - **Go runtime/ecosystem остаётся.**
 - **Raw Go — foreign layer и escape hatch.** Он живёт в адаптере, а не в
   app-коде.
-- **App-код видит простой Strizh API.** Если ему нужен Go-тип, чтобы
+- **App-код видит простой Ink API.** Если ему нужен Go-тип, чтобы
   работать, граница проведена неправильно.
 
 «Foreign layer» — это место, а не настроение: один каталог, один владелец,
 один API. Если один и тот же сложный Go-пакет импортируется из нескольких
 app-файлов, границы уже нет.
 
-Escape hatch тоже живёт здесь. В Strizh нет `unsafe`-блока или «доверенной
+Escape hatch тоже живёт здесь. В Ink нет `unsafe`-блока или «доверенной
 секции» внутри функции: если для задачи нужен raw Go, код переезжает в
-`bindings/` или `ffi/`, а app-код продолжает видеть Strizh API. Это дороже
+`bindings/` или `ffi/`, а app-код продолжает видеть Ink API. Это дороже
 одной строки `use`, но именно поэтому граница остаётся видимой.
 
 Это архитектурная граница, не sandbox. Go-код доверенный и может делать всё,
@@ -39,18 +39,18 @@ Escape hatch тоже живёт здесь. В Strizh нет `unsafe`-блок�
 
 | Слой | Что это | Что можно | Что нельзя |
 |---|---|---|---|
-| App | домен и UI на Strizh | Strizh-типы, `or`, `par`, `within` | `context.Context`, Go-интерфейсы и указатели в публичном API, `sync`/`atomic`, `go`/`chan` |
-| Facade | Strizh-модуль с простым API | `use` Go-пакета внутри, маппинг типов | протаскивать Go-типы в сигнатуры |
+| App | домен и UI на Ink | Ink-типы, `or`, `par`, `within` | `context.Context`, Go-интерфейсы и указатели в публичном API, `sync`/`atomic`, `go`/`chan` |
+| Facade | Ink-модуль с простым API | `use` Go-пакета внутри, маппинг типов | протаскивать Go-типы в сигнатуры |
 | Binding | Go-пакет для сложной библиотеки | всё, что нужно Go: ctx, goroutines, callbacks, locks | попадать в app-код напрямую |
-| Generated | `zz_strizh.go`, `.strizh/runtime` | генерируется компилятором | править руками |
+| Generated | `zz_ink.go`, `.ink/runtime` | генерируется компилятором | править руками |
 
 Рекомендуемая раскладка:
 
 ```text
 app/
-  main.str
-  domain/user.str
-  ffi/httpc.str          // facade: единственный файл, знающий про httpc
+  main.ink
+  domain/user.ink
+  ffi/httpc.ink          // facade: единственный файл, знающий про httpc
   bindings/httpc/        // Go-пакет, только если facade не справляется
     client.go
 ```
@@ -82,19 +82,19 @@ use sort;
 сложная по своей природе (сетевой клиент, БД, UI-тулкит, драйвер) — facade
 плюс, скорее всего, Go-binding.
 
-### 2.2. Когда нужен Go-binding, а не Strizh-facade
+### 2.2. Когда нужен Go-binding, а не Ink-facade
 
-Strizh-facade достаточно, если маппинг — это тонкая обёртка: вызвать
+Ink-facade достаточно, если маппинг — это тонкая обёртка: вызвать
 функцию, переложить поля, вернуть `or error`. Go-binding нужен, когда:
 
 - библиотека держит callbacks и вызывает их из своих goroutine;
-- нужен `context.Context`, который нельзя провести через Strizh-сигнатуру;
+- нужен `context.Context`, который нельзя провести через Ink-сигнатуру;
 - есть generics, variadic-интерфейсы или value-receiver интерфейсы;
 - нужна своя модель locking/atomic;
 - нужно управлять lifetime (регистрация/отмена подписки, пул, reconnect);
-- ошибки надо превратить в устойчивый Strizh-enum, а не в строки.
+- ошибки надо превратить в устойчивый Ink-enum, а не в строки.
 
-Binding — обычный Go-пакет с маленьким API, спроектированным под Strizh.
+Binding — обычный Go-пакет с маленьким API, спроектированным под Ink.
 Он может позволить себе Go-идиомы, потому что его никто, кроме facade, не
 видит.
 
@@ -102,10 +102,10 @@ Binding — обычный Go-пакет с маленьким API, спроек
 
 ### 3.1. Сигнатуры
 
-Публичный API facade состоит из Strizh-типов:
+Публичный API facade состоит из Ink-типов:
 
 - `str`, `bool`, числа, `T[]`, `T[N]`, `map[K, V]`, `*T`, `fn(...)`, `error`;
-- struct/enum, объявленные в Strizh;
+- struct/enum, объявленные в Ink;
 - opaque handle — struct с unexported полем Go-типа.
 
 Запрещено в публичной сигнатуре:
@@ -114,32 +114,32 @@ Binding — обычный Go-пакет с маленьким API, спроек
 - Go-интерфейс (`http.RoundTripper`, `io.Reader`) как параметр/результат;
 - Go-указатель (`*http.Client`, `*sql.DB`) как параметр/результат;
 - `func`/`chan`/`select`/`go`-типы;
-- имена codegen (`_s_*`, `zz_strizh.go`).
+- имена codegen (`_s_*`, `zz_ink.go`).
 
 Opaque handle выглядит так:
 
 ```hare
 use "example.com/app/bindings/httpc" as httpc;
 
-type Response = struct {
+type Response struct {
     Status: i32,
     Body: str,
 };
 
-type Client = struct {
+type Client struct {
     h: *httpc.Client,
 
-    fn Get(url: str) Response or error = {
+    fn Get(url: str) Response or error {
         var r = h.Get(url) or return;
         return Response { Status = r.Status, Body = r.Body };
     };
 
-    fn Close() void or error = {
+    fn Close() void or error {
         return h.Close();
     };
 };
 
-fn NewClient(base: str) Client or error = {
+fn NewClient(base: str) Client or error {
     var h = httpc.New(base) or return;
     return Client { h = h };
 };
@@ -163,19 +163,19 @@ App-код видит `Client`, `Response`, `NewClient`, `Get`, `Close`. Он н
 
 ### 3.3. Ошибки
 
-- Go `error` → Strizh `error`; facade возвращает `T or error` или
+- Go `error` → Ink `error`; facade возвращает `T or error` или
   `void or error`.
 - `errors.Is`/`errors.As` остаются в адаптере. App-код не должен знать
-  Go-типы ошибок; если нужна классификация, facade отдаёт Strizh-enum:
+  Go-типы ошибок; если нужна классификация, facade отдаёт Ink-enum:
 
 ```hare
-type ErrorKind = enum {
+type ErrorKind enum {
     NotFound,
     Timeout,
     Other,
 };
 
-fn Kind(err: error) ErrorKind = { ... };
+fn Kind(err: error) ErrorKind { ... };
 ```
 
 - Ошибку не сравнивают по строке. Строка — для сообщения, не для логики.
@@ -195,11 +195,11 @@ fn Kind(err: error) ErrorKind = { ... };
 - Lifetime регистрации документирован: синхронный callback, до `Close`,
   до первого события, с отменой.
 - Callback не должен запускать `par` и надеяться на deadline вызывающего:
-  он приходит из goroutine библиотеки, а не из Strizh-воркера.
+  он приходит из goroutine библиотеки, а не из Ink-воркера.
 
 ## 4. Hidden context
 
-Внутри Strizh `context` не существует: ни в сигнатурах, ни в типах, ни в
+Внутри Ink `context` не существует: ни в сигнатурах, ни в типах, ни в
 вызовах. `par` и `within` создают и наследуют его сами.
 
 На границе Go есть ровно два варианта:
@@ -214,10 +214,10 @@ fn Kind(err: error) ErrorKind = { ... };
 
 ### 4.1. Где что происходит
 
-| Ситуация | Что видит Strizh | Что происходит на границе |
+| Ситуация | Что видит Ink | Что происходит на границе |
 |---|---|---|
 | Прямой вызов Go-функции с `ctx` первым параметром | ничего | codegen подставляет hidden ctx |
-| Strizh-метод реализует Go-интерфейс с `ctx` | одну реализацию | codegen генерирует публичную Go-обёртку с точной сигнатурой и внутреннюю ctx-версию |
+| Ink-метод реализует Go-интерфейс с `ctx` | одну реализацию | codegen генерирует публичную Go-обёртку с точной сигнатурой и внутреннюю ctx-версию |
 | Go вызывает публичную обёртку с `ctx` в сигнатуре | ничего | explicit ctx проходит в внутреннюю версию |
 | Go вызывает публичную обёртку без `ctx` | ничего | обёртка стартует с `context.Background()` |
 | `within` вокруг прямого Go-вызова | deadline | настоящий ctx уходит в вызов |
@@ -226,8 +226,8 @@ fn Kind(err: error) ErrorKind = { ... };
 | Вызов через function value | ничего | ctx не переносится; обёртка стартует с Background |
 
 Обёртка генерируется в Go. Пользователь пишет один метод; в
-`zz_strizh.go` появляются публичная и внутренняя версии. Это не ручной
-код и не повод писать `ctx` в Strizh.
+`zz_ink.go` появляются публичная и внутренняя версии. Это не ручной
+код и не повод писать `ctx` в Ink.
 
 ### 4.2. Правила
 
@@ -242,7 +242,7 @@ fn Kind(err: error) ErrorKind = { ... };
 - Function value/callback с ctx не бывает невидимым: у Go-func есть
   конкретная сигнатура, и лишний параметр меняет тип. Варианты: callback
   без ctx; адаптер замыкает ctx внутри; binding владеет goroutine и
-  вызывает Strizh-callback без ctx.
+  вызывает Ink-callback без ctx.
 - Потеря ctx на package/function-value границе — известное ограничение, а
   не баг. Deadline не пересекает границу; это надо писать в документации
   facade.
@@ -251,7 +251,7 @@ fn Kind(err: error) ErrorKind = { ... };
 
 ### 5.1. Поддерживается
 
-| Go | Strizh | Условие |
+| Go | Ink | Условие |
 |---|---|---|
 | basic types, `string` | `i32`, `u64`, `f64`, `str`, ... | прямые |
 | structs | struct | named fields; unexported — через конструктор |
@@ -260,7 +260,7 @@ fn Kind(err: error) ErrorKind = { ... };
 | pointers | `*T` | deref и поля можно; арифметики нет; в публичном API — opaque handle |
 | simple interfaces | `interface` | method set из поддержанных сигнатур |
 | function values | `fn(...)` | явные типы; без hidden ctx |
-| `error`, `(T, error)` | `T or error` | один не-error результат |
+| `error`, `(T, error)` | `T or error` | любое число не-error результатов |
 | `(T, bool)` | `var v, ok = ...` | не `or` |
 | multiple results | `fn() A, B` | для Go-сигнатур; app API лучше struct |
 
@@ -268,10 +268,10 @@ fn Kind(err: error) ErrorKind = { ... };
 
 | Не поддерживается как гарантия | Почему | Что делать |
 |---|---|---|
-| value-receiver interfaces | методы Strizh — pointer receiver; value receiver получает копию, мутации теряются | адаптер; не выставлять такой интерфейс в app API |
+| value-receiver interfaces | методы Ink — pointer receiver; value receiver получает копию, мутации теряются | адаптер; не выставлять такой интерфейс в app API |
 | generic/variadic interface conformance | такие сигнатуры нельзя надёжно named/check; sema их пропускает, проверяет `go build` | адаптер + Go-test |
 | hidden ctx callbacks | function value имеет Go-сигнатуру; скрытый параметр меняет тип | callback без ctx или адаптер с явным ctx |
-| map range в `par for` | у map нет ord; порядок и победитель ошибки недетерминированы | sequential range + slice |
+| map range в `par for` | у map нет ord; порядок и победитель ошибки недетерминированы | запрещён sema; sequential range + slice |
 | mutation через Go в `par` | анализатор видит вызов, а не эффект; указатель/интерфейс может менять общее состояние | trust boundary + `-race` |
 | `sync`/atomic без явной модели | язык не знает lock discipline; анализатор не доказывает безопасность | явная зона, см. §6 |
 | cgo, `unsafe`, mutation через reflection | вне модели памяти и безопасности | отдельный binding, только если без этого нельзя |
@@ -283,26 +283,25 @@ fn Kind(err: error) ErrorKind = { ... };
 - `(T, error)` → `T or error`.
 - `error` → `void or error`.
 - `(T, bool)` → `var v, ok = f();`, не `or`: bool — не error.
-- `(A, B, error)` — Go-форма. App-код её не объявляет; адаптер
-  заворачивает в struct или в один `T or error`. Причина — в
-  [ONE_WAY.md](ONE_WAY.md): `or` не должен обрастать вторым способом
-  присваивания. Сигнатура `A, B or error` остаётся в языке для Go interop;
-  ограничение — на app API, не на грамматику.
+- `(A, B, error)` — Go-форма. App-код может писать `A, B or error` и
+  `var a, b = f() or return;`; для публичного API facade лучше struct, чтобы
+  не плодить multi-result сигнатуры. Ограничение — на app API, не на
+  грамматику.
 - Ошибка из Go не становится panic; panic не маппится в обычный error. На
   границе `par` panic становится отдельным `PanicError`, вне неё — роняет
   процесс. Смешивать эти каналы — терять диагностику.
 
 ### 5.4. Интерфейсы
 
-Strizh реализует Go-интерфейсы структурно. Но:
+Ink реализует Go-интерфейсы структурно. Но:
 
-- методы Strizh — всегда pointer receiver; `*T` реализует интерфейс,
+- методы Ink — всегда pointer receiver; `*T` реализует интерфейс,
   value `T` — не всегда;
 - Go-интерфейс с value receiver может скомпилироваться, но семантика будет
   копированием; не обещать;
 - embedded interfaces, generic interfaces и variadic methods не входят в
   гарантированный subset;
-- Go-интерфейс в публичном API facade — утечка. Оборачивать в Strizh
+- Go-интерфейс в публичном API facade — утечка. Оборачивать в Ink
   interface или opaque handle.
 
 ## 6. `par` safe subset
@@ -330,9 +329,9 @@ Strizh реализует Go-интерфейсы структурно. Но:
 - Запись в global.
 - Запись в `self`.
 - Запись внутри function literal: она не анализируется.
-- Передача указателя/интерфейса в свободную Strizh- или Go-функцию:
+- Передача указателя/интерфейса в свободную Ink- или Go-функцию:
   эффект не отслеживается.
-- `par for` по map (target; в 0.2 разрешён с ord `-1`).
+- `par for` по map: запрещён sema; сначала соберите ключи в slice.
 - `go`, `chan`, `select`, `sync`, `atomic` без явной модели.
 - `for ()` внутри `par` без гарантированного выхода: воркер может не
   завершиться, и `par` не дождётся.
@@ -396,7 +395,7 @@ Go-специфику.
 
 ### 6.5. `-race` как оракул
 
-- `strizh test -race`, `strizh run -race`, `strizh build -race` — штатный
+- `ink test -race`, `ink run -race`, `ink build -race` — штатный
   способ прогнать динамический детектор.
 - CI для пакетов с `par` запускает `-race` тесты; это условие приёмки
   конкурентного кода, а не опция.
@@ -415,12 +414,12 @@ Go-специфику.
 ```hare
 use "example.com/app/bindings/markdown" as md;
 
-fn Render(src: str) str or error = {
+fn Render(src: str) str or error {
     return md.Render(src);
 };
 ```
 
-App-код не знает, что внутри Go. Если завтра `md` заменят на Strizh или
+App-код не знает, что внутри Go. Если завтра `md` заменят на Ink или
 другую библиотеку, меняется только facade.
 
 ### 7.2. Go-binding с context
@@ -441,7 +440,7 @@ func (c *Client) Get(ctx context.Context, url string) (*Response, error)
 func (c *Client) Close() error
 ```
 
-Strizh-facade из §3.1 вызывает `h.Get(url)`; ctx подставляется скрыто.
+Ink-facade из §3.1 вызывает `h.Get(url)`; ctx подставляется скрыто.
 `New` и `Close` не принимают ctx: конструктор и освобождение не должны
 зависеть от deadline. Если `New` делает сетевой запрос, это отдельный
 `Connect(ctx)` в адаптере.
@@ -454,23 +453,23 @@ func (c *Client) Close() error
 ```
 
 - Callback вызывается из goroutine библиотеки.
-- Strizh-callback не получает ctx; deadline вызывающего не действует.
+- Ink-callback не получает ctx; deadline вызывающего не действует.
 - Если callback нужен ctx, binding замыкает свой ctx внутри и передаёт
-  его в Go-операции; Strizh-сигнатура остаётся без ctx.
+  его в Go-операции; Ink-сигнатура остаётся без ctx.
 - `Close` снимает callback и ждёт завершения goroutine. Иначе callback
   может вызваться после освобождения состояния.
 
 ### 7.4. Ошибки как enum
 
 ```hare
-type NetError = enum {
+type NetError enum {
     NotFound,
     Timeout,
     Closed,
     Other { message: str },
 };
 
-fn Classify(err: error) NetError = { ... };
+fn Classify(err: error) NetError { ... };
 ```
 
 App-код делает `match` по `NetError`, а не `errors.Is` по Go-типам.
@@ -478,7 +477,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
 
 ## 8. Антипаттерны
 
-- **Go-пакет в домене.** `use "github.com/x/y"` в `domain/*.str` — граница
+- **Go-пакет в домене.** `use "github.com/x/y"` в `domain/*.ink` — граница
   уже протекла.
 - **`context.Context` в публичной сигнатуре.** Даже если это удобно
   адаптеру, app-код не должен его видеть.
@@ -490,7 +489,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
   `par`-контекст и deadline туда не доходят.
 - **`sync.Mutex` вместо модели владения.** Лок в app-коде не делает
   программу понятнее; он прячет, кто владеет данными.
-- **Facade-переименование.** `fn Do() = goLib.Do();` с Go-типами в
+- **Facade-переименование.** `fn Do() { goLib.Do(); };` с Go-типами в
   сигнатуре — не facade, а лишний слой.
 - **`-race` как доказательство.** Это детектор, не verifier.
 - **Оборачивание всего подряд.** `fmt.Println` не нуждается в facade;
@@ -504,8 +503,8 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
   проверка. Binding может спрятать их за не-generic API.
 - **Callbacks с ctx.** Невидимыми не будут. Либо callback без ctx, либо
   адаптер замыкает ctx, либо binding владеет goroutine.
-- **Map в `par for`.** Запрещён в концепции; в 0.2 разрешён с ord `-1`.
-  Переход — warning, затем sema error.
+- **Map в `par for`.** Решено: sema error. Сначала последовательный range
+  по ключам, затем `par for` по slice.
 - **Отдельный Go-модуль для binding.** Плюс — версионирование; минус —
   `replace` и два `go.mod`. Решать по библиотеке, не по вкусу.
 - **`-race` в CI.** Обязателен для пакетов с `par`; не обязан для каждого

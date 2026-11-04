@@ -1,4 +1,4 @@
-# Strizh — language specification (0.2 preview)
+# Ink — language specification (0.2 preview)
 
 This document freezes every question left open in [`SYNTAX.md`](SYNTAX.md).
 Where this preview and the older v0 notes disagree, this document wins.
@@ -6,10 +6,10 @@ This is not a 1.0 promise: the gap list is in [`GAPS.md`](GAPS.md).
 
 ## 1. Source files and packages
 
-- Source files end in `.str`, UTF-8.
-- A package is one directory. Every `.str` file in it belongs to the same
+- Source files end in `.ink`, UTF-8.
+- A package is one directory. Every `.ink` file in it belongs to the same
   package. There is no package clause; the directory name is the package name.
-- The project root is the directory holding `strizh.toml`:
+- The project root is the directory holding `ink.toml`:
 
 ```toml
 name = "hello"
@@ -24,8 +24,11 @@ module = "example.com/hello"
   `use "charm.land/bubbletea/v2" as tea;`.
   A bare name without `/` is always a Go import. A quoted simple path
   (`use "fmt";`) is rejected; the simple form is canonical.
-- Generated Go lives next to the sources as `zz_strizh.go` and
-  `zz_strizh_test.go`. `.strizh/` holds generated support files.
+- A quoted non-local Go import path whose last segment is a version (`/v2`,
+  `/v3`, ...) requires an alias: `use "charm.land/bubbletea/v2" as tea;`. The
+  default alias would be `v2`, which names the version, not the package.
+- Generated Go lives next to the sources as `zz_ink.go` and
+  `zz_ink_test.go`. `.ink/` holds generated support files.
 
 ## 2. Lexical rules
 
@@ -36,12 +39,25 @@ module = "example.com/hello"
 - Visibility is by the first letter, exactly as in Go: `User` is public,
   `user` is private.
 - Go keywords (`func`, `range`, `package`, `import`, `go`, `chan`, `select`,
-  `switch`, `goto`, `fallthrough`) are rejected as Strizh identifiers.
+  `switch`, `goto`, `fallthrough`) are rejected as Ink identifiers.
 - String escapes follow Go. Raw strings use backticks.
 - Durations: `10ns`, `500us`, `2ms`, `30s`, `5m`, `1h`. A duration is a value
   of type `Duration` and is accepted where `Duration` is expected.
 
 ## 3. Types
+
+Type declarations have one canonical form:
+
+```hare
+type User struct { ... };
+type Shape enum { ... };
+type Writer interface { ... };
+type UserId = u64;
+```
+
+A struct, enum or interface declaration has no `=` before its body; an alias
+keeps `=`. The older form with `=` before a struct, enum or interface body is
+rejected.
 
 ### 3.1. Builtins
 
@@ -49,6 +65,10 @@ module = "example.com/hello"
 `uint`, `f32`, `f64`, `str`, `rune` (alias `i32`), `byte` (alias `u8`),
 `usize` (alias `uint`), `isize` (alias `int`), `any`, `error`, `Duration`
 (alias `i64`), `Type` (runtime type value, for reflection interop).
+
+`void` is allowed only as a function result. It is not a value type: variables,
+fields, parameters, arguments, returns with values and composite elements
+cannot have type `void`.
 
 ### 3.2. Constructors
 
@@ -71,11 +91,11 @@ slice of pointers.
 ### 3.3. Structs
 
 ```hare
-type Buffer = struct {
+type Buffer struct {
     data: u8[],
     name: str,
 
-    fn Write(p: u8[]) int or error = {
+    fn Write(p: u8[]) int or error {
         data = append(data, p...);
         return len(p);
     };
@@ -92,7 +112,7 @@ type Buffer = struct {
 ### 3.4. Enums
 
 ```hare
-type Shape = enum {
+type Shape enum {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
 };
@@ -110,7 +130,7 @@ type Shape = enum {
 Interfaces exist for Go interop and for explicitly declared contracts:
 
 ```hare
-type Writer = interface {
+type Writer interface {
     Write(p: u8[]) int or error;
 };
 ```
@@ -120,15 +140,15 @@ Implementation is structural. No `implements`, no embedding.
 ### 3.6. Generics
 
 ```hare
-type Stack[Item] = struct {
+type Stack[Item] struct {
     data: Item[],
 
-    fn Push(x: Item) void = {
+    fn Push(x: Item) void {
         data = append(data, x);
     };
 };
 
-fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] = { ... };
+fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] { ... };
 ```
 
 - Type parameters are written in `[...]` after the function or type name.
@@ -156,20 +176,30 @@ var xs = u8[] {1, 2, 3};
 var a = u8[3] {1, 2, 3};
 var u = User { Name = "Alice", age = 30 };
 var m = map[str, User] {};
+var p: *Point = nil;
+var e: error = nil;
+var i, j: i32 = f();
 const Max = 100;
 const Greeting = "hello";
 ```
 
-- `var` always has an initializer; the type comes from it.
-- `const` declares a compile-time constant. `const` may be used for array
-  lengths and in `case` patterns.
+- `var` always has an initializer. The type may be written before `=`; without
+  it, the type comes from the initializer.
+- A typed `var` applies one type to all names: `var a, b: T = ...`.
+- `const` is package-level only. A local `const` is an error; use `var`.
+  `const` is a compile-time name, not immutable runtime storage: it can size
+  arrays and appear in `case` patterns. It cannot have a type.
 - Composite literals always carry a type.
 - Struct fields are named `field = value`; omitted fields get zero values.
 - Map literals use `key = value`.
-- `nil` takes its type from context: `return nil;`, `f(nil)`, `x = nil`.
-- When there is no context, the type is explicit: `nil[*Node]`, `nil[error]`,
-  `nil[u8[]]`. `nil` is valid only for pointers, slices, maps, functions and
-  interfaces.
+- Bare `nil` takes its type from the declared or expected type:
+  `var p: *Point = nil;`, `var e: error = nil;`, `return nil;`, `f(nil)`.
+- `nil[T]` is an explicit escape hatch for contexts where the type is `any` or
+  an interface, not the default spelling. `nil` is valid only for pointers,
+  slices, maps, functions and interfaces.
+- `_` is the only blank/discard construct. It is a result placeholder in
+  multi-result bindings (`var a, _ = f();`) and an explicit discard assignment
+  (`_ = a;`). There is no `discard` builtin.
 - `has(m, key)` reports key presence.
 - `*p` reads a pointer and `*p = v` writes through it.
 
@@ -198,32 +228,39 @@ Multiple names are allowed for multi-result calls:
 ```hare
 var value, ok = m["key"];
 var n, err = f();
+var n, _ = f();
+_ = n;
 ```
 
 ## 5. Functions
 
 ```hare
-fn area(r: f64) f64 = {
+fn area(r: f64) f64 {
     return 3.14159 * r * r;
 };
 
-fn pair() i32, bool = {
+fn pair() i32, bool {
     return 1, true;
 };
 
-fn load() User, Order or error = { ... };
+fn load() User, Order or error { ... };
 
-fn main() void or error = { ... };
+fn main() void or error { ... };
 ```
 
+- A function declaration has no `=` before its body. The older form with `=`
+  before the body is rejected. `ink fmt` adds explicit `void` when the
+  result is omitted.
 - Result type is mandatory, except that `void` may be omitted in the current
-  preview. `void` is written explicitly when present.
+  preview. `void` is written explicitly when present. `void` is allowed only as
+  a function result; it cannot be used as a value type.
 - Several results are a comma-separated list. This is not a tuple value:
   no tuple type, indexing or argument nesting. Allowed positions are `return`,
   `var a, b = f();` and `a, b = f();`.
 - In a function type, several results are grouped: `fn(i32) (str, bool)`.
 - The fallible form is `T or error`, `A, B or error` or `void or error`.
-  `or` supports at most one non-error result.
+  `or` propagates the error and yields every non-error result:
+  `var a, b = f() or return;`.
 - `main` may be `void` or `void or error`. An error prints to stderr and exits 1.
 - Function literals are closures and the only local callable form; local named
   functions are deliberately absent.
@@ -301,11 +338,15 @@ else => ...;
 - `match` is exhaustive for enums. `else` is the default arm for other types.
 - Type patterns are allowed on `any` and interfaces: `case T as name` binds the
   value, `case T` only tests the type. For open types `else` is required.
+- Literal patterns include negative numbers (`case -1`) and `nil` for nilable
+  subjects (`case nil`). `case nil` is rejected on `any`, interfaces and enums.
 - `case _` is not used; write `else`.
 - `match` is an expression when every case body is an expression; it is a
   statement when case bodies are blocks.
 - `switch` does not exist. Use `if` or `match`.
-- `break` and `continue` exist; labels do not.
+- `break` and `continue` exist; user labels do not. Inside a `match` case they
+  target the enclosing loop: codegen labels the loop so Go's `break` does not
+  leave the switch.
 - `for` conditions require parentheses.
 
 ## 8. Concurrency
@@ -334,12 +375,16 @@ within 30s {
   in one worker is not visible in another.
 - `par for` runs iterations as workers with an optional `limit` (default
   `GOMAXPROCS`); the whole body is sequential inside one worker.
+- `par for` over a map is forbidden: a map has no ordinal, so the winner would
+  be nondeterministic. Collect keys into a slice first and iterate the slice.
+- `for ()` is forbidden in a `par`/`par for` body: a worker without a
+  guaranteed exit can hang the `par`. Function literals are outside the static
+  analysis.
 - Every `par`/`par for` creates a cancelable context derived from the enclosing
   one, even when no worker can fail statically. `within D` derives a deadline
   from the current worker's context.
 - One `ParErrors` per statement. Indexed workers report their ordinal; the
-  lowest ordinal wins. Map iterations report `-1`; then the first error that
-  reaches the set wins, so the order is nondeterministic.
+  lowest ordinal wins.
 - `or return` in a worker adds the error at its ordinal, cancels the siblings,
   runs the worker's deferred calls and returns from the worker. After `Wait`
   the statement returns the winning error, or re-panics it in a `void`
@@ -367,12 +412,12 @@ within 30s {
   each simple-ident LHS; the body sees the copy, while the condition and post
   use the outer variable. A direct write to that variable in the body is
   rejected as a captured write.
-- `context` is invisible in Strizh. A function receives a hidden context only
+- `context` is invisible in Ink. A function receives a hidden context only
   when it or its callees need one. Go functions whose first parameter is
   `context.Context` receive it automatically.
 - On a Go interface boundary, codegen emits a public method with the exact Go
   signature and an internal context version. The user writes one method; the
-  wrapper lives in `zz_strizh.go` (G10).
+  wrapper lives in `zz_ink.go` (G10).
 - Checks are static. `go build -race` stays the dynamic oracle (G11): writes
   through a pointer/interface passed to a free or Go function, writes inside
   function literals, and aliases other than `var q = p` are not tracked as
@@ -381,13 +426,30 @@ within 30s {
 
 ## 9. Tooling
 
-- `strizh build [-o out]` — translate and compile.
-- `strizh run [args]` — build and run.
-- `strizh check` — parse, check and type-check without building.
-- `strizh test` — run `test` blocks with `go test`.
-- `strizh fmt [-w] [paths]` — canonical formatter.
-- `strizh lsp` — language server on stdio.
-- `strizh new <name>` — scaffold a project.
+- `ink build [-o out] [go build flags]` — translate and compile.
+- `ink run [-race] [-- args]` — build and run; `-race` uses Go's race detector.
+- `ink check [--json] [--fast] [--race]` — parse, check and type-check
+  without building. `--fast` stops after parse, resolve and sema; `--race`
+  type-checks with Go's `-race` build (compile-time only).
+- `ink test [go test flags]` — run `test` blocks with `go test`; flags such
+  as `-race` pass through.
+- `ink fmt [-l] [-w] [--json] [paths]` — canonical formatter; `-l` lists unformatted files;
+  `--json` prints that list as a JSON array.
+  It formats canonical input; old `=`-before-body declarations are rejected by
+  the parser, not migrated.
+- `ink lsp [--root dir]` — language server on stdio.
+- `ink new <dir>` — scaffold a project, install the short `AGENTS.md`, an
+  `opencode.json` with the Ink LSP and formatter, and the `ink` OpenCode
+  skill with the full reference.
+- `ink init [dir]` — add `ink.toml` and `AGENTS.md` to an existing
+  directory; an existing `AGENTS.md` is not overwritten.
+- `ink guide` — print the embedded agent guide.
+
+`ink check --json` prints one array of `file`, `line`, `col`, `endLine`,
+`endCol`, `severity`, `code`, `message` and `hint`. Positions are 1-based;
+clean output is `[]`; the exit code is 1 on errors. `ink fmt -l --json`
+prints an array of paths. Exit codes are 0 success, 1 diagnostics or failure,
+2 usage.
 
 Tests:
 
@@ -415,6 +477,7 @@ These are not planned, not merely missing:
 - expression-level `or`; `or` is statement-level only;
 - user-declared variadic functions; Go variadic functions can still be called
   with `...`;
+- a `discard` builtin; `_` is the only blank/discard construct;
 - doc comments attached to declarations; comments are formatter input only.
 
 `go`, `chan`, `select`, `async`, `await`, `try`, `catch`, `?`, `export`,
@@ -425,9 +488,10 @@ operator overloading, exceptions.
 ## 11. Known limits (0.2 preview)
 
 - `or` is statement-level only. It is not allowed in package-level initializers.
-- `break` inside a `match` case is rejected; use `return` or restructure the loop.
-- Multi-result calls cannot be nested in other expressions; `or` handles at
-  most one non-error result.
+- Multi-result calls cannot be nested in other expressions; `or` handles any
+  number of non-error results.
+- `void` is only a function result. A `void` value in a variable, field,
+  parameter, argument, return with a value or composite element is rejected.
 - Hidden context is not propagated across package boundaries or through
   function values; the public wrapper starts a fresh context there.
 - `par` checks are static. There is no dynamic race detection in the compiler;
@@ -436,18 +500,21 @@ operator overloading, exceptions.
   not tracked; writes inside function literals are not analysed. A method call
   on a captured interface value is conservatively a write; a pointer or
   interface passed to a free/Go function is not tracked as a write.
-  Map writes are rejected even for disjoint keys.
+  Map writes are rejected even for disjoint keys; a map range in `par for` is
+  rejected, so collect keys into a slice first. `for ()` in a `par` body is
+  rejected.
 - A panic raised in a callee carries its message; `PanicError` keeps the value
   and a stack for diagnostics.
-- A Strizh function that needs a hidden context is exposed through the
-  public wrapper; a Go caller does not pass a context, and an outer Strizh
+- A Ink function that needs a hidden context is exposed through the
+  public wrapper; a Go caller does not pass a context, and an outer Ink
   deadline does not cross that boundary.
 - Go functions returning `(T, bool)` must be handled with two-variable
   declarations, not `or`.
 - `match` on `any` requires `else`; type patterns are limited to `case T` and
   `case T as name`.
-- Enum variants share names with their generated Go types `<Enum><Variant>`.
-- Interface conformance is checked for Strizh and Go interfaces, but signatures
+- Duplicate variant names in one package are rejected; variants still share
+  names with their generated Go types `<Enum><Variant>`.
+- Interface conformance is checked for Ink and Go interfaces, but signatures
   that cannot be named (generics, enum variants, arrays, function values and
   variadic methods) are left to `go build`; an explicit Go `context.Context`
   parameter is compared as an ordinary parameter. Multi-result assignments and

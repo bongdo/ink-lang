@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/parser"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/parser"
 )
 
 func checkSrc(t *testing.T, files map[string]string) *Program {
@@ -25,7 +25,7 @@ func checkSrc(t *testing.T, files map[string]string) *Program {
 				t.Fatal(err)
 			}
 		}
-		path := filepath.Join(dir, "main.str")
+		path := filepath.Join(dir, "main.ink")
 		f, errs := parser.Parse(path, []byte(src))
 		if len(errs) > 0 {
 			t.Fatalf("%s: parse: %v", rel, errs)
@@ -51,7 +51,7 @@ func noErrors(t *testing.T, p *Program) {
 func TestHello(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
-fn main() void or error = {
+fn main() void or error {
     fmt.Println("hello") or return;
 };
 `})
@@ -64,14 +64,14 @@ func TestUseForms(t *testing.T) {
 use "net/http" as http;
 use "./lib" as lib;
 
-fn main() void or error = {
+fn main() void or error {
     f.Println("hi") or return;
     var h = http.Header {};
     _ = h;
     _ = lib.Square(2);
 };
 `,
-		"lib": `fn Square(x: i32) i32 = {
+		"lib": `fn Square(x: i32) i32 {
     return x * x;
 };
 `,
@@ -80,20 +80,20 @@ fn main() void or error = {
 }
 
 func TestStructMethod(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User = struct {
+	p := checkSrc(t, map[string]string{".": `type User struct {
     Name: str,
     age: u32,
 
-    fn Greet() str = {
+    fn Greet() str {
         return "hi, " + Name;
     };
 
-    fn Rename(name: str) void = {
+    fn Rename(name: str) void {
         Name = name;
     };
 };
 
-fn main() void = {
+fn main() void {
     var u = User { Name = "a", age = 3 };
     var s = u.Greet();
     u.Rename(s);
@@ -103,11 +103,11 @@ fn main() void = {
 }
 
 func TestStructLiteralNeedsNamedFields(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User = struct {
+	p := checkSrc(t, map[string]string{".": `type User struct {
     Name: str,
 };
 
-fn main() void = {
+fn main() void {
     var u = User { "a" };
     _ = u;
 };
@@ -116,13 +116,13 @@ fn main() void = {
 }
 
 func TestEnumMatch(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Shape = enum {
+	p := checkSrc(t, map[string]string{".": `type Shape enum {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
 };
 
-fn area(s: Shape) f64 = {
+fn area(s: Shape) f64 {
     return match (s) {
     case Circle { radius } => 3.14 * radius * radius;
     case Rect { w, h } => w * h;
@@ -130,7 +130,7 @@ fn area(s: Shape) f64 = {
     };
 };
 
-fn main() void = {
+fn main() void {
     var s = Shape.Circle { radius = 2.0 };
     var a = area(s);
     match (s) {
@@ -147,7 +147,7 @@ func TestOrAndDefer(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use os;
 use fmt;
 
-fn read(path: str) str or error = {
+fn read(path: str) str or error {
     var f = os.Open(path) or return;
     defer f.Close();
     var buf = u8[16] {};
@@ -157,7 +157,7 @@ fn read(path: str) str or error = {
     return path;
 };
 
-fn main() void or error = {
+fn main() void or error {
     var s = read("x") or err {
         fmt.Println("failed", err) or panic("output");
         return err;
@@ -169,19 +169,19 @@ fn main() void or error = {
 }
 
 func TestGeneric(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Stack[Item] = struct {
+	p := checkSrc(t, map[string]string{".": `type Stack[Item] struct {
     data: Item[],
 
-    fn Push(x: Item) void = {
+    fn Push(x: Item) void {
         data = append(data, x);
     };
 
-    fn Len() int = {
+    fn Len() int {
         return len(data);
     };
 };
 
-fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] = {
+fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] {
     var out = Out[] {};
     for (var x in xs) {
         out = append(out, f(x));
@@ -189,7 +189,7 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] = {
     return out;
 };
 
-fn main() void = {
+fn main() void {
     var s = Stack[i32] {};
     s.Push(1);
     var n = s.Len();
@@ -200,7 +200,7 @@ fn main() void = {
 }
 
 func TestControl(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn main() void = {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
     var total = 0;
     for (var i = 0; i < 10; i += 1) {
         if (i == 3) { continue; };
@@ -221,11 +221,11 @@ func TestControl(t *testing.T) {
 }
 
 func TestPar(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn load(x: i32) i32 or error = {
+	p := checkSrc(t, map[string]string{".": `fn load(x: i32) i32 or error {
     return x;
 };
 
-fn main() void or error = {
+fn main() void or error {
     var a = 0;
     var b = 0;
     par {
@@ -249,11 +249,11 @@ func TestLocalPackage(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use "./lib" as lib;
 
-fn main() void = {
+fn main() void {
     var n = lib.Square(3);
 };
 `,
-		"lib": `fn Square(x: i32) i32 = {
+		"lib": `fn Square(x: i32) i32 {
     return x * x;
 };
 `,
@@ -262,7 +262,7 @@ fn main() void = {
 }
 
 func TestParWriteRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn main() void = {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
     var total = 0;
     par for (var i = 0; i < 4; i += 1) {
         total += i;

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Как устроен компилятор Strizh: lexer, parser, AST, sema, codegen в Go, hidden context, LSP, runtime и conformance-тесты.">
-<title>Strizh — внутренняя кухня компилятора</title>
+<meta name="description" content="Как устроен компилятор Ink: lexer, parser, AST, sema, codegen в Go, hidden context, LSP, runtime и conformance-тесты.">
+<title>Ink — внутренняя кухня компилятора</title>
 <style>
 :root {
   --bg: #0f1115;
@@ -330,9 +330,9 @@ footer.site-footer a { color: var(--teal); }
       <a href="index.html">← К презентации</a>
       <a href="cheatsheet.html">Шпаргалка</a>
     </nav>
-    <p class="eyebrow">Strizh · compiler internals</p>
+    <p class="eyebrow">Ink · compiler internals</p>
     <h1>Внутренняя кухня компилятора</h1>
-    <p class="lead">Как <code>.str</code> проходит через lexer, parser, AST и sema, превращается в Go, а потом в обычный бинарник. Заметки по текущему дереву и по тому, что относится к 0.2.</p>
+    <p class="lead">Как <code>.ink</code> проходит через lexer, parser, AST и sema, превращается в Go, а потом в обычный бинарник. Заметки по текущему дереву и по тому, что относится к 0.2.</p>
     <div class="badges">
       <span class="badge amber">0.2 preview</span>
       <span class="badge teal">multiple results · type patterns · G10 · par core · typecheck</span>
@@ -369,12 +369,12 @@ footer.site-footer a { color: var(--teal); }
   <main id="main">
     <section id="arch">
       <h2><span class="num">01</span>Общая архитектура</h2>
-      <p>Strizh не пишет машинный код сам. Компилятор переводит <code>.str</code> в Go, а сборку делает обычный <code>go build</code>. Поэтому стандартная библиотека Go и сторонние Go-пакеты доступны через `use`; raw Go — escape hatch, а сложные API лучше прятать за тонким Strizh-фасадом. Всё, что Strizh не проверяет, в итоге проверяет компилятор Go.</p>
+      <p>Ink не пишет машинный код сам. Компилятор переводит <code>.ink</code> в Go, а сборку делает обычный <code>go build</code>. Поэтому стандартная библиотека Go и сторонние Go-пакеты доступны через `use`; raw Go — escape hatch, а сложные API лучше прятать за тонким Ink-фасадом. Всё, что Ink не проверяет, в итоге проверяет компилятор Go.</p>
 
       <figure class="diagram">
         <svg viewBox="0 0 1080 400" role="img" aria-labelledby="pipe-title pipe-desc">
-          <title id="pipe-title">Pipeline компилятора Strizh</title>
-          <desc id="pipe-desc">Исходные файлы .str проходят через lexer, parser и AST, затем sema, codegen, go build и превращаются в бинарник. Formatter и LSP используют те же AST и sema. Runtime копируется в .strizh/runtime. Директивы //line возвращают ошибки к исходным строкам.</desc>
+          <title id="pipe-title">Pipeline компилятора Ink</title>
+          <desc id="pipe-desc">Исходные файлы .ink проходят через lexer, parser и AST, затем sema, codegen, go build и превращаются в бинарник. Formatter и LSP используют те же AST и sema. Runtime копируется в .ink/runtime. Директивы //line возвращают ошибки к исходным строкам.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="#6fb3a8"/>
@@ -390,7 +390,7 @@ footer.site-footer a { color: var(--teal); }
           <g>
             <rect class="box" x="20" y="58" width="102" height="96" rx="8"/>
             <rect class="box-accent" x="20" y="58" width="102" height="3" rx="1.5"/>
-            <text class="box-title" x="71" y="92" text-anchor="middle">.str</text>
+            <text class="box-title" x="71" y="92" text-anchor="middle">.ink</text>
             <text class="box-sub" x="71" y="112" text-anchor="middle">исходники</text>
           </g>
           <line class="arrow" x1="122" y1="106" x2="138" y2="106" marker-end="url(#arrow)"/>
@@ -421,7 +421,7 @@ footer.site-footer a { color: var(--teal); }
           <g>
             <rect class="box" x="620" y="58" width="102" height="96" rx="8"/>
             <text class="box-title" x="671" y="92" text-anchor="middle">codegen</text>
-            <text class="box-sub" x="671" y="112" text-anchor="middle">zz_strizh.go</text>
+            <text class="box-sub" x="671" y="112" text-anchor="middle">zz_ink.go</text>
           </g>
           <line class="arrow" x1="722" y1="106" x2="738" y2="106" marker-end="url(#arrow)"/>
           <g>
@@ -448,7 +448,7 @@ footer.site-footer a { color: var(--teal); }
           <g>
             <rect class="box" x="300" y="218" width="160" height="64" rx="8"/>
             <text class="box-title" x="380" y="245" text-anchor="middle">format</text>
-            <text class="box-sub" x="380" y="263" text-anchor="middle">канонический .str</text>
+            <text class="box-sub" x="380" y="263" text-anchor="middle">канонический .ink</text>
           </g>
 
           <line class="support" x1="551" y1="154" x2="551" y2="218" marker-end="url(#arrow)"/>
@@ -462,11 +462,11 @@ footer.site-footer a { color: var(--teal); }
           <g>
             <rect class="box" x="700" y="218" width="180" height="64" rx="8"/>
             <text class="box-title" x="790" y="245" text-anchor="middle">runtime/</text>
-            <text class="box-sub" x="790" y="263" text-anchor="middle">→ .strizh/runtime</text>
+            <text class="box-sub" x="790" y="263" text-anchor="middle">→ .ink/runtime</text>
           </g>
 
           <text class="foot" x="20" y="320">Сплошная стрелка — поток сборки. Пунктир — вспомогательные ветки и копирование.</text>
-          <text class="foot" x="20" y="340">//line в сгенерированном Go возвращает ошибки go build к файлам .str.</text>
+          <text class="foot" x="20" y="340">//line в сгенерированном Go возвращает ошибки go build к файлам .ink.</text>
           <text class="foot" x="20" y="360">LSP и formatter используют те же AST/Program, но в сборку не входят.</text>
         </svg>
         <figcaption>Один проход: драйвер парсит проект, sema строит <code>Program</code>, codegen пишет Go, <code>go build</code> собирает бинарник.</figcaption>
@@ -476,39 +476,39 @@ footer.site-footer a { color: var(--teal); }
       <table>
         <thead><tr><th>Пакет</th><th>Роль</th></tr></thead>
         <tbody>
-          <tr><td><code>internal/driver</code></td><td>точка входа для CLI: ищет <code>strizh.toml</code>, ведёт <code>go.mod</code>, обходит <code>.str</code>, вызывает sema и gen, запускает <code>go build</code>/<code>go test</code>.</td></tr>
+          <tr><td><code>internal/driver</code></td><td>точка входа для CLI: ищет <code>ink.toml</code>, ведёт <code>go.mod</code>, обходит <code>.ink</code>, вызывает sema и gen, запускает <code>go build</code>/<code>go test</code>.</td></tr>
           <tr><td><code>internal/lexer</code>, <code>internal/token</code></td><td>токены, позиции, комментарии, ошибки лексинга.</td></tr>
           <tr><td><code>internal/parser</code></td><td>рекурсивный спуск, AST, восстановление после ошибок.</td></tr>
           <tr><td><code>internal/ast</code></td><td>узлы, <code>Span</code>, обход и поиск узла по смещению.</td></tr>
           <tr><td><code>internal/sema</code></td><td>пакеты, импорты, ссылки, типы, enum, <code>or</code>, <code>par</code>, hidden context.</td></tr>
           <tr><td><code>internal/gen</code></td><td>Go-текст, <code>//line</code>, форматирование через <code>go/format</code>.</td></tr>
-          <tr><td><code>internal/format</code></td><td>канонический исходник <code>.str</code>.</td></tr>
+          <tr><td><code>internal/format</code></td><td>канонический исходник <code>.ink</code>.</td></tr>
           <tr><td><code>internal/lsp</code></td><td>JSON-RPC-сервер по stdio: диагностика, hover, definition, completion, symbols, signature help, formatting.</td></tr>
-          <tr><td><code>runtime/</code></td><td>support-пакет <code>strizhrt</code>, который встраивается в компилятор и копируется в проект.</td></tr>
+          <tr><td><code>runtime/</code></td><td>support-пакет <code>inkrt</code>, который встраивается в компилятор и копируется в проект.</td></tr>
         </tbody>
       </table>
 
       <h3>Одна сборка по шагам</h3>
       <ol>
-        <li><code>driver.Open</code> поднимается вверх до каталога с <code>strizh.toml</code>, читает имя, модуль и версию Go.</li>
-        <li>Обход проекта собирает все <code>.str</code> и раскладывает их по относительным каталогам: один каталог — один пакет, корень — <code>package main</code>.</li>
-        <li><code>Project.Check</code> создаёт <code>go.mod</code>, если его нет, и на время проверки пишет <code>zz_strizh_imports.go</code> с blank-импортами, чтобы <code>go/packages</code> мог найти внешние Go-пакеты. Затем вызывается <code>sema.Check</code>.</li>
-        <li><code>gen.Generate</code> пишет по одному <code>zz_strizh.go</code> на пакет, при тестах — <code>zz_strizh_test.go</code>, и копирует runtime в <code>.strizh/runtime/runtime.go</code>.</li>
-        <li><code>go build -o ... .</code> собирает корневой пакет. <code>strizh run</code> кладёт бинарник в <code>.strizh/bin/&lt;name&gt;</code>, обычный <code>strizh build</code> — в <code>bin/&lt;name&gt;</code>.</li>
-        <li>Если Go-компилятор ругается, <code>//line path:line</code> в сгенерированном файле заставляет ошибку указывать на <code>.str</code>, а не на <code>zz_strizh.go</code>.</li>
+        <li><code>driver.Open</code> поднимается вверх до каталога с <code>ink.toml</code>, читает имя, модуль и версию Go.</li>
+        <li>Обход проекта собирает все <code>.ink</code> и раскладывает их по относительным каталогам: один каталог — один пакет, корень — <code>package main</code>.</li>
+        <li><code>Project.Check</code> создаёт <code>go.mod</code>, если его нет, и на время проверки пишет <code>zz_ink_imports.go</code> с blank-импортами, чтобы <code>go/packages</code> мог найти внешние Go-пакеты. Затем вызывается <code>sema.Check</code>.</li>
+        <li><code>gen.Generate</code> пишет по одному <code>zz_ink.go</code> на пакет, при тестах — <code>zz_ink_test.go</code>, и копирует runtime в <code>.ink/runtime/runtime.go</code>.</li>
+        <li><code>go build -o ... .</code> собирает корневой пакет. <code>ink run</code> кладёт бинарник в <code>.ink/bin/&lt;name&gt;</code>, обычный <code>ink build</code> — в <code>bin/&lt;name&gt;</code>.</li>
+        <li>Если Go-компилятор ругается, <code>//line path:line</code> в сгенерированном файле заставляет ошибку указывать на <code>.ink</code>, а не на <code>zz_ink.go</code>.</li>
       </ol>
 
       <pre><code>hello/
-  strizh.toml
-  main.str
-  lib/util.str
-  zz_strizh.go
-  .strizh/runtime/runtime.go
-  .strizh/bin/hello</code></pre>
+  ink.toml
+  main.ink
+  lib/util.ink
+  zz_ink.go
+  .ink/runtime/runtime.go
+  .ink/bin/hello</code></pre>
 
       <div class="note">
         <span class="note-title">Важно</span>
-        <p>Sema проверяет Strizh-правила — импорты, имена, enum, <code>or</code>, <code>par</code>, context, method sets. <code>strizh check</code> затем прогоняет Go typecheck через <code>internal/typecheck</code>: генерирует Go в памяти и получает диагностику <code>go/packages</code>. Поэтому <code>int + string</code> виден уже в <code>strizh check</code> и LSP, а <code>go build</code> остаётся финальным оракулом для <code>build/run/test</code>.</p>
+        <p>Sema проверяет Ink-правила — импорты, имена, enum, <code>or</code>, <code>par</code>, context, method sets. <code>ink check</code> затем прогоняет Go typecheck через <code>internal/typecheck</code>: генерирует Go в памяти и получает диагностику <code>go/packages</code>. Поэтому <code>int + string</code> виден уже в <code>ink check</code> и LSP, а <code>go build</code> остаётся финальным оракулом для <code>build/run/test</code>.</p>
       </div>
     </section>
 
@@ -520,7 +520,7 @@ footer.site-footer a { color: var(--teal); }
       <p>Токен — это <code>token.Token{Kind, Lit, Pos, End}</code>. Позиция хранит смещение, строку и колонку. Комментарии не попадают в поток токенов: лексер возвращает их отдельным списком, а парсер складывает в <code>ast.File.Comments</code>. Этого хватает formatter'у; doc-комментарии, привязанные к объявлению, не планируются.</p>
       <ul>
         <li>Литералы: целые, дробные, строки, raw-строки в backticks, rune, duration (<code>30s</code>, <code>5m</code>).</li>
-        <li>Идентификаторы — Unicode-буквы, цифры и <code>_</code>; ключевые слова Strizh и Go-слова вроде <code>func</code>/<code>range</code> проверяются отдельно.</li>
+        <li>Идентификаторы — Unicode-буквы, цифры и <code>_</code>; ключевые слова Ink и Go-слова вроде <code>func</code>/<code>range</code> проверяются отдельно.</li>
         <li>Операторы и пунктуация: <code>=</code>, <code>==</code>, <code>+=</code>, <code>=&gt;</code>, <code>...</code>, <code>or</code> и остальные.</li>
         <li>Ошибка лексера — <code>lexer.Error{Pos, Msg}</code>; парсер добавляет свои ошибки и сортирует всё по смещению, максимум 100 штук.</li>
       </ul>
@@ -570,11 +570,11 @@ var n = parse(text) or err {
       <h3>Ошибки с позициями</h3>
       <p>Ошибки фронтенда всегда несут <code>token.Pos</code>; драйвер добавляет путь файла. Парсер не бросает исключение и не останавливается на первой ошибке: он восстанавливается до <code>;</code>, <code>}</code> или начала следующего объявления. Несколько реальных сообщений:</p>
       <pre><code>expected ';', found '}'
-nil requires a type: nil[T]
+cannot infer type of nil; use nil[T] or an expected type
 match is not exhaustive: missing Rect
 or must be the whole initializer, right side, statement or return value
 writing to total captured from outside par</code></pre>
-      <p>Go-ошибки после сборки указывают на <code>file.str:line: message</code>: <code>//line</code> подменяет файл и строку. Колонки в директиве нет, поэтому разбор ошибок ограничен — это G34.</p>
+      <p>Go-ошибки после сборки указывают на <code>file.ink:line: message</code>: <code>//line</code> подменяет файл и строку. Колонки в директиве нет, поэтому разбор ошибок ограничен — это G34.</p>
     </section>
 
     <section id="sema">
@@ -612,10 +612,10 @@ case Circle { radius } =&gt; area(radius);
 case Rect { w, h } =&gt; w * h;
 case Empty =&gt; 0.0;
 };</code></pre>
-      <p>Если вариант пропущен, ошибка будет на позиции <code>match</code>: <code>match is not exhaustive: missing Rect</code>. Для не-enum <code>match</code> работает по литералам, именам и константам; <code>_</code> превращается в <code>default</code>.</p>
+      <p>Если вариант пропущен, ошибка будет на позиции <code>match</code>: <code>match is not exhaustive: missing Rect</code>. Для не-enum <code>match</code> работает по литералам, именам и константам; <code>else</code> превращается в <code>default</code>.</p>
 
       <h3><code>or</code>: что разрешает sema</h3>
-      <p>Sema не разворачивает <code>or</code> в код — это делает codegen. Здесь проверяется форма: слева вызов, у вызова <code>CallInfo.HasError</code>, сам <code>or</code> стоит на верхнем уровне, а <code>or return</code> допустим только в функции, которая возвращает ошибку. <code>or</code> поддерживает не более одного не-error результата; <code>or err { ... }</code> заводит <code>err</code> в отдельной области, <code>or panic</code> внутри <code>par</code> разрешён и превращается в <code>ParErrors.Add</code> + <code>cancel</code> + <code>return</code>, package-level инициализаторы с <code>or</code> запрещены.</p>
+      <p>Sema не разворачивает <code>or</code> в код — это делает codegen. Здесь проверяется форма: слева вызов, у вызова <code>CallInfo.HasError</code>, сам <code>or</code> стоит на верхнем уровне, а <code>or return</code> допустим только в функции, которая возвращает ошибку. <code>or</code> пробрасывает все не-error результаты; <code>or err { ... }</code> заводит <code>err</code> в отдельной области, <code>or panic</code> внутри <code>par</code> разрешён и превращается в <code>ParErrors.Add</code> + <code>cancel</code> + <code>return</code>, package-level инициализаторы с <code>or</code> запрещены.</p>
 
       <h3>Write-check для <code>par</code></h3>
       <p>Проверка статическая. Для обычного <code>par</code> sema считает captured read/write sets на каждый top-level оператор: у корня может быть один писатель, и никакой другой оператор не может его читать. Для <code>par for</code> запись в захваченный корень запрещена, кроме индексации с переменной итерации: <code>out[i] = ...</code> считается непересекающимся, если цепочка индексов — срез или массив. Локальные переменные, объявленные внутри тела, конфликтов не создают.</p>
@@ -638,7 +638,7 @@ rule: callee.NeedsCtx =&gt; caller.NeedsCtx</code></pre>
       </div>
 
       <h3 id="typecheck"><code>internal/typecheck</code></h3>
-      <p>После чистого parse/sema <code>strizh check</code> и LSP вызывают <code>typecheck.Check</code>: он генерирует Go в памяти тем же <code>internal/gen</code>, подкладывает каждый <code>zz_strizh.go</code> и встроенный runtime через <code>packages.Config.Overlay</code> и загружает пакеты из реального module root. Режим — <code>LoadImports | NeedExportFile</code>, а не <code>LoadTypes</code>: так <code>go list</code> отдаёт export data и не типизирует все зависимости из исходников. Диагностика Go возвращается через <code>//line</code> как <code>Error{Path, Pos, Msg}</code>.</p>
+      <p>После чистого parse/sema <code>ink check</code> и LSP вызывают <code>typecheck.Check</code>: он генерирует Go в памяти тем же <code>internal/gen</code>, подкладывает каждый <code>zz_ink.go</code> и встроенный runtime через <code>packages.Config.Overlay</code> и загружает пакеты из реального module root. Режим — <code>LoadImports | NeedExportFile</code>, а не <code>LoadTypes</code>: так <code>go list</code> отдаёт export data и не типизирует все зависимости из исходников. Диагностика Go возвращается через <code>//line</code> как <code>Error{Path, Pos, Msg}</code>.</p>
       <p>Результат кешируется в памяти по SHA-256 сгенерированных файлов, <code>go.mod</code>, <code>go.sum</code> и runtime; последние 16 результатов. <code>didOpen</code>/<code>didSave</code> запускают проверку, <code>didChange</code> — нет, поэтому ошибки типов очищаются до следующего сохранения. <code>build/run/test</code> не платят за второй typecheck и по-прежнему используют <code>go build</code>/<code>go test</code>. Контракт и пределы — <a href="../../design/TYPECHECK.md"><code>design/TYPECHECK.md</code></a>.</p>
     </section>
 
@@ -648,7 +648,7 @@ rule: callee.NeedsCtx =&gt; caller.NeedsCtx</code></pre>
 
       <h3>Отображение типов</h3>
       <table>
-        <thead><tr><th>Strizh</th><th>Go</th></tr></thead>
+        <thead><tr><th>Ink</th><th>Go</th></tr></thead>
         <tbody>
           <tr><td><code>str</code>, <code>bool</code>, <code>i8…i64</code>, <code>u8…u64</code></td><td><code>string</code>, <code>bool</code>, <code>int8…int64</code>, <code>uint8…uint64</code></td></tr>
           <tr><td><code>int</code>, <code>uint</code>, <code>usize</code>, <code>isize</code></td><td><code>int</code>, <code>uint</code>, <code>uint</code>, <code>int</code></td></tr>
@@ -662,9 +662,9 @@ rule: callee.NeedsCtx =&gt; caller.NeedsCtx</code></pre>
 
       <h3>Структуры и методы</h3>
       <p>Поля и методы живут в одном объявлении. Метод получает указательный receiver <code>self</code>; голое имя поля внутри метода превращается в <code>self.Field</code>, если его не перекрыли параметром или локальной переменной.</p>
-      <pre><code>type Counter = struct {
+      <pre><code>type Counter struct {
     n: i32,
-    fn Inc() void = { n += 1; };
+    fn Inc() void { n += 1; };
 };
 
 type Counter struct { n int32 }
@@ -673,7 +673,7 @@ func (self *Counter) Inc() { self.n += 1 }</code></pre>
 
       <h3>Enum: интерфейс и варианты</h3>
       <p>Enum — это sealed interface. Маркерный метод неэкспортируем и реализуется указателем на структуру варианта; снаружи пакета реализовать enum нельзя. Конструирование заворачивает указатель в интерфейс, а <code>match</code> становится type switch'ем.</p>
-      <pre><code>type Shape = enum {
+      <pre><code>type Shape enum {
     Circle { radius: f64 },
     Empty,
 };
@@ -767,12 +767,12 @@ _s_d.RunTo(_s_mark)</code></pre>
 
     <section id="ffi">
       <h2><span class="num">05</span>G10: context на границе Go-интерфейса</h2>
-      <p>Hidden context хорош, пока функция вызывается из Strizh. На границе Go-интерфейса он ломает сигнатуру: Go требует точного совпадения метода, а лишний первый параметр <code>context.Context</code> делает метод несовместимым. Это и есть G10.</p>
+      <p>Hidden context хорош, пока функция вызывается из Ink. На границе Go-интерфейса он ломает сигнатуру: Go требует точного совпадения метода, а лишний первый параметр <code>context.Context</code> делает метод несовместимым. Это и есть G10.</p>
 
       <h3>Проблема</h3>
-      <p>Допустим, тип <code>Model</code> реализует <code>tea.Model</code> и его <code>Update</code> доходит до <code>par</code> или до Go-функции с context. В Strizh это выглядит так:</p>
-      <pre><code>type Model = struct {
-    fn Update(msg: tea.Msg) tea.Model, tea.Cmd = { ... };
+      <p>Допустим, тип <code>Model</code> реализует <code>tea.Model</code> и его <code>Update</code> доходит до <code>par</code> или до Go-функции с context. В Ink это выглядит так:</p>
+      <pre><code>type Model struct {
+    fn Update(msg: tea.Msg) tea.Model, tea.Cmd { ... };
 };</code></pre>
       <p>Sema ставит <code>NeedsCtx</code>, и наивный codegen выдаёт метод с context-параметром:</p>
       <pre><code>func (self *Model) Update(_s_ctx _s_context.Context, msg tea.Msg) (tea.Model, tea.Cmd)</code></pre>
@@ -787,9 +787,9 @@ _s_d.RunTo(_s_mark)</code></pre>
       <h3>Решение 0.2</h3>
       <div class="note warn">
         <span class="note-title">Статус: 0.2, реализовано</span>
-        <p>Кодоген генерирует публичный метод с точной Go-сигнатурой и внутреннюю ctx-функцию. Внутри Strizh вызов идёт в ctx-версию, из Go — в публичную обёртку с <code>context.Background()</code>. Через границу пакета или function value дедлайн не переносится.</p>
+        <p>Кодоген генерирует публичный метод с точной Go-сигнатурой и внутреннюю ctx-функцию. Внутри Ink вызов идёт в ctx-версию, из Go — в публичную обёртку с <code>context.Background()</code>. Через границу пакета или function value дедлайн не переносится.</p>
       </div>
-      <p>Публичная обёртка сохраняет точную Go-сигнатуру интерфейса и вызывает внутреннюю свободную функцию, у которой есть context. Внутренняя функция получает receiver явно, поэтому её можно вызвать и из сгенерированного Strizh-кода с текущим <code>_s_ctx</code>.</p>
+      <p>Публичная обёртка сохраняет точную Go-сигнатуру интерфейса и вызывает внутреннюю свободную функцию, у которой есть context. Внутренняя функция получает receiver явно, поэтому её можно вызвать и из сгенерированного Ink-кода с текущим <code>_s_ctx</code>.</p>
       <pre><code>func (self *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     return _s_ModelUpdate(_s_context.Background(), self, msg)
 }
@@ -797,9 +797,9 @@ _s_d.RunTo(_s_mark)</code></pre>
 func _s_ModelUpdate(_s_ctx _s_context.Context, self *Model, msg tea.Msg) (tea.Model, tea.Cmd) {
     ...
 }</code></pre>
-      <p>Имена <code>_s_ModelUpdate</code> и <code>_s_ctx</code> здесь иллюстративные; важен shape: экспортируемый метод — ровно сигнатура интерфейса, внутренняя функция — с context. Вызов из Strizh, где context уже есть, должен идти напрямую:</p>
+      <p>Имена <code>_s_ModelUpdate</code> и <code>_s_ctx</code> здесь иллюстративные; важен shape: экспортируемый метод — ровно сигнатура интерфейса, внутренняя функция — с context. Вызов из Ink, где context уже есть, должен идти напрямую:</p>
       <pre><code>_s_ModelUpdate(_s_ctx, self, msg)</code></pre>
-      <p>Обёртка с <code>context.Background()</code> нужна для Go-вызова, у которого своего Strizh-context нет. Если Go-вызывающий хочет передать свой context, нужен отдельный adapter/API; интерфейсная сигнатура этого не позволяет.</p>
+      <p>Обёртка с <code>context.Background()</code> нужна для Go-вызова, у которого своего Ink-context нет. Если Go-вызывающий хочет передать свой context, нужен отдельный adapter/API; интерфейсная сигнатура этого не позволяет.</p>
 
       <h3>Почему внутренняя функция свободная, а не метод</h3>
       <ul>
@@ -820,9 +820,9 @@ func _s_ModelUpdate(_s_ctx _s_context.Context, self *Model, msg tea.Msg) (tea.Mo
       <table>
         <thead><tr><th>0.2</th><th>Go</th><th>Статус в дереве</th></tr></thead>
         <tbody>
-          <tr><td>Списки результатов <code>fn f() A, B</code></td><td><code>func f() (A, B)</code></td><td><span class="tag">готово</span> parser/AST/sema/gen; <code>or</code> — максимум один не-error результат; G13</td></tr>
+          <tr><td>Списки результатов <code>fn f() A, B</code></td><td><code>func f() (A, B)</code></td><td><span class="tag">готово</span> parser/AST/sema/gen; <code>or</code> — любое число не-error результатов; G13</td></tr>
           <tr><td><code>case T as k</code></td><td><code>case T:</code> в type switch, binding в заголовке</td><td><span class="tag">готово</span> parser/sema/gen</td></tr>
-          <tr><td><code>else</code></td><td><code>default:</code></td><td><span class="tag">готово</span> <code>case _</code> больше не принимается</td></tr>
+          <tr><td><code>else</code></td><td><code>default:</code></td><td><span class="tag">готово</span> <code>case _</code> не канон; пишите <code>else</code></td></tr>
           <tr><td>Bare <code>nil</code></td><td><code>nil</code> с типом из контекста</td><td><span class="tag">готово</span> expected type + nilability; G20</td></tr>
           <tr><td><code>match</code> по <code>any</code></td><td><code>switch v := x.(type)</code></td><td><span class="tag">готово</span> type switch + <code>else</code>; G14</td></tr>
         </tbody>
@@ -830,14 +830,14 @@ func _s_ModelUpdate(_s_ctx _s_context.Context, self *Model, msg tea.Msg) (tea.Mo
 
       <h3>Result lists → Go multi-return</h3>
       <p>Результаты функции — это срез типов, а не один тип плюс ошибка. Генератор печатает их как Go multi-return; <code>return a, b</code> остаётся <code>return a, b</code>. Это уже видно в <code>ast.FuncDecl.Results</code> и <code>resultStr</code>. Список результатов — форма вызова, а не tuple: его нельзя положить в переменную, проиндексировать или передать как один аргумент.</p>
-      <pre><code>fn split(s: str) str, str = {
+      <pre><code>fn split(s: str) str, str {
     return s, s;
 };
 
 func split(s string) (string, string) {
     return s, s
 }</code></pre>
-      <p>Ограничение: <code>or</code> поддерживает не более одного не-error результата. Multi-return нельзя использовать как одно выражение — допустимы <code>return</code>, <code>var a, b = f()</code> и <code>a, b = f()</code>. Это G13.</p>
+      <p><code>or</code> пробрасывает все не-error результаты: <code>var a, b = f() or return;</code>. Multi-return нельзя использовать как одно выражение — допустимы <code>return</code>, <code>var a, b = f()</code> и <code>a, b = f()</code>. Это G13.</p>
 
       <h3><code>case T as k</code> → type switch</h3>
       <p>Для <code>match</code> по <code>any</code> тип-паттерн должен сузить значение и связать его с именем. В Go это обычный type switch; <code>k</code> — переменная с типом <code>T</code> внутри ветки.</p>
@@ -855,20 +855,20 @@ default:
       <p><code>else</code> — это <code>default</code>. Для <code>any</code> exhaustiveness невозможна, поэтому <code>else</code> обязателен; enum всё равно должен быть исчерпан, <code>else</code> его не заменяет. Type-паттерны имеют смысл только для <code>any</code> и интерфейсов; enum по-прежнему разбирается variant-паттернами.</p>
 
       <h3>Bare <code>nil</code> → typed nil</h3>
-      <p>Bare <code>nil</code> разрешён, когда ожидаемый тип известен: <code>return nil;</code>, <code>f(nil)</code>, <code>x = nil</code>. Без контекста нужен явный <code>nil[*Node]</code>, <code>nil[error]</code>, <code>nil[u8[]]</code>. Генератор печатает <code>(T)(nil)</code>, а не <code>*new(T)</code>, поэтому значение действительно nil. Допустимы только nilable-типы: указатель, срез, map, функция, интерфейс (G20).</p>
-      <pre><code>fn stop() tea.Cmd = {
+      <p>Bare <code>nil</code> разрешён, когда ожидаемый тип известен: <code>var p: *Node = nil;</code>, <code>return nil;</code>, <code>f(nil)</code>, <code>x = nil</code>. <code>nil[T]</code> остаётся explicit escape hatch для <code>any</code>/interface. Генератор печатает <code>(T)(nil)</code>, а не <code>*new(T)</code>, поэтому значение действительно nil. Допустимы только nilable-типы: указатель, срез, map, функция, интерфейс (G20).</p>
+      <pre><code>fn stop() tea.Cmd {
     return nil;
 };
 
-var cmd = nil[tea.Cmd];</code></pre>
+var cmd: tea.Cmd = nil;</code></pre>
 
       <h3>Почему это нужно Bubble Tea</h3>
-      <p><code>Update</code> возвращает <code>(tea.Model, tea.Cmd)</code> — два не-error результата; сообщения приходят как <code>any</code> и требуют type switch; <code>Cmd</code> — это функция, для неё нужен typed <code>nil</code>. Без этих трёх вещей <code>tea.Model</code> в Strizh не реализовать. Фоновые таймеры и IO для Bubble Tea не нужны: <code>Cmd</code> запускает сам <code>tea.Program</code>.</p>
+      <p><code>Update</code> возвращает <code>(tea.Model, tea.Cmd)</code> — два не-error результата; сообщения приходят как <code>any</code> и требуют type switch; <code>Cmd</code> — это функция, для неё нужен typed <code>nil</code>. Без этих трёх вещей <code>tea.Model</code> в Ink не реализовать. Фоновые таймеры и IO для Bubble Tea не нужны: <code>Cmd</code> запускает сам <code>tea.Program</code>.</p>
     </section>
 
     <section id="lsp">
       <h2><span class="num">07</span>LSP</h2>
-      <p><code>strizh lsp</code> — тот же бинарник, который говорит JSON-RPC по stdio. Сервер парсит проект, вызывает <code>sema.Check</code> и на open/save запускает <code>typecheck.Check</code>; диагностика публикуется с source <code>strizh</code>. Поэтому LSP видит то же, что <code>strizh check</code>: ошибки парсера, sema и типов Go.</p>
+      <p><code>ink lsp</code> — тот же бинарник, который говорит JSON-RPC по stdio. Сервер парсит проект, вызывает <code>sema.Check</code> и на open/save запускает <code>typecheck.Check</code>; диагностика публикуется с source <code>ink</code>. Поэтому LSP видит то же, что <code>ink check</code>: ошибки парсера, sema и типов Go.</p>
 
       <h3>Что уже работает</h3>
       <table>
@@ -879,30 +879,30 @@ var cmd = nil[tea.Cmd];</code></pre>
           <tr><td>Definition</td><td>локальные, пакетные и кросс-файловые символы</td></tr>
           <tr><td>Completion</td><td>ключевые слова, builtin'ы, локальные имена, члены пакета после <code>pkg.</code></td></tr>
           <tr><td>Document symbols</td><td>типы, варианты enum, методы, функции, тесты</td></tr>
-          <tr><td>Signature help</td><td>по <code>(</code> и <code>,</code>; Strizh-функции и Go-функции</td></tr>
+          <tr><td>Signature help</td><td>по <code>(</code> и <code>,</code>; Ink-функции и Go-функции</td></tr>
           <tr><td>Formatting</td><td>полный документ через <code>format.File</code></td></tr>
         </tbody>
       </table>
 
       <h3>Остатки диагностики (G39, G43–G45)</h3>
       <ul>
-        <li><strong>G39.</strong> Диагностика типов Go уже приходит на open/save (G26), а <code>strizh check</code> проверяет и test-блоки; остались колонки (G34), async/debounce (G43), test-диагностика в LSP и ошибки вне <code>//line</code>.</li>
+        <li><strong>G39.</strong> Диагностика типов Go уже приходит на open/save (G26), а <code>ink check</code> проверяет и test-блоки; остались колонки (G34), async/debounce (G43), test-диагностика в LSP и ошибки вне <code>//line</code>.</li>
         <li><strong>G43.</strong> Анализ синхронный: <code>didChange</code> блокирует цикл сообщений, пока sema обходит проект; debounce и отмены нет.</li>
         <li><strong>G44.</strong> Очередь LSP-обвязки ограничена 64 сообщениями; при быстром наборе <code>didChange</code> может потеряться, и диагностика отстанет до следующей правки.</li>
         <li><strong>G45.</strong> При закрытии файла диагностика не очищается: закрытые файлы продолжают анализироваться с диска, сбрасываются только удалённые и standalone-документы.</li>
       </ul>
 
       <h3>Почему это не блокер для Bubble Tea</h3>
-      <p>LSP — инструмент редактирования <code>.str</code>, а не часть рантайма. Авторитетная проверка — <code>strizh check</code> по всему проекту; LSP показывает те же ошибки в редакторе и добавляет базовое редактирование. Языковые блокеры Bubble Tea были в G13 (multi-return) и G14 (type switch по <code>any</code>); 0.2 их закрывает. G10 добавляет обёртку, если <code>Update</code> уходит в <code>par</code>/<code>within</code>. Фоновые таймеры и IO запускает сам <code>tea.Program</code>. LSP можно улучшать отдельно, не меняя язык.</p>
+      <p>LSP — инструмент редактирования <code>.ink</code>, а не часть рантайма. Авторитетная проверка — <code>ink check</code> по всему проекту; LSP показывает те же ошибки в редакторе и добавляет базовое редактирование. Языковые блокеры Bubble Tea были в G13 (multi-return) и G14 (type switch по <code>any</code>); 0.2 их закрывает. G10 добавляет обёртку, если <code>Update</code> уходит в <code>par</code>/<code>within</code>. Фоновые таймеры и IO запускает сам <code>tea.Program</code>. LSP можно улучшать отдельно, не меняя язык.</p>
       <div class="note teal">
         <span class="note-title">Практический вывод</span>
-        <p>LSP даёт диагностику, включая typecheck Go, и базовое редактирование. <code>strizh check</code> проверяет весь проект и остаётся источником истины.</p>
+        <p>LSP даёт диагностику, включая typecheck Go, и базовое редактирование. <code>ink check</code> проверяет весь проект и остаётся источником истины.</p>
       </div>
     </section>
 
     <section id="runtime">
       <h2><span class="num">08</span>Runtime</h2>
-      <p>Support-пакет называет себя <code>strizhrt</code>, но импортируется как <code>_s_rt</code>. Исходник лежит в <code>runtime/source.go</code>, встраивается в компилятор через <code>//go:embed</code> и при каждой сборке пишется в <code>.strizh/runtime/runtime.go</code> целевого проекта. Это обычный Go-код, не отдельный рантайм языка.</p>
+      <p>Support-пакет называет себя <code>inkrt</code>, но импортируется как <code>_s_rt</code>. Исходник лежит в <code>runtime/source.go</code>, встраивается в компилятор через <code>//go:embed</code> и при каждой сборке пишется в <code>.ink/runtime/runtime.go</code> целевого проекта. Это обычный Go-код, не отдельный рантайм языка.</p>
 
       <h3>Что внутри</h3>
       <table>
@@ -925,10 +925,10 @@ var cmd = nil[tea.Cmd];</code></pre>
       <p>Внутри — срез <code>[]func()</code>. <code>Mark</code> возвращает длину, <code>Push</code> добавляет в конец, <code>RunTo(mark)</code> забирает хвост <code>fns[mark:]</code>, обрезает срез и вызывает хвост с конца. Поэтому defer'ы выполняются LIFO и не мешают друг другу между блоками и итерациями цикла.</p>
 
       <h3>ParErrors</h3>
-      <p>Это мьютекс и срез <code>ParError{Index, Err}</code>. <code>Add</code> игнорирует <code>nil</code>, <code>First</code> выбирает минимальный неотрицательный индекс, а не порядок завершения. Для <code>par</code> индекс — номер top-level оператора, для <code>par for</code> — порядковый номер итерации. Для map-итерации индекса нет: все воркеры отдают <code>-1</code>, и <code>First</code> берёт первую дошедшую ошибку только если неотрицательных записей нет. Порядок map-итерации недетерминирован.</p>
+      <p>Это мьютекс и срез <code>ParError{Index, Err}</code>. <code>Add</code> игнорирует <code>nil</code>, <code>First</code> выбирает минимальный неотрицательный индекс, а не порядок завершения. Для <code>par</code> индекс — номер top-level оператора, для <code>par for</code> — порядковый номер итерации. Map-итерации в <code>par for</code> запрещены sema; runtime всё ещё понимает legacy <code>-1</code> (первая дошедшая ошибка, если неотрицательных записей нет), но из Ink-исходников он не возникает.</p>
 
       <h3>Почему runtime копируется</h3>
-      <p>Сгенерированный Go импортирует <code>&lt;module&gt;/.strizh/runtime</code>, а не пакет из исходников компилятора. Так проект остаётся самодостаточным: его можно собрать без исходников Strizh, и версия runtime всегда совпадает с версией компилятора, который сгенерировал код. Каталог <code>.strizh</code> скрытый, поэтому обход проекта его не парсит. Копирование происходит на каждую сборку, даже если файл не изменился (G38); хеширование и пропуск записи — возможная оптимизация, не обязательная для корректности.</p>
+      <p>Сгенерированный Go импортирует <code>&lt;module&gt;/.ink/runtime</code>, а не пакет из исходников компилятора. Так проект остаётся самодостаточным: его можно собрать без исходников Ink, и версия runtime всегда совпадает с версией компилятора, который сгенерировал код. Каталог <code>.ink</code> скрытый, поэтому обход проекта его не парсит. Копирование происходит на каждую сборку, даже если файл не изменился (G38); хеширование и пропуск записи — возможная оптимизация, не обязательная для корректности.</p>
     </section>
 
     <section id="tests">
@@ -937,23 +937,23 @@ var cmd = nil[tea.Cmd];</code></pre>
 
       <h3>Как устроен кейс</h3>
       <pre><code>tests/cases/par/
-  strizh.toml
-  main.str
+  ink.toml
+  main.ink
   expected.txt</code></pre>
       <ul>
-        <li><code>strizh.toml</code> — имя проекта; модуль можно не указывать, драйвер подставит <code>example.com/&lt;name&gt;</code>.</li>
-        <li><code>main.str</code> — программа с <code>fn main</code>; она печатает то, что сравнивается.</li>
+        <li><code>ink.toml</code> — имя проекта; модуль можно не указывать, драйвер подставит <code>example.com/&lt;name&gt;</code>.</li>
+        <li><code>main.ink</code> — программа с <code>fn main</code>; она печатает то, что сравнивается.</li>
         <li><code>expected.txt</code> — ожидаемый stdout, обычно несколько строк.</li>
-        <li>Если есть файл-маркер <code>test</code>, кейс запускается через <code>strizh test</code>, а не <code>strizh run</code>; тогда можно добавить <code>expected-test.txt</code> для строк <code>ok/FAIL</code>.</li>
+        <li>Если есть файл-маркер <code>test</code>, кейс запускается через <code>ink test</code>, а не <code>ink run</code>; тогда можно добавить <code>expected-test.txt</code> для строк <code>ok/FAIL</code>.</li>
       </ul>
 
       <h3>Что делает <code>tests/run.sh</code></h3>
-      <p>Скрипт идёт по всем каталогам <code>tests/cases/*</code>, запускает <code>strizh run</code> (или <code>strizh test</code>), сравнивает вывод через <code>diff</code>, затем удаляет <code>.strizh</code>, <code>bin</code>, <code>zz_strizh*.go</code>, <code>go.mod</code> и <code>go.sum</code>. На кейс даётся 120 секунд, на тестовый — 180. Поэтому кейсы можно смело добавлять в репозиторий: они не оставляют мусора.</p>
+      <p>Скрипт идёт по всем каталогам <code>tests/cases/*</code>, запускает <code>ink run</code> (или <code>ink test</code>), сравнивает вывод через <code>diff</code>, затем удаляет <code>.ink</code>, <code>bin</code>, <code>zz_ink*.go</code>, <code>go.mod</code> и <code>go.sum</code>. На кейс даётся 120 секунд, на тестовый — 180. Поэтому кейсы можно смело добавлять в репозиторий: они не оставляют мусора.</p>
 
       <h3>Как добавить новый кейс</h3>
       <ol>
-        <li>Создайте <code>tests/cases/&lt;name&gt;/</code> и положите туда <code>strizh.toml</code> с <code>name = "&lt;name&gt;"</code>.</li>
-        <li>Напишите <code>main.str</code>; если нужен тест — добавьте блок <code>test "..." { ... };</code> и пустой файл <code>test</code>.</li>
+        <li>Создайте <code>tests/cases/&lt;name&gt;/</code> и положите туда <code>ink.toml</code> с <code>name = "&lt;name&gt;"</code>.</li>
+        <li>Напишите <code>main.ink</code>; если нужен тест — добавьте блок <code>test "..." { ... };</code> и пустой файл <code>test</code>.</li>
         <li>Запустите программу вручную и сохраните точный stdout в <code>expected.txt</code> (или <code>expected-test.txt</code>).</li>
         <li>После сборки компилятора запустите <code>tests/run.sh</code> или весь <code>bin/check</code>.</li>
       </ol>
@@ -964,16 +964,16 @@ var cmd = nil[tea.Cmd];</code></pre>
 };</code></pre>
 
       <h3><code>bin/check</code></h3>
-      <p>Единая точка входа: <code>gofmt -l cmd internal runtime</code>, <code>go vet ./...</code>, <code>go test ./...</code>, сборка <code>bin/strizh</code> и <code>tests/run.sh</code>. Во время рефакторинга компилятора этот набор может быть красным; страница описывает код, а не статус CI.</p>
+      <p>Единая точка входа: <code>gofmt -l cmd internal runtime</code>, <code>go vet ./...</code>, <code>go test ./...</code>, сборка <code>bin/ink</code> и <code>tests/run.sh</code>. Во время рефакторинга компилятора этот набор может быть красным; страница описывает код, а не статус CI.</p>
       <div class="note">
         <span class="note-title">Во время рефакторинга</span>
-        <p>Не запускайте <code>bin/check</code> как «доказательство» чего-либо, пока идёт переделка. Для отдельного кейса достаточно <code>tests/run.sh</code> после сборки, но и он требует рабочего <code>bin/strizh</code>.</p>
+        <p>Не запускайте <code>bin/check</code> как «доказательство» чего-либо, пока идёт переделка. Для отдельного кейса достаточно <code>tests/run.sh</code> после сборки, но и он требует рабочего <code>bin/ink</code>.</p>
       </div>
     </section>
 
     <section id="limits">
       <h2><span class="num">10</span>Границы: что работает и чего нет</h2>
-      <p>Strizh — это 0.2 preview. Страница отделяет подтверждённое кодом от текущих пределов и осознанных отказов. Оставшиеся пробелы — в <a href="../../design/GAPS.md">design/GAPS.md</a>; канонический список отказов — в <a href="../../design/SPEC.md">design/SPEC.md</a> §10.</p>
+      <p>Ink — это 0.2 preview. Страница отделяет подтверждённое кодом от текущих пределов и осознанных отказов. Оставшиеся пробелы — в <a href="../../design/GAPS.md">design/GAPS.md</a>; канонический список отказов — в <a href="../../design/SPEC.md">design/SPEC.md</a> §10.</p>
 
       <div class="grid-2">
         <div class="card">
@@ -983,7 +983,7 @@ var cmd = nil[tea.Cmd];</code></pre>
             <li>Списки результатов и Go multi-return (G13).</li>
             <li><code>case T as k</code>, <code>else</code>, bare <code>nil</code>, <code>match</code> по <code>any</code> (G14, G20).</li>
             <li><code>par</code> core: panic recovery, per-worker defer/within, write rules (G1–G9).</li>
-            <li>Typecheck в <code>strizh check</code> и LSP (G26), method sets (G27).</li>
+            <li>Typecheck в <code>ink check</code> и LSP (G26), method sets (G27).</li>
             <li>Conformance-кейсы и smoke для Bubble Tea.</li>
           </ul>
         </div>

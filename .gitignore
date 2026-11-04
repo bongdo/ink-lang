@@ -1,9 +1,9 @@
-bin/strizh
-pero-strizhed
+bin/ink
+pero-inked
 *.test
-.strizh/
-zz_strizh.go
-zz_strizh_test.go
+.ink/
+zz_ink.go
+zz_ink_test.go
 editors/vscode/node_modules/
 editors/vscode/out/
 tests/cases/*/go.mod

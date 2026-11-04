@@ -18,15 +18,15 @@ func exitCode(t *testing.T, err error) int {
 
 func TestParPanicBecomesError(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 use errors;
 use "os/exec";
 
-fn fail() i32 or error = {
+fn fail() i32 or error {
     return 0, errors.New("sibling");
 };
 
-fn work() void or error = {
+fn work() void or error {
     var x = i32(0);
     par {
         panic("kaboom");
@@ -42,7 +42,7 @@ fn work() void or error = {
     fmt.Println(x) or return;
 };
 
-fn main() void or error = {
+fn main() void or error {
     work() or return;
     fmt.Println("done") or return;
 };
@@ -58,8 +58,8 @@ fn main() void or error = {
 	if !strings.Contains(stderr, "kaboom") {
 		t.Fatalf("stderr does not contain the panic message: %s", stderr)
 	}
-	if !strings.Contains(stderr, "main.str:12") {
-		t.Fatalf("stderr does not point at the panic site main.str:12:\n%s", stderr)
+	if !strings.Contains(stderr, "main.ink:12") {
+		t.Fatalf("stderr does not point at the panic site main.ink:12:\n%s", stderr)
 	}
 	if strings.Contains(stderr, "sibling") {
 		t.Fatalf("an error from a higher-index sibling won: %s", stderr)
@@ -71,13 +71,13 @@ fn main() void or error = {
 
 func TestParPanicVoidMain(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 
-fn boom() void = {
+fn boom() void {
     panic("kaboom");
 };
 
-fn main() void = {
+fn main() void {
     par {
         boom();
     };
@@ -102,10 +102,10 @@ fn main() void = {
 
 func TestParPanicCancelsPlainPar(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 use "os/exec";
 
-fn main() void or error = {
+fn main() void or error {
     par {
         panic("kaboom");
         {
@@ -137,10 +137,10 @@ fn main() void or error = {
 
 func TestParWithinCancels(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 use "os/exec";
 
-fn main() void or error = {
+fn main() void or error {
     par {
         {
             within 200ms {
@@ -166,13 +166,13 @@ fn main() void or error = {
 
 func TestParWithinInside(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 
-fn work(n: i32) i32 = {
+fn work(n: i32) i32 {
     return n * 10;
 };
 
-fn main() void or error = {
+fn main() void or error {
     var a = i32(0);
     var b = i32(0);
     par {
@@ -196,14 +196,14 @@ fn main() void or error = {
 
 func TestParDeferInside(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 use errors;
 
-fn fail() void or error = {
+fn fail() void or error {
     return errors.New("stop");
 };
 
-fn work() void or error = {
+fn work() void or error {
     par {
         {
             defer fmt.Println("cleanup");
@@ -214,7 +214,7 @@ fn work() void or error = {
     fmt.Println("unreachable") or return;
 };
 
-fn main() void or error = {
+fn main() void or error {
     par {
         {
             defer fmt.Println("d1");
@@ -247,11 +247,11 @@ func TestParOrPanic(t *testing.T) {
 			name: "message",
 			src: `use errors;
 
-fn fetch() i32 or error = {
+fn fetch() i32 or error {
     return 0, errors.New("fetch");
 };
 
-fn work() void or error = {
+fn work() void or error {
     var x = i32(0);
     par {
         x = fetch() or panic("boom");
@@ -259,7 +259,7 @@ fn work() void or error = {
     x += 1;
 };
 
-fn main() void or error = {
+fn main() void or error {
     work() or return;
 };
 `,
@@ -269,11 +269,11 @@ fn main() void or error = {
 			name: "error value",
 			src: `use errors;
 
-fn fetch() i32 or error = {
+fn fetch() i32 or error {
     return 0, errors.New("fetch");
 };
 
-fn work() void or error = {
+fn work() void or error {
     var x = i32(0);
     par {
         x = fetch() or panic();
@@ -281,7 +281,7 @@ fn work() void or error = {
     x += 1;
 };
 
-fn main() void or error = {
+fn main() void or error {
     work() or return;
 };
 `,
@@ -290,7 +290,7 @@ fn main() void or error = {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			p := newProject(t, map[string]string{"main.str": c.src})
+			p := newProject(t, map[string]string{"main.ink": c.src})
 			stdout, stderr, err := p.run(t)
 			if err == nil {
 				t.Fatalf("expected failure, stdout:\n%s", stdout)
@@ -310,14 +310,14 @@ fn main() void or error = {
 
 func TestParForCstyleCapture(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use fmt;
+		"main.ink": `use fmt;
 
-fn spin() void = {
+fn spin() void {
     for (var k = 0; k < 1000000; k += 1) {
     };
 };
 
-fn main() void or error = {
+fn main() void or error {
     var out = int[8] {};
     var i = 0;
     par for (i = 0; i < 8; i += 1) {
@@ -335,11 +335,11 @@ fn main() void or error = {
 	expect(t, stdout, "8 0 30 70\n")
 }
 
-func TestParMapError(t *testing.T) {
+func TestParRangeError(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use errors;
+		"main.ink": `use errors;
 
-fn check(k: i32) i32 or error = {
+fn check(k: i32) i32 or error {
     if (k == 1) {
         return 0, errors.New("key one");
     };
@@ -349,10 +349,10 @@ fn check(k: i32) i32 or error = {
     return k;
 };
 
-fn main() void or error = {
-    var m = map[i32, i32] { 1 = 1, 2 = 2 };
+fn main() void or error {
+    var ks = i32[] { 1, 2 };
     var out = i32[8] {};
-    par for (var k in m) {
+    par for (var i, k in ks) {
         out[k] = check(k) or return;
     };
     var dummy = out[0] + out[1] + out[2];
@@ -362,8 +362,8 @@ fn main() void or error = {
 };
 `,
 	})
-	src := p.source(t, "zz_strizh.go")
-	contains(t, src, ".Add(-1, ")
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, ".Add(_s_ord")
 	stdout, stderr, err := p.run(t)
 	if err == nil {
 		t.Fatalf("expected failure, stdout:\n%s", stdout)

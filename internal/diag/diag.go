@@ -1,0 +1,71 @@
+package diag
+
+import "strings"
+
+type Info struct {
+	Code string
+	Hint string
+}
+
+var rules = []struct {
+	Code    string
+	Match   string
+	Hint    string
+	Warning bool
+}{
+	{"import-simple", "simple import must be bare", "use fmt;", false},
+	{"import-alias", "requires an alias", `use "charm.land/bubbletea/v2" as tea;`, false},
+	{"decl-equals", "declared without '='", "type User struct { ... }; fn f() void { ... };", false},
+	{"iface-fn", "interface methods are declared without 'fn'", "Write(p: u8[]) int or error;", false},
+	{"comment-block", "block comments are not supported", "// comment", false},
+	{"const-local", "const is only allowed at package level", "var N = 3;", false},
+	{"const-type", "const cannot have a type", "const N = 3;", false},
+	{"err-manual", "use or return instead", "var v = f() or return;", false},
+	{"nil-untyped", "cannot infer type of nil", "var p: *T = nil; or nil[T]", false},
+	{"void-value", "void is not a value", "void is a result only; use a value-returning call", false},
+	{"or-return", "or return", "the enclosing function must return T or error", false},
+	{"match-block-value", "match with block arms cannot be used as an expression", "use match as a statement or give every arm a value", false},
+	{"match-nil-any", "case nil is not supported on any or interface", "else => ...", false},
+	{"match-nil-enum", "case nil is not supported on enum", "match on the enum without case nil", false},
+	{"par-map-write", "writing to map", "write to a local slice, then merge sequentially", false},
+	{"par-map-range", "map iteration is not allowed in par for", "collect keys into a slice first", false},
+	{"par-capture-write", "captured from outside par", "copy the value into a local and collect the result", false},
+	{"par-break", "cannot leave a par block", "return a value or set a local flag", false},
+	{"par-loop", "for () is not allowed inside par", "use a bounded loop", false},
+	{"array-const", "must be declared in a local package", "use a const from a local package", false},
+	{"generic-args", "requires type arguments", "Stack[i32]", false},
+	{"unused-import", "imported and not used", "remove the import or use it", false},
+	{"undefined", "undefined:", "declare or import the name", false},
+	{"unused-var", "declared and not used", "use the variable or replace it with _", false},
+}
+
+func Classify(msg string) Info {
+	lower := strings.ToLower(msg)
+	for _, r := range rules {
+		if strings.Contains(lower, strings.ToLower(r.Match)) {
+			return Info{Code: r.Code, Hint: r.Hint}
+		}
+	}
+	switch {
+	case strings.Contains(lower, "expected") || strings.Contains(lower, "unexpected") ||
+		strings.Contains(lower, "unterminated") || strings.Contains(lower, "invalid"):
+		return Info{Code: "syntax"}
+	}
+	return Info{Code: "semantic"}
+}
+
+func Typecheck(msg string) Info {
+	info := Classify(msg)
+	if info.Code == "semantic" || info.Code == "syntax" {
+		info.Code = "go-type"
+	}
+	return info
+}
+
+func Syntax(msg string) Info {
+	info := Classify(msg)
+	if info.Code == "semantic" {
+		info.Code = "syntax"
+	}
+	return info
+}

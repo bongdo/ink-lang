@@ -2,4 +2,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export GOFLAGS="${GOFLAGS:-} -buildvcs=false"
-exec go run ./cmd/strizh lsp "$@"
+exec go run ./cmd/ink lsp "$@"

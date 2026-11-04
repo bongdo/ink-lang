@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func (w *writer) bodyContents(b *ast.Block, mark bool) {
@@ -56,7 +56,9 @@ func (w *writer) stmt(s ast.Stmt) {
 			return
 		}
 		if m, ok := s.X.(*ast.MatchExpr); ok {
+			w.matchDepth++
 			w.matchSwitch(m, false)
+			w.matchDepth--
 			return
 		}
 		w.line(w.expr(s.X))
@@ -117,17 +119,21 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 	if d.Const {
 		prefix = "const"
 	}
+	typePart := ""
+	if d.Type != nil {
+		typePart = " " + w.typeStr(d.Type)
+	}
 	if len(d.Values) == 1 {
 		if o, isOr := d.Values[0].(*ast.OrExpr); isOr {
-			value := w.orPrelude(o, true)
-			if value == "" {
+			values := w.orPrelude(o, true)
+			if len(values) == 0 {
 				return
 			}
 			names := strings.Join(d.Names, ", ")
-			if allBlank(d.Names) {
-				w.linef("_ = %s", value)
+			if allBlank(d.Names) && d.Type == nil {
+				w.linef("%s = %s", blanks(len(values)), strings.Join(values, ", "))
 			} else {
-				w.linef("%s %s = %s", prefix, names, value)
+				w.linef("%s %s%s = %s", prefix, names, typePart, strings.Join(values, ", "))
 			}
 			return
 		}
@@ -144,7 +150,7 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 		values = append(values, w.expr(v))
 	}
 	names := strings.Join(d.Names, ", ")
-	if allBlank(d.Names) {
+	if allBlank(d.Names) && d.Type == nil {
 		if len(values) == 1 {
 			w.linef("_ = %s", values[0])
 		} else {
@@ -152,7 +158,7 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 		}
 		return
 	}
-	w.linef("%s %s = %s", prefix, names, strings.Join(values, ", "))
+	w.linef("%s %s%s = %s", prefix, names, typePart, strings.Join(values, ", "))
 }
 
 func allBlank(names []string) bool {
@@ -171,11 +177,11 @@ func (w *writer) assignStmt(s *ast.AssignStmt) {
 	}
 	if len(s.Rhs) == 1 {
 		if or, ok := s.Rhs[0].(*ast.OrExpr); ok {
-			value := w.orPrelude(or, true)
-			if value == "" {
+			values := w.orPrelude(or, true)
+			if len(values) == 0 {
 				return
 			}
-			w.linef("%s = %s", strings.Join(lhs, ", "), value)
+			w.linef("%s = %s", strings.Join(lhs, ", "), strings.Join(values, ", "))
 			return
 		}
 	}
@@ -201,12 +207,7 @@ func (w *writer) returnStmt(s *ast.ReturnStmt) {
 			if call, ok := or.X.(*ast.CallExpr); ok && call.Info != nil {
 				results = call.Info.Results
 			}
-			value := w.orPrelude(or, results > 0)
-			if value == "" {
-				w.ret(nil)
-			} else {
-				w.ret([]string{value})
-			}
+			w.ret(w.orPrelude(or, results > 0))
 			return
 		}
 	}
@@ -324,10 +325,15 @@ func (w *writer) breakStmt(kind string) {
 	if w.deferStack && len(w.loops) > 0 {
 		w.linef("_s_d.RunTo(%s)", w.loops[len(w.loops)-1])
 	}
+	if w.matchDepth > 0 && len(w.loopLabels) > 0 {
+		if label := w.loopLabels[len(w.loopLabels)-1]; label != "" {
+			kind += " " + label
+		}
+	}
 	w.line(kind)
 }
 
-func (w *writer) orPrelude(or *ast.OrExpr, wantValue bool) string {
+func (w *writer) orPrelude(or *ast.OrExpr, wantValue bool) []string {
 	results := 1
 	var callStr string
 	if call, ok := or.X.(*ast.CallExpr); ok {
@@ -339,18 +345,31 @@ func (w *writer) orPrelude(or *ast.OrExpr, wantValue bool) string {
 		callStr = w.expr(or.X)
 	}
 	errName := w.next("err")
-	valueName := ""
+	var values []string
+	if results > 0 && wantValue {
+		values = make([]string, 0, results)
+		for i := 0; i < results; i++ {
+			values = append(values, w.next("v"))
+		}
+	}
 	switch {
 	case results > 0 && wantValue:
-		valueName = w.next("v")
-		w.linef("%s, %s := %s", valueName, errName, callStr)
+		w.linef("%s, %s := %s", strings.Join(values, ", "), errName, callStr)
 	case results > 0:
-		w.linef("_, %s := %s", errName, callStr)
+		w.linef("%s, %s := %s", blanks(results), errName, callStr)
 	default:
 		w.linef("%s := %s", errName, callStr)
 	}
 	w.orError(or, errName)
-	return valueName
+	return values
+}
+
+func blanks(n int) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = "_"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (w *writer) orError(or *ast.OrExpr, errName string) {
@@ -482,15 +501,155 @@ func (w *writer) deferStmt(s *ast.DeferStmt) {
 	w.linef("_s_d.Push(func() { %s })", callStr)
 }
 
+func loopNeedsLabel(b *ast.Block) bool {
+	if b == nil {
+		return false
+	}
+	for _, s := range b.Stmts {
+		if matchJump(s, false) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchJump(s ast.Stmt, inMatch bool) bool {
+	if s == nil {
+		return false
+	}
+	switch s := s.(type) {
+	case *ast.BreakStmt, *ast.ContinueStmt:
+		return inMatch
+	case *ast.Block:
+		if s == nil {
+			return false
+		}
+		for _, x := range s.Stmts {
+			if matchJump(x, inMatch) {
+				return true
+			}
+		}
+	case *ast.IfStmt:
+		return matchJumpExpr(s.Cond, inMatch) || matchJump(s.Then, inMatch) || matchJump(s.Else, inMatch)
+	case *ast.ForStmt:
+		return false
+	case *ast.ExprStmt:
+		return matchJumpExpr(s.X, inMatch)
+	case *ast.AssignStmt:
+		for _, e := range s.Lhs {
+			if matchJumpExpr(e, inMatch) {
+				return true
+			}
+		}
+		for _, e := range s.Rhs {
+			if matchJumpExpr(e, inMatch) {
+				return true
+			}
+		}
+	case *ast.DeclStmt:
+		if s.Decl != nil {
+			for _, e := range s.Decl.Values {
+				if matchJumpExpr(e, inMatch) {
+					return true
+				}
+			}
+		}
+	case *ast.ReturnStmt:
+		for _, e := range s.Results {
+			if matchJumpExpr(e, inMatch) {
+				return true
+			}
+		}
+	case *ast.WithinStmt:
+		return matchJump(s.Body, inMatch)
+	}
+	return false
+}
+
+func matchJumpExpr(e ast.Expr, inMatch bool) bool {
+	switch e := e.(type) {
+	case nil:
+		return false
+	case *ast.FuncLit:
+		return false
+	case *ast.MatchExpr:
+		for _, cs := range e.Cases {
+			if cs.Block != nil && matchJump(cs.Block, true) {
+				return true
+			}
+			for _, s := range cs.Body {
+				if matchJump(s, true) {
+					return true
+				}
+			}
+		}
+		return false
+	case *ast.OrExpr:
+		if e.Block != nil && matchJump(e.Block, inMatch) {
+			return true
+		}
+		return matchJumpExpr(e.PanicArg, inMatch)
+	case *ast.CallExpr:
+		for _, a := range e.Args {
+			if matchJumpExpr(a, inMatch) {
+				return true
+			}
+		}
+		return matchJumpExpr(e.Fun, inMatch)
+	case *ast.BinaryExpr:
+		return matchJumpExpr(e.X, inMatch) || matchJumpExpr(e.Y, inMatch)
+	case *ast.UnaryExpr:
+		return matchJumpExpr(e.X, inMatch)
+	case *ast.ParenExpr:
+		return matchJumpExpr(e.X, inMatch)
+	case *ast.IndexExpr:
+		return matchJumpExpr(e.X, inMatch) || matchJumpExpr(e.Index, inMatch)
+	case *ast.SliceExpr:
+		return matchJumpExpr(e.X, inMatch) || matchJumpExpr(e.Low, inMatch) || matchJumpExpr(e.High, inMatch)
+	case *ast.SelectorExpr:
+		return matchJumpExpr(e.X, inMatch)
+	case *ast.CompositeLit:
+		for _, en := range e.Entries {
+			if matchJumpExpr(en.KeyExpr, inMatch) || matchJumpExpr(en.Value, inMatch) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func typedVarInit(s ast.Stmt) *ast.VarDecl {
+	d, ok := s.(*ast.DeclStmt)
+	if !ok || d.Decl == nil || d.Decl.Type == nil {
+		return nil
+	}
+	return d.Decl
+}
+
 func (w *writer) forStmt(s *ast.ForStmt) {
 	if s.Par {
 		w.parForStmt(s)
 		return
 	}
+	typed := typedVarInit(s.Init)
+	if typed != nil {
+		w.line("{")
+		w.indent++
+		w.declStmt(typed)
+	}
+	label := ""
+	if loopNeedsLabel(s.Body) {
+		label = w.next("loop")
+		w.line(label + ":")
+	}
+	w.loopLabels = append(w.loopLabels, label)
 	if s.Range != nil {
 		w.rangeHead(s.Range)
 	} else {
-		init := w.initString(s.Init)
+		init := ""
+		if typed == nil {
+			init = w.initString(s.Init)
+		}
 		cond := ""
 		if s.Cond != nil {
 			cond = w.expr(s.Cond)
@@ -519,8 +678,13 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 		w.linef("_s_d.RunTo(%s)", mark)
 		w.loops = w.loops[:len(w.loops)-1]
 	}
+	w.loopLabels = w.loopLabels[:len(w.loopLabels)-1]
 	w.indent--
 	w.line("}")
+	if typed != nil {
+		w.indent--
+		w.line("}")
+	}
 }
 
 func (w *writer) rangeHead(r *ast.RangeClause) {
@@ -552,16 +716,23 @@ func (w *writer) initString(s ast.Stmt) string {
 		if s.Decl == nil {
 			return ""
 		}
+		typePart := ""
+		if s.Decl.Type != nil {
+			typePart = " " + w.typeStr(s.Decl.Type)
+		}
 		if len(s.Decl.Values) == 1 {
 			if or, ok := s.Decl.Values[0].(*ast.OrExpr); ok {
-				value := w.orPrelude(or, true)
-				if value == "" {
+				values := w.orPrelude(or, true)
+				if len(values) == 0 {
 					return ""
 				}
-				if allBlank(s.Decl.Names) {
-					return "_ = " + value
+				if allBlank(s.Decl.Names) && s.Decl.Type == nil {
+					return blanks(len(values)) + " = " + strings.Join(values, ", ")
 				}
-				return strings.Join(s.Decl.Names, ", ") + " := " + value
+				if s.Decl.Type != nil {
+					return "var " + strings.Join(s.Decl.Names, ", ") + typePart + " = " + strings.Join(values, ", ")
+				}
+				return strings.Join(s.Decl.Names, ", ") + " := " + strings.Join(values, ", ")
 			}
 		}
 		values := make([]string, 0, len(s.Decl.Values))
@@ -572,11 +743,14 @@ func (w *writer) initString(s ast.Stmt) string {
 			}
 			values = append(values, w.expr(v))
 		}
-		if allBlank(s.Decl.Names) {
+		if allBlank(s.Decl.Names) && s.Decl.Type == nil {
 			if len(values) == 1 {
 				return "_ = " + values[0]
 			}
 			return "_, _ = " + strings.Join(values, ", ")
+		}
+		if s.Decl.Type != nil {
+			return "var " + strings.Join(s.Decl.Names, ", ") + typePart + " = " + strings.Join(values, ", ")
 		}
 		return strings.Join(s.Decl.Names, ", ") + " := " + strings.Join(values, ", ")
 	case *ast.AssignStmt:
@@ -719,7 +893,12 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 		ord = w.next("ord")
 		w.linef("%s := 0", ord)
 	}
-	init := w.initString(s.Init)
+	init := ""
+	if typed := typedVarInit(s.Init); typed != nil {
+		w.declStmt(typed)
+	} else {
+		init = w.initString(s.Init)
+	}
 	var head string
 	if s.Range != nil {
 		x := w.expr(s.Range.X)

@@ -7,17 +7,17 @@ import (
 
 func TestParDeferPanicWins(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.str": `use errors;
+		"main.ink": `use errors;
 
-fn boom() void = {
+fn boom() void {
     panic("defer-panic");
 };
 
-fn fail() void or error = {
+fn fail() void or error {
     return errors.New("original");
 };
 
-fn main() void or error = {
+fn main() void or error {
     par {
         {
             defer boom();

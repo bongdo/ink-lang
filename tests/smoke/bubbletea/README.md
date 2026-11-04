@@ -5,7 +5,7 @@ multiple results, `case T as name`, bare `nil`, and the G10 method wrapper
 (`Update` uses `par`).
 
 ```sh
-strizh build
+ink build
 ```
 
 Not part of `bin/check`: it downloads Bubble Tea and builds a real TUI.

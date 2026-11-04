@@ -22,12 +22,12 @@ func contains(s, sub string) bool {
 
 func TestMatchAnyRequiresElse(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f(v: any) str = {
+fn f(v: any) str {
     return match (v) {
     case i32 as n => "i";
     };
 };
-fn main() void = {};
+fn main() void {};
 `})
 	if !hasError(p, "requires else") {
 		t.Fatalf("errors = %v", p.Errors)
@@ -36,13 +36,13 @@ fn main() void = {};
 
 func TestTypePatternOnConcrete(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f(n: i32) str = {
+fn f(n: i32) str {
     return match (n) {
     case i32 as x => "i";
     else => "e";
     };
 };
-fn main() void = {};
+fn main() void {};
 `})
 	if !hasError(p, "type patterns are only allowed") {
 		t.Fatalf("errors = %v", p.Errors)
@@ -51,10 +51,10 @@ fn main() void = {};
 
 func TestNilNotNilable(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f() i32 = {
+fn f() i32 {
     return nil;
 };
-fn main() void = {};
+fn main() void {};
 `})
 	if !hasError(p, "nil is not valid") {
 		t.Fatalf("errors = %v", p.Errors)
@@ -63,10 +63,10 @@ fn main() void = {};
 
 func TestMultiResultArity(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f() i32, i32 = {
+fn f() i32, i32 {
     return 1;
 };
-fn main() void = {};
+fn main() void {};
 `})
 	if !hasError(p, "wrong number of return values") {
 		t.Fatalf("errors = %v", p.Errors)
@@ -75,10 +75,10 @@ fn main() void = {};
 
 func TestMultiResultInference(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f() i32, bool = {
+fn f() i32, bool {
     return 1, true;
 };
-fn main() void = {
+fn main() void {
     var a, b = f();
     a = a;
     b = b;
@@ -89,23 +89,23 @@ fn main() void = {
 
 func TestTypePatternBinding(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f(v: any) str = {
+fn f(v: any) str {
     return match (v) {
     case i32 as n => "i";
     else => "e";
     };
 };
-fn main() void = {};
+fn main() void {};
 `})
 	noErrors(t, p)
 }
 
 func TestBareNilExpected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `
-fn f() error = {
+fn f() error {
     return nil;
 };
-fn main() void = {
+fn main() void {
     var e = f();
     if (e == nil) {};
 };

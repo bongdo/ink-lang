@@ -3,18 +3,18 @@ package parser
 import (
 	"testing"
 
-	"github.com/bongdo/strizh/internal/ast"
+	"github.com/bongdo/ink/internal/ast"
 )
 
 func TestResultList(t *testing.T) {
 	f := mustParse(t, `
-fn pair() i32, i32 or error = {
+fn pair() i32, i32 or error {
     return 1, 2;
 };
 
 type Handler = fn(i32) (str, bool);
 
-fn main() void = {};
+fn main() void {};
 `)
 	fn := declFunc(t, f, "pair")
 	if len(fn.Results) != 2 || !fn.Err {
@@ -28,7 +28,7 @@ fn main() void = {};
 
 func TestTypePatternAndElse(t *testing.T) {
 	f := mustParse(t, `
-fn main() void = {
+fn main() void {
     match (msg) {
     case tea.KeyPressMsg as k => {};
     case tea.WindowSizeMsg => {};
@@ -53,7 +53,7 @@ fn main() void = {
 
 func TestBareNil(t *testing.T) {
 	f := mustParse(t, `
-fn main() void = {
+fn main() void {
     var x = nil;
     return nil;
 };

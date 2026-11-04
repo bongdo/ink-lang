@@ -1,4 +1,4 @@
-package strizhrt
+package inkrt
 
 import (
 	"fmt"

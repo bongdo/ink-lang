@@ -1,4 +1,4 @@
-# Strizh 0.2 — `par`, `par for`, `within`
+# Ink 0.2 — `par`, `par for`, `within`
 
 Normative for 0.2. Where SPEC.md is silent or looser, this file wins. The
 gaps G1–G9 in GAPS.md are the implementation work; §8 maps each rule to the
@@ -19,8 +19,9 @@ test that pins it. Errors quoted here are the substrings the tests assert.
   sequential inside one worker.
 - **ord** — the worker's index: its spawn ordinal (0, 1, 2, …) for `par`,
   and for `par for` over a slice, array, `str` or C-style loop. Spawn order is
-  iteration order for all of these, so "lowest ord" is "lowest index". For a
-  `map` range every worker reports ord `-1` (§2).
+  iteration order for all of these, so "lowest ord" is "lowest index".
+  A `map` range in `par for` is rejected by sema: collect keys into a slice
+  first, then iterate the slice.
 - **Captured root** — a name declared outside the worker: local of the
   enclosing function, parameter, `self`, global. Names declared inside the
   worker are locals.
@@ -31,13 +32,11 @@ One `ParErrors` per `par`/`par for` statement. Only the winner is delivered;
 the other errors are dropped.
 
 - Indexed workers: winner = lowest ord.
-- Map workers: no index, so every iteration reports ord `-1`; the winner is
-  the first error that reaches `ParErrors` (completion order). This is
-  documented as nondeterministic; do not rely on it.
-- `ParErrors.First()` precedence: the lowest non-negative index wins; entries
-  with `-1` are considered only when no non-negative entry exists, and then
-  the earliest `Add` wins. An indexed error is never hidden by an unordered
-  one. Same inputs and same arrival order → same winner.
+- `ParErrors.First()` precedence: the lowest non-negative index wins. Entries
+  with `-1` are legacy runtime behavior for map iterations; source-level map
+  ranges are rejected, so no Ink program produces them. If present, they
+  are considered only when no non-negative entry exists, and then the earliest
+  `Add` wins. An indexed error is never hidden by an unordered one.
 
 Delivery:
 
@@ -65,10 +64,10 @@ runs before recovery.
 - A panic escaping a worker becomes an error at the worker's ord, cancels the
   siblings and returns from the worker. `Wait` still completes.
 - `panic(v)` written directly in a worker body is recovered at the worker
-  boundary and becomes `*strizhrt.PanicError{Value: v}`. The runtime captures
+  boundary and becomes `*inkrt.PanicError{Value: v}`. The runtime captures
   `debug.Stack()` in `NewPanicError`; the stack is the recovery stack and
   normally includes the user's panic site.
-- A panic raised inside a callee (Strizh or Go), or by Go code itself (index
+- A panic raised inside a callee (Ink or Go), or by Go code itself (index
   out of range, nil deref), is converted by the same recovery boundary. Go has
   already unwound the callee frames, so the message is exact and the stack is
   the recovery stack.
@@ -87,7 +86,7 @@ runs before recovery.
   `or panic` makes the enclosing `par` fallible even when no worker uses
   `or return`.
 
-Runtime API (normative; `runtime/source.go`, package `strizhrt`):
+Runtime API (normative; `runtime/source.go`, package `inkrt`):
 
 ```go
 type PanicError struct {
@@ -152,14 +151,18 @@ Plain `par`, reject:
 
 `par for`, reject:
 
-1. The `self` rule and the map rule above.
-2. Any write through a pointer-typed captured root (§5.3).
-3. Any other write to a captured root, unless the target is a **disjoint
+1. A map range: `map iteration is not allowed in par for; collect keys into a
+   slice first`.
+2. `for ()` in the body: `for () is not allowed inside par; use a bounded
+   loop`. Function literals are outside the static analysis.
+3. The `self` rule and the map rule above.
+4. Any write through a pointer-typed captured root (§5.3).
+5. Any other write to a captured root, unless the target is a **disjoint
    slot**: `base[i]`, `base[i].f` or `base[i][j]` where every base of the
    index chain is a slice or array (never a map, never a pointer) and the
    outermost index expression contains the loop's iteration variable. The
    exemption is per write target.
-4. Writes to iteration-body locals are free, including iteration variables
+6. Writes to iteration-body locals are free, including iteration variables
    declared by the loop (`var` init, range names). A name assigned by a
    C-style init (`par for (i = 0; ...)`) is not worker-local: a direct write to
    it in the body is rejected as a captured write (§6).
@@ -168,8 +171,9 @@ Allowed in both: reads of captured roots, reads of `self` fields, writes to
 locals declared inside the worker. Writes to globals are always rejected in
 both forms: a global is shared with the whole program, not only with the other
 workers. A write to a captured *value* struct
-(`c.n = v`) is a write to `c`, allowed under 1–2 above; a method call on a
-captured value struct (`c.M()`, implicit `&c`) is also a write to `c`.
+(`c.n = v`) is attributed to `c` and obeys the same root rules; in `par for` a
+non-slot write to `c` is rejected. A method call on a captured value struct
+(`c.M()`, implicit `&c`) is also a write to `c`.
 
 ## 6. C-style `par for` with assignment init
 
@@ -196,7 +200,7 @@ captured value struct (`c.M()`, implicit `&c`) is also a write to `c`.
 - Writes inside function literals are not analysed.
 - A method call on a captured interface value is conservatively a write and
   is rejected. Mutations reachable through a pointer/interface passed to a
-  free Strizh or Go function, or through Go callback state, are not tracked
+  free Ink or Go function, or through Go callback state, are not tracked
   as writes.
 - Two writes to different fields of one captured value struct, or to two
   literal slots of one captured slice, are rejected: one root, one writer.
@@ -221,7 +225,7 @@ captured value struct (`c.M()`, implicit `&c`) is also a write to `c`.
 | G2 | `internal/sema/par_gaps_test.go` `TestParAllowsWithin`, `TestParAllowsDefer`; `internal/gen/par_gaps_test.go` `TestParWithinInside`, `TestParWithinCancels`; `tests/cases/par_within` |
 | G3 | `internal/gen/par_gaps_test.go` `TestParDeferInside`; `tests/cases/par_defer` |
 | G4 | `internal/sema/par_gaps_test.go` `TestParAllowsOrPanic`; `internal/gen/par_gaps_test.go` `TestParOrPanic` |
-| G5 | `internal/sema/par_gaps_test.go` `TestParMapWriteRejected` |
+| G5 | `internal/sema/par_gaps_test.go` `TestParMapWriteRejected`; `internal/sema/par_hardening_test.go` `TestParForMapRejected`, `TestForUnboundedInsideParRejected` |
 | G6 | `internal/sema/par_gaps_test.go` `TestParPointerWriteRejected`, `TestParAliasWriteRejected`, `TestParMethodWriteRejected` |
 | G7 | `internal/sema/par_gaps_test.go` `TestParReadWriteRejected`, `TestParWriteSetsAllowed` |
 | G8 | `internal/sema/par_gaps_test.go` `TestParForCstyleIterVar`; `internal/gen/par_gaps_test.go` `TestParForCstyleCapture`; `tests/cases/par_capture` |

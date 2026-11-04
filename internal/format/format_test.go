@@ -4,28 +4,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/strizh/internal/parser"
+	"github.com/bongdo/ink/internal/parser"
 )
 
 const sample = `use fmt;
 use "./lib" as lib;
 
 // user type
-type User = struct {
+type User struct {
     Name: str,
     age: u32,
 
-    fn Greet() str = {
+    fn Greet() str {
         return "hi, " + Name;
     };
 };
 
-type Shape = enum {
+type Shape enum {
     Circle { radius: f64 },
     Empty,
 };
 
-type Writer = interface {
+type Writer interface {
     Write(p: u8[]) int or error;
 };
 
@@ -33,14 +33,14 @@ type Id = u64;
 
 const Max = 10;
 
-fn area(s: Shape) f64 = {
+fn area(s: Shape) f64 {
     return match (s) {
     case Circle { radius } => 3.14 * radius * radius;
     case Empty => 0.0;
     };
 };
 
-fn read(path: str) u8[] or error = {
+fn read(path: str) u8[] or error {
     var f = lib.Open(path) or return;
     defer f.Close();
     var buf = u8[16] {};
@@ -48,7 +48,7 @@ fn read(path: str) u8[] or error = {
     return buf[:n];
 };
 
-fn main() void or error = {
+fn main() void or error {
     var u = User { Name = "a", age = 1 };
     var s = u.Greet();
     if (len(s) > 0) {
@@ -88,12 +88,12 @@ test "works" {
 `
 
 func TestRoundTrip(t *testing.T) {
-	f, errs := parser.Parse("sample.str", []byte(sample))
+	f, errs := parser.Parse("sample.ink", []byte(sample))
 	if len(errs) > 0 {
 		t.Fatalf("parse: %v", errs)
 	}
 	out := File(f)
-	f2, errs := parser.Parse("sample.str", out)
+	f2, errs := parser.Parse("sample.ink", out)
 	if len(errs) > 0 {
 		t.Fatalf("parse formatted: %v\n---\n%s", errs, out)
 	}
@@ -107,13 +107,13 @@ func TestLineCommentsPreserved(t *testing.T) {
 	src := `// head
 use fmt;
 
-fn main() void = {
+fn main() void {
     // body
     var x = 1; // tail
     _ = x;
 };
 `
-	f, errs := parser.Parse("comments.str", []byte(src))
+	f, errs := parser.Parse("comments.ink", []byte(src))
 	if len(errs) > 0 {
 		t.Fatalf("parse: %v", errs)
 	}
@@ -123,7 +123,7 @@ fn main() void = {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
 	}
-	f2, errs := parser.Parse("comments.str", []byte(out))
+	f2, errs := parser.Parse("comments.ink", []byte(out))
 	if len(errs) > 0 {
 		t.Fatalf("parse formatted: %v\n---\n%s", errs, out)
 	}
@@ -133,20 +133,114 @@ fn main() void = {
 }
 
 func TestBlockCommentDiagnostic(t *testing.T) {
-	_, errs := parser.Parse("block.str", []byte("fn main() void = {\n    /* nope */\n};\n"))
+	_, errs := parser.Parse("block.ink", []byte("fn main() void {\n    /* nope */\n};\n"))
 	if len(errs) != 1 || errs[0].Msg != "block comments are not supported; use //" {
 		t.Fatalf("errors = %v", errs)
 	}
 }
 
+func formatSrc(t *testing.T, src string) string {
+	t.Helper()
+	f, errs := parser.Parse("test.ink", []byte(src))
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v", errs)
+	}
+	return string(File(f))
+}
+
+func TestExplicitVoid(t *testing.T) {
+	src := `fn f() {
+    return;
+};
+
+fn main() void {
+    var g = fn() {};
+    var h = fn(x: i32) i32 => x;
+    _ = g;
+    _ = h;
+};
+`
+	out := formatSrc(t, src)
+	if !strings.Contains(out, "fn f() void {") {
+		t.Fatalf("declaration missing void:\n%s", out)
+	}
+	if strings.Contains(out, "void = {") {
+		t.Fatalf("declaration kept '=':\n%s", out)
+	}
+	for _, want := range []string{"fn() {}", "fn(x: i32) i32 => x"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("function literal changed, missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "fn() void") {
+		t.Fatalf("void added to function literal:\n%s", out)
+	}
+}
+
+func TestInterfaceMethodWithoutFn(t *testing.T) {
+	src := `type Writer interface {
+    Write(p: u8[]) int or error;
+    Close() void;
+    Flush();
+};
+`
+	out := formatSrc(t, src)
+	for _, want := range []string{"Write(p: u8[]) int or error;", "Close() void;", "Flush() void;"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "fn Write") || strings.Contains(out, "fn Close") {
+		t.Fatalf("interface method printed with fn:\n%s", out)
+	}
+}
+
+func TestMultilineCompositeLit(t *testing.T) {
+	src := `fn main() void {
+var users = User[] {
+User { Name = "Alice", age = 30 },
+User { Name = "Bob", age = 25 },
+};
+var one = User { Name = "C", age = 1 };
+var nested = Outer {
+inner = Inner {
+a = 1,
+},
+b = 2,
+};
+};
+`
+	want := `fn main() void {
+    var users = User[] {
+        User { Name = "Alice", age = 30 },
+        User { Name = "Bob", age = 25 },
+    };
+    var one = User { Name = "C", age = 1 };
+    var nested = Outer {
+        inner = Inner {
+            a = 1,
+        },
+        b = 2,
+    };
+};
+`
+	out := formatSrc(t, src)
+	if out != want {
+		t.Fatalf("multiline composite not preserved:\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
 func TestNewSyntax(t *testing.T) {
-	src := `fn pair() i32, i32 or error = {
+	src := `fn pair() i32, i32 or error {
     return 1, 2;
 };
 
 type Handler = fn(i32) (str, bool);
 
-fn main() void = {
+fn main() void {
     var x = nil;
     match (msg) {
     case tea.KeyPressMsg as k => {};
@@ -155,7 +249,7 @@ fn main() void = {
 };
 
 `
-	f, errs := parser.Parse("new.str", []byte(src))
+	f, errs := parser.Parse("new.ink", []byte(src))
 	if len(errs) > 0 {
 		t.Fatalf("parse: %v", errs)
 	}
@@ -163,6 +257,135 @@ fn main() void = {
 	for _, want := range []string{"fn pair() i32, i32 or error", "fn(i32) (str, bool)", "var x = nil;", "case tea.KeyPressMsg as k", "else =>"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestCanonicalDeclSyntax(t *testing.T) {
+	src := `type User struct {
+    Name: str,
+};
+
+type Shape enum {
+    Circle,
+};
+
+type Writer interface {
+    Write(p: u8[]) int or error;
+};
+
+type UserId = u64;
+
+fn Greet() str {
+    return "hi";
+};
+
+fn main() void or error {
+    var g = fn(x: i32) i32 => x;
+    _ = g;
+    return;
+};
+`
+	out := formatSrc(t, src)
+	if out != src {
+		t.Fatalf("canonical input changed:\n--- got ---\n%s\n--- want ---\n%s", out, src)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
+func TestElseIfSingleSemicolon(t *testing.T) {
+	src := `fn f(n: i32) void {
+    if (n == 0) {
+        return;
+    } else if (n == 1) {
+        return;
+    } else {
+        return;
+    };
+};
+`
+	out := formatSrc(t, src)
+	if strings.Contains(out, "};;") {
+		t.Fatalf("duplicate semicolon after else-if:\n%s", out)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
+func TestTypedVarDecl(t *testing.T) {
+	src := `type Point struct {
+    X: i32,
+};
+
+var p: *Point = nil;
+var xs: i32[] = nil;
+var m: map[str, i32] = nil;
+var h: fn(i32) i32 = nil;
+var e: error = nil;
+
+fn main() void {
+    var n: i32 = 1;
+    for (var i: i32 = 0; i < n; i += 1) {};
+    _ = p;
+    _ = xs;
+    _ = m;
+    _ = h;
+    _ = e;
+};
+`
+	out := formatSrc(t, src)
+	for _, want := range []string{
+		"var p: *Point = nil;",
+		"var xs: i32[] = nil;",
+		"var m: map[str, i32] = nil;",
+		"var h: fn(i32) i32 = nil;",
+		"var e: error = nil;",
+		"var n: i32 = 1;",
+		"for (var i: i32 = 0; i < n; i += 1)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, ": void") {
+		t.Fatalf("printed void type:\n%s", out)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
+func TestEmptyForLoop(t *testing.T) {
+	src := `fn main() void {
+    for (; ; ) {};
+    par for (;;) limit 2 {};
+};
+`
+	out := formatSrc(t, src)
+	for _, want := range []string{"for () {}", "par for () limit 2 {}"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "for (;") {
+		t.Fatalf("empty loop kept separators:\n%s", out)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
+func TestVersionedImportKeepsAlias(t *testing.T) {
+	for _, want := range []string{
+		"use \"charm.land/bubbletea/v2\" as tea;\n",
+		"use \"charm.land/bubbletea/v2\" as bubbletea;\n",
+		"use \"charm.land/bubbletea/v2\" as v2;\n",
+	} {
+		if out := formatSrc(t, strings.TrimSuffix(want, "\n")); out != want {
+			t.Fatalf("got %q, want %q", out, want)
 		}
 	}
 }

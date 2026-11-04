@@ -5,11 +5,11 @@ import "testing"
 func TestLambdaInference(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use sort;
 
-type User = struct {
+type User struct {
     age: i32,
 };
 
-fn main() void = {
+fn main() void {
     var users = User[] {
         User { age = 30 },
         User { age = 20 },
@@ -21,7 +21,7 @@ fn main() void = {
 }
 
 func TestMapCommaOK(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn main() void = {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
     var m = map[str, i32] { "a" = 1 };
     var v, ok = m["a"];
     _ = v;
@@ -35,15 +35,15 @@ func TestMissingImportUsedInType(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use "./lib" as lib;
 
-fn main() void = {
+fn main() void {
     var r = lib.Result { value = 1 };
 };
 `,
-		"lib": `type Result = struct {
+		"lib": `type Result struct {
     Value: i32,
 };
 
-fn Result() void = {
+fn Result() void {
 };
 `,
 	})
@@ -55,7 +55,7 @@ fn Result() void = {
 func TestUnusedImport(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
-fn main() void = {
+fn main() void {
 };
 `})
 	found := false

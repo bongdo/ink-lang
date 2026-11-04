@@ -1,4 +1,4 @@
-# Strizh — один канонический способ
+# Ink — один канонический способ
 
 **Статус:** концепция для 1.0. Это не описание 0.2: где текущая реализация
 расходится с концепцией, это сказано явно.
@@ -38,7 +38,7 @@
 | Статус | Что значит | Кто отвечает |
 |---|---|---|
 | canonical | так пишут люди, примеры и документация | язык |
-| normalized | парсер принимает, `strizh fmt` переписывает в canonical | форматтер |
+| normalized | парсер принимает, `ink fmt` переписывает в canonical | форматтер |
 | forbidden | парсер или sema отвергает | компилятор |
 | foreign | допустимо только в адаптере/Go-слое, не в app-коде | FFI-граница |
 
@@ -81,7 +81,8 @@ use "../shared/config" as config;
 коротким, редкий (third-party path) — явным.
 
 **0.2:** `use "fmt";` уже ошибка парсера; канон — `use fmt;`. Alias для
-`/v2` пока не обязателен — это надо закрепить в sema или линтере.
+Go-пути, оканчивающегося на версию (`/v2`, `/v3`, ...), обязателен: это
+проверяет парсер. Local path (`./v2`) этим правилом не задет.
 
 ### 2.2. Struct literals
 
@@ -140,20 +141,17 @@ os.Remove(path) or panic("cannot remove");
 - Один fallible call — один statement. `f(g() or return)` запрещён: `or`
   statement-level. Это не временное ограничение, а решение: путь ошибки
   должен быть виден в структуре кода, а не спрятан внутри выражения.
-- `or` поддерживает не более одного не-error результата. Для
-  `A, B or error` в 0.2 есть только Go-форма
-  `var a, b, err = f(); if (err != nil) { return err; };`. Она остаётся на
-  FFI-слое: app-код не объявляет такие API и не пишет такой `if`. Если
-  Go-функция возвращает несколько значений и error, адаптер заворачивает
-  результат в struct или в один `T or error`.
+- `or` поддерживает любое число не-error результатов:
+  `var a, b = f() or return;`, `a, b = f() or return;`,
+  `return f() or return;`, `f() or return;`. Ошибка по-прежнему
+  statement-level и видна в структуре кода; arity проверяет sema.
+  Go-форма `var a, b, err = f();` остаётся для адаптеров, app-код пишет `or`.
 - Ошибку не сравнивают по строке. `errors.Is`/`errors.As` — на границе,
   в адаптере; app-код получает уже осмысленный `error` или свой enum.
   `isNotFound` в примере — helper facade, а не вызов Go-пакета из домена.
 
-**Спорно:** можно вместо запрета расширить `or` на multi-result
-(`var a, b = f() or return;`). Это остаётся statement-level и убирает
-Go-форму из app-кода, но добавляет кодогенерацию и ещё одно правило
-присваивания. Рекомендация — не расширять, пока адаптер решает задачу.
+**0.2:** multi-result `or` разрешён. Он остаётся statement-level, поэтому
+путь ошибки не прячется в выражении, а Go-форма с `err` уходит на FFI-слой.
 
 ### 2.4. Циклы
 
@@ -176,12 +174,14 @@ for () {
   `i < n`), range не выражает намерение; C-style честнее.
 - Вечный цикл — `for ()`, с явным выходом (`return` или `break`). Это не
   «while»: отдельного keyword нет, и это осознанно.
-- `par for` по map — не канон. У map нет ord, порядок и победитель ошибки
+- `par for` по map запрещён sema. У map нет ord, порядок и победитель ошибки
   недетерминированы. Если нужен параллелизм — сначала соберите ключи в
   slice последовательным range, потом `par for` по slice.
-- `for ()` внутри `par` — запрещённый паттерн без гарантированного выхода:
-  воркер может не завершиться, и `par` не дождётся. В `par` только циклы,
-  которые точно заканчиваются.
+- `for ()` внутри `par` запрещён sema: у воркера нет гарантированного
+  выхода, и `par` может не дождаться. В `par` только циклы, которые точно
+  заканчиваются. Function literals статический анализ не покрывает.
+- `break` и `continue` внутри `match` относятся к объемлющему циклу; меток
+  в языке нет, кодоген сам метит цикл.
 
 Почему: `for` один, но намерения три. Если оставить только C-style, range
 по map и запись в слот станут шумными; если добавить `while`, появится
@@ -211,7 +211,8 @@ within 30s {
 - `par for` — однородные итерации по slice/array/str или C-style счётчику,
   с optional `limit`. Запись — только в disjoint slots, индекс которых
   содержит переменную итерации. Map, указатели, `self`, глобалы — вне
-  safe subset (см. [FFI.md](FFI.md)).
+  safe subset (см. [FFI.md](FFI.md)). `par for` по map запрещён: сначала
+  последовательный range по ключам, потом параллельный обход slice.
 - `within` — deadline вокруг области, а не оператор параллельности. Он
   композируется с `par`, `par for` и последовательным кодом; один `within`
   на всю работу, а не по одному на вызов.
@@ -220,7 +221,8 @@ within 30s {
 - Ошибка в `par`/`par for`: побеждает низший ord (для slice/array/str и
   C-style — низший индекс). Остальные ошибки теряются. Если нужны все —
   пишите per-slot результаты и сворачивайте последовательно, а не делите
-  общий список ошибок между воркерами.
+  общий список ошибок между воркерами. Для map ord нет, поэтому map в
+  `par for` запрещён, а не «иногда работает».
 - `defer` на верхнем уровне `par` — отдельный воркер. Если cleanup относится
   к соседним statements, оберните их в блок:
 
@@ -237,20 +239,21 @@ par {
 ### 2.6. `nil`
 
 ```hare
-fn find() *User = {
+fn find() *User {
     return nil;
 };
 
-var p = nil[*User];
+var p: *User = nil;
+var e: error = nil;
 var xs = u8[] {};
 ```
 
-- Bare `nil` — когда expected type известен точно: return type, тип
-  параметра, тип lhs присваивания, поле struct literal, значение map,
-  элемент slice literal.
-- `nil[T]` — только когда типа нет или он слишком широкий (`any`,
-  интерфейс) и нужно выбрать конкретный nil. Главный случай — `var`:
-  `var p = nil[*User];`, потому что у `var` нет аннотации типа.
+- Bare `nil` — когда expected type известен точно: declared type в `var`,
+  return type, тип параметра, тип lhs присваивания, поле struct literal,
+  значение map, элемент slice literal.
+- `nil[T]` — explicit escape hatch, только когда тип слишком широкий (`any`,
+  интерфейс) и нужно выбрать конкретный nil. Это не default: в обычном коде
+  пишут `var p: *User = nil;`, а не `var p = nil[*User];`.
 - Не писать `nil[T]` там, где bare уже типизируется. Не заводить typed temp
   только чтобы избежать `nil[T]`.
 - `nil` — отсутствие, `T[] {}` — пустая коллекция, `T {}` — zero struct.
@@ -261,11 +264,23 @@ var xs = u8[] {};
 - Наличие ключа в map — `has(m, k)`, а не `m[k] != nil` и не sentinel.
   Если нужны и значение, и наличие — `var v, ok = m[k];`.
 
-**0.2:** `nil[T]` разрешён всегда, даже при известном expected type. Это
-кандидат на warning + autofix, не на жёсткую ошибку: в `any`-контексте
-`nil[T]` бывает нужен. Аудит вариантов — в `NIL.md`.
+**0.2:** typed `var` реализован: `var p: *User = nil;` даёт expected type
+для bare `nil`. `nil[T]` остаётся разрешённым escape hatch для `any` и
+интерфейсов; это не второй равноправный способ. Аудит вариантов — в `NIL.md`.
 
-### 2.7. Комментарии
+### 2.7. `_`
+
+```hare
+var a, _ = f();
+_ = a;
+```
+
+- `_` — единственный blank/discard construct. Отдельного `discard`-builtin нет.
+- В multi-result binding `_` — placeholder результата; `_ = a` — явный discard
+  присваивания.
+- `_` не вводит имя и не читается.
+
+### 2.8. Комментарии
 
 Целевая грамматика: только `//` до конца строки. Блочные `/* ... */`
 удаляются. Подробно — §5.
@@ -277,7 +292,7 @@ var xs = u8[] {};
 
 | Пара | Почему не дубль | Как выбирать |
 |---|---|---|
-| `var` / `const` | runtime-слот против compile-time значения | `const` — только там, где нужен compile-time (длина массива, case-паттерн) или истинная константа; иначе `var` |
+| `var` / `const` | runtime-слот против compile-time имени; `const` только package-level и не имеет типа | `const` — только там, где нужен compile-time (длина массива, case-паттерн) или истинная константа; иначе `var` |
 | `T {}` / `&T {}` | значение против указателя; копия против общей идентичности | по типу и владению, не по «удобству» |
 | `match` / `if` | исчерпывающий разбор закрытого множества против булева условия | enum/`any` — `match`; условие — `if` |
 | `case T` / `case T as k` | проверка типа против связывания значения | значение не нужно — `case T`; нужно — `as k`; `as _` не писать |
@@ -313,7 +328,7 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 - `if err != nil` как способ проброса ошибки;
 - импортированные Go-интерфейсы и Go-указатели в публичных полях и
   параметрах домена;
-- имена и типы codegen (`zz_strizh.go`, `_s_*`) в прикладном коде.
+- имена и типы codegen (`zz_ink.go`, `_s_*`) в прикладном коде.
 
 Правило границы:
 
@@ -321,7 +336,7 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 - Сложная библиотека (lifecycle, config, callbacks, context, goroutines,
   глобальное состояние, ошибки, которые надо классифицировать) — только
   через facade. App-код импортирует facade, а не Go-пакет.
-- Facade — Strizh-модуль с простыми типами и `or error`. Внутри он может
+- Facade — Ink-модуль с простыми типами и `or error`. Внутри он может
   делать `use` Go-пакета. Если адаптер должен быть на Go — это отдельный
   binding-модуль; app-код его не импортирует.
 - Один и тот же сложный Go-пакет не должен появляться в нескольких
@@ -336,9 +351,9 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 
 - В грамматике остаётся только `// ...` до конца строки.
 - `/* ... */` удаляется из языка. Не «deprecated», не «только для
-  generated»: в `.str` его нет.
+  generated»: в `.ink` его нет.
 - Комментарий — trivia. Он не привязывается к символу, не является
-  doc-комментарием, не влияет на codegen, не участвует в `strizh doc`.
+  doc-комментарием, не влияет на codegen, не участвует в `ink doc`.
 - Комментарий пишет почему, а не что. Закомментированный код удаляется:
   историю хранит VCS.
 
@@ -393,8 +408,8 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 | expression-level `or` | разбить на statements | скрытый control flow внутри выражения; statement-level делает путь ошибки видимым |
 | user variadics | параметр-slice; Go variadics вызываются с `...` | arity overloading и пустой slice; call-side spread уже есть для Go |
 | doc comments | обычный `//`; документация живёт в `design/`, `docs/`, README модуля | второй documentation system, который надо парсить, хранить и синхронизировать; компилятор не привязывает комментарии к символам |
-| rename / references / code actions | текстовый поиск редактора; LSP остаётся diagnostics/hover/definition/completion/symbols/signature/format | rename через structural interfaces и codegen без полного индекса нечестен; половина rename хуже его отсутствия |
-| VSIX | `strizh` LSP + любой клиент; VS Code grammar/client остаются вне core | пакетирование и integration-тесты — отдельный продукт, не язык |
+| rename / references / code actions | LSP делает их только для объявлений проекта; Go library symbols, пакеты и конфликты имён вне зоны | rename Go-библиотек и полный IDE parity требуют индекса всех зависимостей; половина rename хуже отсутствия, поэтому граница — проект |
+| VSIX | `ink` LSP + любой клиент; VS Code grammar/client остаются вне core | пакетирование и integration-тесты — отдельный продукт, не язык |
 | CLI extras | `build`/`run`/`check`/`test`/`fmt`/`lsp`/`new`/`init`; для race — `-race` | каждый extra — поверхность для поддержки; один binary, один workflow |
 
 Уже отсутствует в app-коде и остаётся отсутствующим: `go`, `chan`, `select`,
@@ -413,36 +428,46 @@ flow. См. §10 в [SPEC.md](SPEC.md).
 | Правило | Статус | Где |
 |---|---|---|
 | `use fmt;`, кавычки только для `/`/`.`/local | canonical | parser: quoted simple — error; formatter canonical |
+| alias для пути с версией (`/v2`, `/v3`, ...) | forbidden без alias | parser |
+| `type X struct/enum/interface`, `fn f() R { ... }` | canonical | parser принимает `=`, formatter переписывает |
+| alias `type X = Y` | canonical | parser; без `=` — ошибка |
 | named struct literals | forbidden (positional) | sema, уже есть |
 | `or` вместо `if err != nil { return err }` в app | canonical | sema: pure propagation — error; inspection allowed |
 | range/C-style/`for ()` по намерению | canonical | review; lint на C-style по slice, если range хватает |
 | `par`/`par for`/`within` по намерению | canonical | sema для unsafe `par`; lint на `par` с одним statement |
-| bare `nil` при известном типе | canonical | warning + autofix, не error |
-| `nil[T]` только когда expected type не фиксирует тип | canonical | warning |
+| bare `nil` при известном типе | canonical | typed `var` и expected type в sema |
+| `nil[T]` только для `any`/interface | escape hatch | не default; sema принимает обе формы |
+| `const` только package-level, без типа | forbidden иначе | sema |
+| `void` только как результат функции | forbidden иначе | sema |
 | `match` без `else` для enum | forbidden | sema, уже есть |
 | `match` с одним `else` | anti-pattern | lint |
 | `if`-цепочка по enum | anti-pattern | lint, если можно доказать |
-| map в `par for` | forbidden (target) | sema; сейчас разрешён с ord `-1` |
+| map в `par for` | forbidden | sema; сначала keys в slice |
+| `for ()` в `par` | forbidden | sema |
+| `break`/`continue` в `match` | canonical | кодоген метит цикл |
+| `_` как единственный discard | canonical | parser/sema; `discard` нет |
 | `/* */` | forbidden | lexer: error |
 | doc comments | absent | комментарии не привязаны к символам |
 | Go-типы в публичном API | forbidden | review + FFI; линтер по сигнатурам — позже |
 
 Правила, которые меняют смысл, не нормализуются форматтером. Форматтер
 переписывает только эквивалентное: `use "fmt";` → `use fmt;`, лишний alias,
-отступы. `nil[T]` → `nil` — это sema autofix, потому что нужно знать
-expected type. `if err != nil` → `or` — это не autofix: слишком легко
+старые `=`-перед-телом объявления → канон без `=`, отступы.
+`nil[T]` → `nil` — не autofix: нужно знать expected type, а в `any`-контексте
+форма остаётся нужной. `if err != nil` → `or` — это не autofix: слишком легко
 поменять поведение.
 
 ## 8. Миграция 0.2 → 1.0
 
 1. **Документация и примеры.** Новые примеры пишутся только каноном.
    Старые — по мере правки, без массового rewrite.
-2. **Formatter.** Нормализует импорты, alias, отступы. Блочные комментарии
-   конвертирует в `//` построчно, если это безопасно.
+2. **Formatter.** Нормализует импорты, alias, `type`/`fn` без `=`, отступы.
+   Блочные комментарии конвертирует в `//` построчно, если это безопасно.
 3. **Warnings.** `nil[T]` при известном типе, `match` с одним `else`,
-   `par` с одним statement, `/* */`, C-style по slice.
-4. **Errors.** Positional struct literal уже error. Дальше: `/* */`,
-   map в `par for`; expression-level `or` уже error.
+   `par` с одним statement, C-style по slice.
+4. **Errors.** Positional struct literal, `/* */`, local `const`, `void` в
+   value-позиции, map в `par for`, `for ()` в `par`, alias-less `/v2` и
+   expression-level `or` уже error.
 5. **Удаление.** Блочные комментарии исчезают из грамматики; deprecated
    форм не остаётся.
 
@@ -451,17 +476,16 @@ expected type. `if err != nil` → `or` — это не autofix: слишком 
 
 ## 9. Открытые вопросы
 
-- **Multi-result + error.** Расширить `or` до `var a, b = f() or return;`
-  или оставить FFI-only? Рекомендация: FFI-only, пока адаптер может
-  завернуть результат в struct.
-- **`nil[T]` при `any`.** Жёсткая ошибка невозможна: `nil[*T]` иногда
-  нужен, чтобы выбрать динамический тип. Warning с исключением для
-  `any`/interface.
+- **Multi-result + error.** Решено: `or` поддерживает любое число не-error
+  результатов (`var a, b = f() or return;`). Go-форма с `err` остаётся для
+  адаптеров.
+- **`nil[T]` при `any`.** Решено: `nil[T]` остаётся escape hatch для
+  `any`/interface, где expected type не фиксирует динамический тип.
 - **Trailing comments.** Разрешать `x = 1; // ...` или только комментарии
   на отдельной строке? Форматтер сейчас может переносить trailing
   комментарий; line-only это не решает. Решить до 1.0.
-- **Map в `par for`.** Запретить совсем или оставить с документированным
-  `ord = -1`? Рекомендация: запретить; последовательный range + slice.
+- **Map в `par for`.** Решено: запрещён sema; последовательный range по
+  ключам + `par for` по slice.
 - **Порядок импортов.** Группировать stdlib/third-party/local или оставить
   порядок автора? Это стиль, не семантика; если решать — только
   форматтером.

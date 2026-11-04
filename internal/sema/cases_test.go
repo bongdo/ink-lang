@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/parser"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/parser"
 )
 
 func TestConformanceCases(t *testing.T) {
@@ -30,7 +30,7 @@ func TestConformanceCases(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if d.IsDir() || !strings.HasSuffix(d.Name(), ".str") {
+			if d.IsDir() || !strings.HasSuffix(d.Name(), ".ink") {
 				return nil
 			}
 			src, err := os.ReadFile(path)

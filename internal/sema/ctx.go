@@ -1,6 +1,6 @@
 package sema
 
-import "github.com/bongdo/strizh/internal/ast"
+import "github.com/bongdo/ink/internal/ast"
 
 type ctxEdge struct {
 	from ast.Node

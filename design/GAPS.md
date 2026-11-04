@@ -1,14 +1,22 @@
-# Strizh — gap list (0.2 preview)
+# Ink — gap list (0.2 preview)
 
 This is the honest list of what is missing or only partially implemented.
 It is not a 1.0 checklist: it is the work needed before calling the language
 finished.
 
 **Status:** 0.2 preview. The compiler, formatter, LSP and tests work end to end.
-0.2 adds multiple results, type patterns, bare `nil`, context wrappers for Go
-interfaces, Go type diagnostics in `check`/LSP, interface conformance checks,
-and the `par` core (G1–G9). The remaining concurrency gap is the dynamic race
-oracle (G11).
+0.2 adds multiple results, type patterns, typed `var` with bare `nil`, context
+wrappers for Go interfaces, Go type diagnostics in `check`/LSP, interface
+conformance checks, and the `par` core (G1–G9). It also ships the agent
+contract: `check --json` with codes, hints and end positions, `--fast`,
+`--race`, the short `AGENTS.md`, the full `ink guide` reference and the
+`ink` OpenCode skill, and LSP
+references/rename/code actions/workspace symbols with test-block diagnostics.
+The current surface also has canonical `type`/`fn` declarations, package-only
+`const`, `break` in `match`, `void` checks, versioned import aliases, and the
+`par` map/`for ()` restrictions. The remaining concurrency gaps are the context
+boundary (G10) and the static-analysis limit covered by the race detector
+(G11).
 
 Effort: **S** — hours, **M** — days, **L** — a week or more.
 
@@ -17,31 +25,44 @@ Gap IDs are stable. Numbers missing from this list were dropped as won't-do;
 
 ## What works today
 
-- `.str` files, one directory = one package, `strizh.toml`, local and Go imports.
+- `.ink` files, one directory = one package, `ink.toml`, local and Go imports.
+- canonical declarations: `type User struct`, `type Shape enum`,
+  `type Writer interface`, alias `type UserId = u64`, `fn f() R { ... }`.
+  Old declarations with `=` before the body are rejected.
 - structures with fields/methods and implicit `self`; enums with exhaustive
   `match`; interfaces; generics without constraints; aliases.
-- `var`/`const`, slices/arrays/maps/pointers, `nil`/`nil[T]`,
-  `runes`/`bytes`/`str` conversions, `len/cap/append/copy/delete/has/min/max`.
-- multiple results: `fn f() A, B or error`, `return a, b;`, `var a, b = f();`.
-- `match` on `any`/interfaces with `case T as name`, `case T` and `else`.
+- package-level `const` (compile-time name, no type, sizes arrays and matches
+  case patterns); typed `var` (`var p: *T = nil`, `var a, b: T = ...`);
+  bare `nil` with declared/expected type and `nil[T]` as an escape hatch;
+  slices/arrays/maps/pointers, `runes`/`bytes`/`str` conversions,
+  `len/cap/append/copy/delete/has/min/max`.
+- multiple results: `fn f() A, B or error`, `return a, b;`, `var a, b = f();`,
+  `var a, b = f() or return;`.
+- `match` on `any`/interfaces with `case T as name`, `case T` and `else`;
+  `break`/`continue` inside a case target the enclosing loop.
 - `T or error` with `or return`, `or err { ... }`, `or panic(...)`;
-  block-scoped `defer`; statement-level forms.
+  block-scoped `defer`; statement-level forms. `void` is only a function
+  result; value positions are rejected.
 - `if`, all `for` forms, `match` statements/expressions.
 - `par`, `par for ... limit`, `within`; panic recovery, per-worker
-  `defer`/`within`, deterministic indexed errors, map first-completed errors,
-  captured read/write rules. Aliases beyond direct assignment remain a static
-  limit (G11).
-- `strizh check` is the authoritative whole-project check: it parses, checks and
-  type-checks generated Go for every file in the project.
-  `strizh build/run/test` still rely on `go build` for type errors.
-- LSP diagnostics and basic editing support; VS Code grammar/client; Neovim
-  setup.
+  `defer`/`within`, deterministic indexed errors, captured read/write rules.
+  `par for` over a map and `for ()` in a `par` body are rejected; aliases
+  beyond direct assignment remain a static limit (G11).
+- `ink check` is the authoritative whole-project check: it parses, checks and
+  type-checks generated Go for every file in the project, including `test`
+  blocks. `--fast` stops after sema, `--json` prints machine-readable
+  diagnostics, and `--race` type-checks with the race detector.
+  `ink build/run/test` still rely on `go build` for type errors.
+- LSP diagnostics and editing support (references, rename, code actions,
+  workspace symbols, test-block diagnostics, 150 ms debounced typecheck);
+  VS Code grammar/client; Neovim setup.
 
 ## A. Concurrency (`par`, `par for`, `within`) — core closed
 
 G1–G9 are fixed in 0.2; [`PAR.md`](PAR.md) is the normative description of the
-implemented semantics. The remaining item is G11: the checks are static, and
-the Go race detector stays the dynamic oracle.
+implemented semantics. The remaining items are G10 (the Go boundary remainder)
+and G11: the checks are static, and the Go race detector stays the dynamic
+oracle.
 
 ### G1. Panic inside `par` — fixed in 0.2
 Every worker runs inside a recovery boundary. A panic becomes a `*PanicError`
@@ -64,9 +85,12 @@ worker; wrap it in a block when the cleanup belongs to the sibling statements.
 `or panic(msg)` and `or panic()` add an error at the worker's ord, cancel the
 siblings and return from the worker. They make the enclosing `par` fallible.
 
-### G5. Map writes — fixed in 0.2
+### G5. Map writes and map ranges — fixed in 0.2
 Any write to a slot of a captured map is rejected in `par` and `par for`, even
 with the iteration variable as the index: `writing to map <root> inside par`.
+A map range in `par for` is rejected outright:
+`map iteration is not allowed in par for; collect keys into a slice first`.
+Collect keys sequentially, then run `par for` over the slice.
 
 ### G6. Pointer and alias writes — fixed in 0.2
 A write through a pointer-typed captured root (`*p`, `p.f`, `p[i]`, a non-pure
@@ -90,32 +114,41 @@ outer `i`. A direct write to `i` in the body is rejected as a captured write.
 Iteration variables declared by `var` init or range are worker-local: writes to
 them are allowed. Non-identifier init targets are rejected by sema.
 
-### G9. Map error order — fixed in 0.2
-Indexed workers report their spawn ordinal, so the lowest index wins. Map
-iterations report ord `-1`; `ParErrors.First()` prefers any non-negative index
-and otherwise takes the first completed error. Map order is documented as
-nondeterministic. Map aliases and Go map types are recognized by `rangeTypes`,
-so their range yields keys and their `par for` uses `-1`.
+### G9. Map error order — fixed in 0.2, now unreachable
+Indexed workers report their spawn ordinal, so the lowest index wins. The
+runtime still understands ord `-1` and `ParErrors.First()` prefers any
+non-negative index, then the first completed error. Since G5 now rejects map
+ranges in `par for`, no Ink source produces `-1`; the path stays in the
+runtime for compatibility.
 
 ### G10. Context coloring at the Go boundary
-**Статус:** fixed in 0.2 for direct calls, methods and Go callbacks.
+**Статус:** partially fixed in 0.2 for direct calls, methods and Go callbacks;
+the boundary remainder is open.
 **Сейчас:** a function or method that needs a hidden context gets a public
 wrapper with the exact Go signature and an internal `_s_..._ctx` body. The
-wrapper calls the internal function with `context.Background()`; Strizh calls
+wrapper calls the internal function with `context.Background()`; Ink calls
 inside a `within`/`par` pass the real context. Internal functions called across
 package boundaries go through the public wrapper.
 **Остаток:** the limit is the boundary itself. Interface dispatch through a
-Strizh interface, package-level initializers and function values are not
+Ink interface, package-level initializers and function values are not
 context-colored: a call through them uses the public wrapper with
 `context.Background()`, so a `within` deadline does not cross a package
 boundary or a function value. Timers and IO are executed by `tea.Program`, not
-by Strizh.
+by Ink.
+**Документация:** `ink guide` §Concurrency and
+[`examples/limits/README.md`](../examples/limits/README.md).
 
 ### G11. `par` checks are static only
-**Сейчас:** `strizh build -race` can be passed to Go, but nothing forces it.
-**Почему:** the Strizh compiler has no runtime instrumentation.
-**Фикс:** add `strizh run -race` / `strizh test -race` documentation and a
-`strizh check --race` path; keep Go's race detector as the dynamic oracle.
+**Статус:** documented and covered by the race path; the static limit remains.
+**Сейчас:** `ink run -race` builds with Go's race detector,
+`ink test -race` runs tests with it, and `ink check --race` type-checks
+with `-race` (compile-time only, no runtime instrumentation). Map ranges in
+`par for` and `for ()` in `par` are sema errors; the remaining static limit is
+alias, escape and function-literal analysis.
+**Почему:** the Ink compiler has no runtime instrumentation.
+**Фикс:** none for the race path; Go's detector stays the dynamic oracle.
+**Документация:** `ink guide` §Concurrency and
+[`examples/limits/README.md`](../examples/limits/README.md).
 **Оценка:** S.
 
 ## B. Language surface
@@ -125,7 +158,8 @@ by Strizh.
 **Синтаксис:** `fn f() A, B or error`, `return a, b;`, `var a, b = f();`,
 `a, b = f();`. Function types use `fn(i32) (str, bool)`.
 **Границы:** no tuple type, no tuple values, no indexing or nesting in
-arguments. `or` supports at most one non-error result. `return f();` passes a
+arguments. `or` handles every non-error result: `var a, b = f() or return;`,
+`a, b = f() or return;`, `return f() or return;`. `return f();` passes a
 fallible multi-result call through. This unlocks `tea.Model` and Go APIs.
 
 ### G14. `match` on `any` and interfaces
@@ -144,20 +178,20 @@ does not resolve `Call.TypeArgs`, so hover/completion/inference are blind.
 declaration and instantiated types to `CallInfo`.
 **Оценка:** S.
 
-### G20. `nil` typing
-**Статус:** fixed in 0.2.
-**Сейчас:** bare `nil` is allowed when the expected type is known; otherwise
-`nil[T]` is required. Only pointers, slices, maps, functions and interfaces are
-accepted. Generated nil is `(T)(nil)`, not `*new(T)`, so the value is a real
-nil.
+### G20. `nil` typing — fixed in 0.2
+**Сейчас:** typed `var` gives `nil` an expected type: `var p: *Point = nil;`,
+`var e: error = nil;`. One type applies to all names:
+`var a, b: T = ...`. Bare `nil` is the default; `nil[T]` remains an explicit
+escape hatch for `any`/interface contexts. Only pointers, slices, maps,
+functions and interfaces are accepted. `const` cannot have a type, and typed
+`void` is rejected. Generated nil is `(T)(nil)`, not `*new(T)`, so the value is
+a real nil.
 
-### G21. `break` inside a `match` case is rejected
-**Сейчас:** sema error, because Go's `break` would leave the switch, not the
-loop.
-**Почему:** codegen does not label loops.
-**Фикс:** emit labels for loops and rewrite `break`/`continue` inside a match
-to `break _s_loop`/`continue _s_loop`; or keep the restriction and document it.
-**Оценка:** S.
+### G21. `break` inside a `match` case — fixed in 0.2
+**Сейчас:** `break` and `continue` inside a `match` case target the enclosing
+loop. Codegen labels loops that contain a match with `break`/`continue` and
+emits `break _s_loop` / `continue _s_loop`, so Go's switch is not left. User
+labels still do not exist.
 
 ### G23. String indexing returns a byte
 **Сейчас:** `s[i]` is Go's byte; users must call `runes(s)` for rune work.
@@ -169,17 +203,18 @@ preferred form; changing `s[i]` to rune would surprise Go users.
 ## C. Sema and type checking
 
 ### G26. Type errors in `check` and LSP — fixed (prototype) in 0.2
-**Сейчас:** `strizh check` runs `internal/typecheck.Check` after a clean
+**Сейчас:** `ink check` runs `internal/typecheck.Check` after a clean
 parse/sema pass. It generates Go in memory, loads it through `go/packages` with
-an overlay, and maps Go diagnostics back through `//line`; `strizh check` exits
+an overlay, and maps Go diagnostics back through `//line`; `ink check` exits
 1 on `var n = 1 + "x";`. The LSP runs the same check on `initialize`,
-`didOpen` and `didSave` and publishes diagnostics with source `strizh`.
+`didOpen`, `didSave` and `didClose`, and after a debounced `didChange`, and
+publishes diagnostics with source `ink`.
 **Границы:** `build/run/test` still rely on `go build` for type errors; the
-LSP checks production packages only; diagnostics have no columns (G34); the
-LSP call is synchronous (G43). [`TYPECHECK.md`](TYPECHECK.md) is the detailed
-contract.
-**Остаток:** async/debounce (G43), columns (G34), test diagnostics in the LSP,
-and per-package cache.
+LSP type-check includes `test` blocks and reports real start columns through
+`//line`, but sema and typecheck end spans are one-character fallbacks (G34).
+Sema still runs synchronously on every change (G43).
+[`TYPECHECK.md`](TYPECHECK.md) is the detailed contract.
+**Остаток:** per-package cache and exact end spans.
 
 ### G27. Interface conformance — fixed in 0.2
 **Сейчас:** sema computes method sets for local structs, local interfaces and
@@ -194,12 +229,14 @@ a normal parameter; a hidden-ctx implementation does not match it. Multi-result
 assignments/returns are currently skipped because the call info has several
 results.
 
-### G28. Enum GoName collisions are checked in map order
-**Сейчас:** `ShapeCircle` colliding with a later type may be missed depending
-on map iteration order.
-**Почему:** collision check happens during collection, before all types exist.
-**Фикс:** final package-wide symbol table pass after collection; also detect
-variant names that make bare patterns ambiguous.
+### G28. Enum variant names — fixed in 0.2
+**Сейчас:** duplicate variant names in one package are rejected
+deterministically (`enum variant Y is already declared in A`), so bare `case`
+patterns are unambiguous. A `<Enum><Variant>` GoName colliding with a later
+type can still be missed depending on map iteration order; that is a codegen
+symbol-table limit, not a variant-name ambiguity.
+**Фикс (remaining):** final package-wide symbol table pass after collection for
+GoName collisions.
 **Оценка:** S.
 
 ### G29. Top-level forward references have no inferred type
@@ -210,19 +247,19 @@ are weak, even though Go compiles it.
 cycles.
 **Оценка:** M.
 
-### G30. `void` is not fully restricted
-**Сейчас:** sema rejects void fields/params, but some expression positions can
-still reach Go with no value.
-**Почему:** the type is just a builtin named type.
-**Фикс:** a dedicated `VoidType` that is allowed only as a function result;
-reject in vars, fields, params, args, returns with values.
-**Оценка:** S.
+### G30. `void` value positions — fixed in 0.2
+**Сейчас:** `void` is allowed only as a function result. Sema rejects it in
+variables (local and package), fields, parameters, arguments, returns with
+values, composite elements, slice element types and generic arguments.
+**Почему:** `void` is not a value; the restriction is checked before Go sees
+the generated code.
 
 ### G31. Unused locals/dead code — partly fixed by G26
-**Сейчас:** `strizh check` type-checks generated Go, so unused locals and
-similar Go diagnostics are reported there; the LSP gets them on open/save.
+**Сейчас:** `ink check` type-checks generated Go, so unused locals and
+similar Go diagnostics are reported there; the LSP gets them on open/save and
+after the debounced check on change.
 **Остаток:** no fast unused-local pass for LSP, and dead-code/vet diagnostics
-are not a separate Strizh pass.
+are not a separate Ink pass.
 **Оценка:** S/M.
 
 ## D. Codegen and runtime
@@ -243,12 +280,14 @@ Go accepts it, but it is noise.
 it already imports the same path.
 **Оценка:** S.
 
-### G34. `//line` has no columns and uses absolute paths
-**Сейчас:** errors point at a line, not a column; paths with spaces are fragile;
-generated files embed machine paths.
-**Почему:** `writeLineDirective` emits `path:line`.
-**Фикс:** emit `//line path:line:col`; define a relative-path convention and
-map it in the driver/LSP; escape or reject spaces.
+### G34. `//line` columns and absolute paths
+**Статус:** partly fixed in 0.2. `writeLineDirective` emits
+`path:line:col`, and `typecheck` maps the column back; `check --json` carries
+`endLine`/`endCol`.
+**Остаток:** sema and typecheck end positions are one-character fallbacks, and
+generated files still embed absolute paths; spaces in paths are not escaped.
+**Фикс:** keep the column, add a relative-path convention and escape or reject
+spaces.
 **Оценка:** S.
 
 ### G35. `GoType.Text` can reference packages that are not imported
@@ -257,7 +296,7 @@ name without an import, breaking generated code.
 **Почему:** `types.TypeString` uses a qualifier that falls back to the package
 name.
 **Фикс:** collect required imports while printing Go types; add them to the
-file import set; fail with a Strizh error if a type cannot be named.
+file import set; fail with an Ink error if a type cannot be named.
 **Оценка:** M.
 
 ### G36. `or` in multiple RHS / a `for` post is rejected
@@ -265,51 +304,50 @@ file import set; fail with a Strizh error if a type cannot be named.
 error. The restriction is listed in [`SPEC.md`](SPEC.md) §10.
 
 ### G37. Generation always rewrites whole files
-**Сейчас:** each build writes `zz_strizh.go` for every package; there is no
+**Сейчас:** each build writes `zz_ink.go` for every package; there is no
 manifest of generated files and no cleanup for deleted packages.
 **Почему:** simplest correct approach.
-**Фикс:** write only when bytes change; keep `.strizh/generated.json`; remove
+**Фикс:** write only when bytes change; keep `.ink/generated.json`; remove
 stale outputs. Low priority.
 **Оценка:** S.
 
 ### G38. Runtime is copied on every build
-**Сейчас:** `.strizh/runtime/runtime.go` is overwritten each time.
+**Сейчас:** `.ink/runtime/runtime.go` is overwritten each time.
 **Почему:** guarantees the runtime matches the compiler.
 **Фикс:** compare content/hash; keep the current behavior otherwise.
 **Оценка:** S.
 
 ## E. Tooling and LSP
 
-### G39. LSP type diagnostics — partly fixed by G26
-**Сейчас:** `didOpen`, `didSave` and `initialize` run the Go type-check and
-publish mapped diagnostics with source `strizh`; `didChange` clears them until
-the next save. Parser/sema diagnostics work as before.
-**Остаток:** async/debounce and cancellation (G43), columns (G34), test files,
-and publishing errors for generated code that is not covered by `//line`.
+### G39. LSP type diagnostics — fixed in 0.2
+**Сейчас:** `initialize`, `didOpen`, `didSave` and `didClose` run the Go
+type-check and publish mapped diagnostics with source `ink`; `didChange`
+schedules the same check after a 150 ms debounce and drops stale results.
+Parser/sema diagnostics work as before, and the type-check includes `test`
+blocks. Start columns come from `//line path:line:col`.
+**Остаток:** exact end columns (G34), per-package cache; the sema pass itself is
+still synchronous (G43).
 
-### G43. LSP analysis is synchronous and has no debounce/cancellation
-**Сейчас:** a `didChange` blocks the message loop while sema walks the project;
-a large project stutters.
-**Почему:** no worker/versioned analysis.
-**Фикс:** analysis worker with a latest-version queue, cancellation, and
-debounced Go typecheck; publish only current versions.
+### G43. LSP sema is synchronous; typecheck is debounced
+**Статус:** partly fixed. The generated-Go typecheck is debounced by 150 ms,
+the timer is stopped on a new reload, and a stale generation is dropped before
+it publishes. The whole-project sema pass still blocks the message loop on
+every `didChange`.
+**Почему:** no worker/versioned analysis for sema.
+**Фикс:** move sema to an analysis worker with a latest-version queue and
+cancellation.
 **Оценка:** M.
 
-### G44. LSP shim drops `didChange` when its queue is full
-**Сейчас:** 64 outbound messages; under fast typing an update can be dropped
-and diagnostics lag until the next edit.
-**Почему:** non-blocking design with a bounded queue.
-**Фикс:** coalesce per URI (keep only the latest text) instead of dropping;
-make the queue larger or unbounded for control messages.
-**Оценка:** S.
+### G44. LSP shim drops `didChange` when its queue is full — not reproduced
+**Статус:** the current `internal/lsp` transport has no bounded outbound queue:
+notifications are written synchronously under a mutex, and `didChange` messages
+are read and handled in order. If a client shim reintroduces a queue, coalesce
+per URI (keep only the latest text) instead of dropping updates.
 
-### G45. LSP does not clear diagnostics for closed project files
-**Сейчас:** closed files are analyzed from disk; only deleted/standalone docs
-are cleared.
-**Почему:** reload publishes for all project files.
-**Фикс:** publish empty diagnostics on `didClose`; keep a URI→version map and
-drop stale publishes.
-**Оценка:** S.
+### G45. LSP diagnostics for closed project files — fixed for buffers
+**Статус:** `didClose` publishes empty diagnostics for the closed URI, deletes
+the in-memory buffer and re-analyzes from disk. Diagnostics for the file on
+disk can appear again by design.
 
 ### G46. Formatter comment fidelity and wrapping
 **Сейчас:** comments are preserved by line but can move to the next line;
@@ -321,7 +359,7 @@ optional `--wrap` later.
 
 ## Bubble Tea
 
-Bubble Tea is Go and is callable from Strizh. 0.2 removes the two language
+Bubble Tea is Go and is callable from Ink. 0.2 removes the two language
 blockers:
 
 - `Update` returns `(tea.Model, tea.Cmd)` — multiple results (G13).
@@ -334,32 +372,42 @@ Go signature and an internal context version. `Cmd` is executed by
 `tests/smoke/bubbletea` and pins `charm.land/bubbletea/v2 v2.1.0`; soft wrap,
 clipboard, themes and completion are separate UI work.
 
-## Suggested order
+## Priorities
 
-0.2 was the vertical slice: multiple results, type patterns, bare `nil`, G10,
-G26/G27 and the `par` core. The list below is the actual remaining work.
+Agent readiness is priority 1, ahead of 1.0 polish. The detailed roadmap is in
+[`AGENT.md`](AGENT.md). The order below replaces the old 1.0-first plan.
 
-1. G11: dynamic race oracle (`-race` docs and path). G1–G9 are closed.
-2. G18, G21, G23: the remaining language surface — explicit call type
-   arguments, `break` inside `match`, and the string-indexing rule. G13, G14
-   and G20 are already fixed.
-3. G32–G38: codegen and runtime cleanup. G36 is a clear diagnostic, not a
-   missing feature.
-4. G39, G43–G46: diagnostics and tooling; G39 is partly closed by G26.
+1. **P0 — agent contract and feedback.** Implemented: agent guide, JSON
+   diagnostics with codes/hints, `--fast`, diagnostics on change and a stable
+   CLI contract. A2 remains partial: parser ends are exact, sema/typecheck ends
+   are one-character spans, and G34 paths are still absolute.
+2. **P1 — agent editing.** Implemented: LSP references/rename, code actions,
+   test diagnostics and workspace symbols. A7 remains partial: the
+   `nil-untyped` fix is conservative and rename does not check conflicts.
+3. **P2 — concurrency confidence.** Implemented: `-race` path
+   (`run`/`test`/`check`), G10 boundary docs, G11 static-analysis docs.
+   G1–G9 are closed; G10 and G11 remain as documented limits.
+4. **P3 — 1.0 polish.** G18, G23, G29, G32–G38, remaining G34 path work and
+   G43–G46, performance and the compatibility freeze.
+
+G13, G14, G20, G21, G28, G30 and G39 are fixed. G34, G43 and A2/A7 are partial.
+G44 is not reproduced in the current transport; G45 is fixed for buffer
+diagnostics. G36 is a clear diagnostic, not a missing feature.
 
 ## Commands
 
 CLI:
 
 ```sh
-strizh build [-o out] [go build flags]
-strizh run [-- program args]
-strizh check
-strizh test [go test flags]
-strizh fmt [-w] [paths]
-strizh lsp [--root dir]
-strizh new <dir>
-strizh init [dir]
-strizh version
-strizh help
+ink build [-o out] [go build flags]
+ink run [-race] [-- program args]
+ink check [--json] [--fast] [--race]
+ink test [go test flags]
+ink fmt [-l] [-w] [--json] [paths]
+ink lsp [--root dir]
+ink new <dir>
+ink init [dir]
+ink guide
+ink version
+ink help
 ```

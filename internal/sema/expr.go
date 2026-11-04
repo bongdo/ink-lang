@@ -4,8 +4,8 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func (c *checker) resolveExpr(e ast.Expr, top bool) ast.Type {
@@ -361,6 +361,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 			continue
 		}
 		c.resolveExpr(arg, false)
+		c.checkVoidValue(arg)
 		if ac, ok := arg.(*ast.CallExpr); ok && ac.Info != nil && ac.Info.Results > 1 {
 			c.p.errorf(c.fc.file.Path, arg.Pos(), "multi-result call cannot be used as an argument")
 		} else {
@@ -472,9 +473,6 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 		c.p.errorf(c.fc.file.Path, or.Pos(), "call does not return an error")
 		return xt
 	}
-	if call.Info.Results > 1 {
-		c.p.errorf(c.fc.file.Path, or.Pos(), "or supports at most one non-error result")
-	}
 	switch or.Mode {
 	case ast.OrReturn:
 		if c.fn == nil {
@@ -558,6 +556,8 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 			c.applyNil(en.Value, ty.Value)
 			c.resolveExpr(en.KeyExpr, false)
 			c.resolveExpr(en.Value, false)
+			c.checkVoidValue(en.KeyExpr)
+			c.checkVoidValue(en.Value)
 			c.checkAssign(ty.Value, en.Value)
 		}
 	case *ast.SliceType, *ast.ArrayType:
@@ -571,16 +571,19 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 		for _, en := range e.Entries {
 			c.applyNil(en.Value, elem)
 			c.resolveExpr(en.Value, false)
+			c.checkVoidValue(en.Value)
 			c.checkAssign(elem, en.Value)
 		}
 	case *ast.GenericType:
 		for _, en := range e.Entries {
 			c.resolveExpr(en.Value, false)
+			c.checkVoidValue(en.Value)
 		}
 	case *ast.NamedType:
 		if ty.Decl == nil {
 			for _, en := range e.Entries {
 				c.resolveExpr(en.Value, false)
+				c.checkVoidValue(en.Value)
 			}
 		}
 	}
@@ -609,6 +612,7 @@ func (c *checker) resolveFields(e *ast.CompositeLit, fields []*ast.Field, owner 
 		en.Field = f
 		c.applyNil(en.Value, f.Type)
 		c.resolveExpr(en.Value, false)
+		c.checkVoidValue(en.Value)
 		c.checkAssign(f.Type, en.Value)
 	}
 }
@@ -638,6 +642,9 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 		} else {
 			c.p.errorf(c.fc.file.Path, p.Pos(), "cannot infer parameter type")
 		}
+		if t != nil && isVoidType(t) {
+			c.p.errorf(c.fc.file.Path, p.Pos(), "parameter %s cannot be void", p.Name)
+		}
 		lit.ParamTypes = append(lit.ParamTypes, t)
 	}
 	var results []ast.Type
@@ -655,11 +662,10 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 		c.p.edges = append(c.p.edges, ctxEdge{from: c.fn.node(), to: lit})
 	}
 	savedFn := c.fn
-	savedInPar, savedLoop, savedMatch := c.inPar, c.loopDepth, c.matchDepth
+	savedInPar, savedLoop := c.inPar, c.loopDepth
 	c.fn = fi
 	c.inPar = false
 	c.loopDepth = 0
-	c.matchDepth = 0
 	c.push()
 	for i, p := range lit.Params {
 		c.declare(&symbol{name: p.Name, kind: ast.RefParam, typ: p.Type, goType: c.goTypeOf(p.Type), decl: p})
@@ -686,7 +692,6 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 	c.fn = savedFn
 	c.inPar = savedInPar
 	c.loopDepth = savedLoop
-	c.matchDepth = savedMatch
 	ft := &ast.FuncType{Span: lit.Span, Params: lit.ParamTypes, Results: results, Err: lit.Err}
 	return ft
 }
@@ -715,9 +720,21 @@ func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 				c.p.errorf(c.fc.file.Path, cs.Pos(), "multiple else cases")
 			}
 		} else if open {
-			c.resolveTypePattern(pat, cs)
+			if _, ok := pat.Literal.(*ast.NilLit); ok {
+				c.p.errorf(c.fc.file.Path, pat.Pos(), "case nil is not supported on any or interface; use else")
+			} else {
+				c.resolveTypePattern(pat, cs)
+			}
 		} else if pat.TypePat != nil || pat.Bind != "" {
 			c.p.errorf(c.fc.file.Path, pat.Pos(), "type patterns are only allowed on any and interfaces")
+		} else if n, ok := pat.Literal.(*ast.NilLit); ok {
+			if enum != nil {
+				c.p.errorf(c.fc.file.Path, pat.Pos(), "case nil is not supported on enum %s", enum.Name)
+			} else {
+				c.applyNil(n, subj)
+				c.resolveExpr(n, false)
+				n.Type = nil
+			}
 		} else if enum != nil {
 			v := variantByPattern(enum, pat)
 			if v == nil {
@@ -751,7 +768,6 @@ func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 		} else if pat.Literal != nil {
 			c.resolveExpr(pat.Literal, false)
 		}
-		c.matchDepth++
 		c.push()
 		if pat.Variant != nil {
 			for i, name := range pat.Fields {
@@ -778,7 +794,6 @@ func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 			}
 		}
 		c.pop()
-		c.matchDepth--
 	}
 	if enum != nil && !hasWildcard {
 		for _, v := range enum.Variants {
@@ -800,6 +815,25 @@ func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 		m.ResultType = out
 	}
 	return out
+}
+
+func (c *checker) checkMatchValue(e ast.Expr) {
+	ast.Inspect(e, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.OrExpr:
+			c.checkMatchValue(n.X)
+			c.checkMatchValue(n.PanicArg)
+			return false
+		case *ast.MatchExpr:
+			if !n.IsExpr {
+				c.p.errorf(c.fc.file.Path, n.Pos(), "match with block arms cannot be used as an expression")
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func (c *checker) resolveTypePattern(pat *ast.Pattern, cs *ast.Case) {

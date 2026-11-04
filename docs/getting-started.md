@@ -3,11 +3,25 @@
 ## Create a project
 
 ```sh
-strizh new hello
+ink new hello
 cd hello
 ```
 
-`strizh new` writes:
+`ink new` writes `ink.toml`, `main.ink`, a short `AGENTS.md`,
+`opencode.json`, `.opencode/skills/ink/SKILL.md`, `go.mod` and `.gitignore`,
+and prints `created hello`. The short `AGENTS.md` is the ambient agent contract;
+`ink guide` prints the full embedded reference. `opencode.json` starts
+`ink lsp` for `.ink` and formats on edit; the skill carries the full
+reference and loads on demand. To add the short guide to an existing directory
+without overwriting an existing `AGENTS.md`:
+
+```sh
+ink init .
+```
+
+`ink init` refuses to run when `ink.toml` already exists.
+
+`ink.toml`:
 
 ```toml
 name = "hello"
@@ -15,12 +29,12 @@ module = "example.com/hello"
 go = "1.27"
 ```
 
-and a `main.str`:
+`main.ink`:
 
 ```hare
 use fmt;
 
-fn main() void or error = {
+fn main() void or error {
     fmt.Println("hello from hello") or return;
 };
 ```
@@ -28,33 +42,54 @@ fn main() void or error = {
 ## Run and build
 
 ```sh
-strizh run
-strizh build
+ink run
+ink run -race
+ink build
 ./bin/hello
 ```
 
-`strizh build` performs three steps every time: parse and type-check the
-Strizh sources, generate Go next to them, and invoke `go build`. Go modules
+`ink build` performs three steps every time: parse and type-check the
+Ink sources, generate Go next to them, and invoke `go build`. Go modules
 are created and tidied automatically; external Go imports are added with
-`go mod tidy`.
+`go mod tidy`. `ink run -race` builds the same way with Go's race detector.
+
+## Agent loop
+
+For an agent, the shortest reliable loop is:
+
+```sh
+ink check --json --fast   # parse, resolve, sema
+ink fmt -w .
+ink check --json          # completion gate: generated-Go typecheck
+ink test                  # add -race for concurrency
+ink run [-- args]         # add -race for the race detector
+```
+
+`--fast` stops after parse, resolve and sema, so it is the quickest feedback.
+Full `check --json` type-checks the generated Go, including `test` blocks. It
+prints one array of `file`, `line`, `col`, `endLine`, `endCol`, `severity`,
+`code`, `message` and `hint`; positions are 1-based, clean output is `[]`, and
+errors exit 1. `ink fmt -l --json` prints an array of paths that would
+change. `ink guide` (or the `ink` skill in OpenCode) has the full contract
+and the canonical fix for each diagnostic code.
 
 ## Add a local package
 
-`lib/math.str`:
+`lib/math.ink`:
 
 ```hare
-fn Square(x: i32) i32 = {
+fn Square(x: i32) i32 {
     return x * x;
 };
 ```
 
-`main.str`:
+`main.ink`:
 
 ```hare
 use fmt;
-use "./lib" as lib;
+use "./lib";
 
-fn main() void or error = {
+fn main() void or error {
     fmt.Println(lib.Square(7)) or return;
 };
 ```
@@ -62,12 +97,41 @@ fn main() void or error = {
 Only exported (capitalized) names are visible across packages, exactly as in
 Go.
 
+## Types and constants
+
+```hare
+type User struct {
+    Name: str,
+    age: u32,
+};
+
+type Shape enum {
+    Circle { radius: f64 },
+    Empty,
+};
+
+type Writer interface {
+    Write(p: u8[]) int or error;
+};
+
+type UserId = u64;
+
+const MaxUsers = 100;
+
+var p: *User = nil;
+```
+
+`const` is package-level only and has no type; a local `const` is an error, use
+`var`. `var` may carry a type (`var p: *User = nil`), which gives bare `nil` its
+expected type. Old declarations with `=` before a type or function body are
+rejected; `ink fmt` formats canonical input.
+
 ## Errors
 
 ```hare
 use os;
 
-fn exists(path: str) bool or error = {
+fn exists(path: str) bool or error {
     var f = os.Open(path) or return;
     defer f.Close();
     return true;
@@ -87,14 +151,15 @@ test "square" {
 };
 ```
 
-`strizh test` runs every `test` block with `go test`.
+`ink test` runs every `test` block with `go test`. Extra arguments are
+passed through, so `ink test -race` runs the suite under Go's race detector.
 
 ## Concurrency
 
 ```hare
-fn load(id: i32) i32 or error = { ... };
+fn load(id: i32) i32 or error { ... };
 
-fn main() void or error = {
+fn main() void or error {
     var users = 0;
     var orders = 0;
     par {
@@ -116,12 +181,18 @@ fn main() void or error = {
 
 Captured state may be read concurrently. Writes must go to a slot indexed by
 the iteration variable or be the only writer of that variable inside `par`.
-`par`/`within` errors cancel the remaining work.
+`par`/`within` errors cancel the remaining work. The checks are static;
+`ink run -race` and `ink test -race` are the dynamic oracle. Hidden
+context stops at package and function-value boundaries (G10), and aliases or
+escapes the static pass cannot see are covered only by `-race` (G11); see
+[`examples/limits`](../examples/limits/README.md).
 
 ## Formatting
 
 ```sh
-strizh fmt -w .
+ink fmt -w .
+ink fmt -l .          # list files that would change
+ink fmt -l --json .   # same, as a JSON array
 ```
 
 Four-space indentation, one statement per line, mandatory semicolons.

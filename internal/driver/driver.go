@@ -1,6 +1,8 @@
 package driver
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,25 +12,48 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/config"
-	"github.com/bongdo/strizh/internal/format"
-	"github.com/bongdo/strizh/internal/gen"
-	"github.com/bongdo/strizh/internal/parser"
-	"github.com/bongdo/strizh/internal/sema"
-	"github.com/bongdo/strizh/internal/token"
-	"github.com/bongdo/strizh/internal/typecheck"
-	strizhrt "github.com/bongdo/strizh/runtime"
+	"github.com/bongdo/ink/internal/agent"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/config"
+	"github.com/bongdo/ink/internal/diag"
+	"github.com/bongdo/ink/internal/format"
+	"github.com/bongdo/ink/internal/gen"
+	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink/internal/sema"
+	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink/internal/typecheck"
+	inkrt "github.com/bongdo/ink/runtime"
 )
 
 const Version = "0.2.0"
 
+const openCodeConfig = `{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "ink": {
+      "command": ["ink", "lsp"],
+      "extensions": [".ink"]
+    }
+  },
+  "formatter": {
+    "ink": {
+      "command": ["ink", "fmt", "-w", "$FILE"],
+      "extensions": [".ink"]
+    }
+  }
+}
+`
+
 var ErrCheck = errors.New("check failed")
 
 type Error struct {
-	Path string
-	Pos  token.Pos
-	Msg  string
+	Path    string
+	Pos     token.Pos
+	End     token.Pos
+	Msg     string
+	Warning bool
+	Code    string
+	Hint    string
 }
 
 func (e Error) String() string {
@@ -36,6 +61,38 @@ func (e Error) String() string {
 		return fmt.Sprintf("%s:%d:%d: %s", e.Path, e.Pos.Line, e.Pos.Col, e.Msg)
 	}
 	return fmt.Sprintf("%s: %s", e.Path, e.Msg)
+}
+
+type JSONError struct {
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Col      int    `json:"col"`
+	EndLine  int    `json:"endLine"`
+	EndCol   int    `json:"endCol"`
+	Severity string `json:"severity"`
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Hint     string `json:"hint"`
+}
+
+func sourceError(path string, pos, end token.Pos, msg string, warning bool) Error {
+	info := diag.Classify(msg)
+	return Error{Path: path, Pos: pos, End: spanEnd(pos, end), Msg: msg, Warning: warning, Code: info.Code, Hint: info.Hint}
+}
+
+func typecheckError(path string, pos token.Pos, msg string) Error {
+	info := diag.Typecheck(msg)
+	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: msg, Code: info.Code, Hint: info.Hint}
+}
+
+func spanEnd(pos, end token.Pos) token.Pos {
+	if end.Valid() && end.Offset > pos.Offset {
+		return end
+	}
+	if !pos.Valid() {
+		return token.Pos{Line: 1, Col: 2}
+	}
+	return token.Pos{Offset: pos.Offset + 1, Line: pos.Line, Col: pos.Col + 1}
 }
 
 type Project struct {
@@ -51,6 +108,8 @@ type Project struct {
 type CheckOptions struct {
 	Tidy      bool
 	Typecheck bool
+	Fast      bool
+	Race      bool
 }
 
 func Open(dir string) (*Project, error) {
@@ -86,17 +145,17 @@ func (p *Project) parse() error {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(name, ".str") {
+		if !strings.HasSuffix(name, ".ink") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
 		if err != nil {
-			errs = append(errs, Error{Path: path, Msg: err.Error()})
+			errs = append(errs, sourceError(path, token.Pos{}, token.Pos{}, err.Error(), false))
 			return nil
 		}
 		f, perrs := parser.Parse(path, src)
 		for _, e := range perrs {
-			errs = append(errs, Error{Path: path, Pos: e.Pos, Msg: e.Msg})
+			errs = append(errs, sourceError(path, e.Pos, e.End, e.Msg, false))
 		}
 		if f == nil {
 			return nil
@@ -147,7 +206,7 @@ func (p *Project) Check(opt CheckOptions) error {
 		return err
 	}
 	if len(p.Parsed) == 0 {
-		p.Errors = append(p.Errors, Error{Path: p.Root, Msg: "no .str files"})
+		p.Errors = append(p.Errors, sourceError(p.Root, token.Pos{}, token.Pos{}, "no .ink files", false))
 		return nil
 	}
 	if len(p.Errors) > 0 {
@@ -160,15 +219,15 @@ func (p *Project) Check(opt CheckOptions) error {
 	if err := p.withImportStub(imports, opt.Tidy, func() error {
 		p.Program = sema.Check(p.Parsed, sema.Options{Root: p.Root, Module: p.Module})
 		for _, e := range p.Program.Errors {
-			p.Errors = append(p.Errors, Error{Path: e.Path, Pos: e.Pos, Msg: e.Msg})
+			p.Errors = append(p.Errors, sourceError(e.Path, e.Pos, token.Pos{}, e.Msg, e.Warning))
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
-	if opt.Typecheck && len(p.Errors) == 0 {
-		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true}) {
-			p.Errors = append(p.Errors, Error{Path: e.Path, Pos: e.Pos, Msg: e.Msg})
+	if opt.Typecheck && !opt.Fast && !p.HasErrors() {
+		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race}) {
+			p.Errors = append(p.Errors, typecheckError(e.Path, e.Pos, e.Msg))
 		}
 	}
 	return nil
@@ -203,7 +262,7 @@ func (p *Project) withImportStub(imports []string, tidy bool, fn func() error) e
 	if !needsStub(imports) {
 		return fn()
 	}
-	stub := filepath.Join(p.Root, "zz_strizh_imports.go")
+	stub := filepath.Join(p.Root, "zz_ink_imports.go")
 	var b strings.Builder
 	b.WriteString("package main\n\nimport (\n")
 	for _, path := range imports {
@@ -286,7 +345,7 @@ func (p *Project) Generate(tests bool) error {
 	files, errs := gen.Generate(p.Program, p.Parsed, gen.Options{Root: p.Root, Module: p.Module, IncludeTests: tests})
 	if len(errs) > 0 {
 		for _, e := range errs {
-			p.Errors = append(p.Errors, Error{Path: p.Root, Msg: e.Error()})
+			p.Errors = append(p.Errors, sourceError(p.Root, token.Pos{}, token.Pos{}, e.Error(), false))
 		}
 		return errs[0]
 	}
@@ -301,7 +360,7 @@ func (p *Project) Generate(tests bool) error {
 	if tests {
 		for _, pkg := range p.Program.Packages {
 			if !pkgHasTests(pkg) {
-				_ = os.Remove(filepath.Join(pkg.Dir, "zz_strizh_test.go"))
+				_ = os.Remove(filepath.Join(pkg.Dir, "zz_ink_test.go"))
 			}
 		}
 	}
@@ -320,18 +379,27 @@ func pkgHasTests(pkg *sema.Package) bool {
 }
 
 func (p *Project) writeRuntime() error {
-	dir := filepath.Join(p.Root, ".strizh", "runtime")
+	dir := filepath.Join(p.Root, ".ink", "runtime")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "runtime.go"), strizhrt.Source, 0o644)
+	return os.WriteFile(filepath.Join(dir, "runtime.go"), inkrt.Source, 0o644)
+}
+
+func (p *Project) HasErrors() bool {
+	for _, e := range p.Errors {
+		if !e.Warning {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Project) Build(out string, goArgs []string) error {
 	if err := p.Check(CheckOptions{Tidy: true}); err != nil {
 		return err
 	}
-	if len(p.Errors) > 0 {
+	if p.HasErrors() {
 		return ErrCheck
 	}
 	if err := p.Generate(false); err != nil {
@@ -362,12 +430,16 @@ func (p *Project) Build(out string, goArgs []string) error {
 	return nil
 }
 
-func (p *Project) Run(args []string) (int, error) {
-	out := filepath.Join(p.Root, ".strizh", "bin", p.Config.Name)
-	if err := p.Build(out, nil); err != nil {
+func (p *Project) Run(race bool, args []string) (int, error) {
+	out := filepath.Join(p.Root, ".ink", "bin", p.Config.Name)
+	var goArgs []string
+	if race {
+		goArgs = append(goArgs, "-race")
+	}
+	if err := p.Build(out, goArgs); err != nil {
 		return 1, err
 	}
-	if len(p.Errors) > 0 {
+	if p.HasErrors() {
 		return 1, ErrCheck
 	}
 	return execRun(out, p.Root, args)
@@ -394,7 +466,7 @@ func (p *Project) Test(args []string) (int, error) {
 	if err := p.Check(CheckOptions{Tidy: true}); err != nil {
 		return 1, err
 	}
-	if len(p.Errors) > 0 {
+	if p.HasErrors() {
 		return 1, ErrCheck
 	}
 	if err := p.Generate(true); err != nil {
@@ -417,9 +489,12 @@ func (p *Project) Test(args []string) (int, error) {
 	return 1, err
 }
 
-func (p *Project) Format(write bool, paths []string, stdout io.Writer) error {
+func Format(write, list, jsonOut bool, paths []string, stdout io.Writer) error {
 	if len(paths) == 0 {
 		paths = []string{"."}
+	}
+	if jsonOut {
+		list = true
 	}
 	var files []string
 	for _, path := range paths {
@@ -441,7 +516,7 @@ func (p *Project) Format(write bool, paths []string, stdout io.Writer) error {
 				}
 				return nil
 			}
-			if strings.HasSuffix(d.Name(), ".str") {
+			if strings.HasSuffix(d.Name(), ".ink") {
 				files = append(files, p)
 			}
 			return nil
@@ -451,6 +526,7 @@ func (p *Project) Format(write bool, paths []string, stdout io.Writer) error {
 		}
 	}
 	sort.Strings(files)
+	var listed []string
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -461,10 +537,21 @@ func (p *Project) Format(write bool, paths []string, stdout io.Writer) error {
 			return fmt.Errorf("%s:%d:%d: %s", path, errs[0].Pos.Line, errs[0].Pos.Col, errs[0].Msg)
 		}
 		out := format.File(f)
+		differs := !bytes.Equal(out, src)
+		if differs && list && stdout != nil {
+			if jsonOut {
+				listed = append(listed, path)
+			} else if _, err := fmt.Fprintln(stdout, path); err != nil {
+				return err
+			}
+		}
 		if write {
 			if err := os.WriteFile(path, out, 0o644); err != nil {
 				return err
 			}
+			continue
+		}
+		if list {
 			continue
 		}
 		if stdout != nil {
@@ -473,7 +560,75 @@ func (p *Project) Format(write bool, paths []string, stdout io.Writer) error {
 			}
 		}
 	}
+	if jsonOut && stdout != nil {
+		if listed == nil {
+			listed = []string{}
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetEscapeHTML(false)
+		if err := enc.Encode(listed); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (p *Project) Diagnostics() []JSONError {
+	out := make([]JSONError, 0, len(p.Errors))
+	for _, e := range p.Errors {
+		line, col := e.Pos.Line, e.Pos.Col
+		if line < 1 {
+			line = 1
+		}
+		if col < 1 {
+			col = 1
+		}
+		endLine, endCol := e.End.Line, e.End.Col
+		if endLine < 1 {
+			endLine = line
+		}
+		if endCol < 1 {
+			endCol = col + 1
+		}
+		severity := "error"
+		if e.Warning {
+			severity = "warning"
+		}
+		code, hint := e.Code, e.Hint
+		if code == "" {
+			info := diag.Classify(e.Msg)
+			code, hint = info.Code, info.Hint
+		}
+		out = append(out, JSONError{
+			File:     absPath(e.Path),
+			Line:     line,
+			Col:      col,
+			EndLine:  endLine,
+			EndCol:   endCol,
+			Severity: severity,
+			Code:     code,
+			Message:  e.Msg,
+			Hint:     hint,
+		})
+	}
+	return out
+}
+
+func (p *Project) WriteJSON(w io.Writer) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(p.Diagnostics())
+}
+
+func absPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
 }
 
 func (p *Project) PrintErrors(w io.Writer) {
@@ -498,12 +653,25 @@ func New(dir string) error {
 	if err := config.Save(abs, cfg); err != nil {
 		return err
 	}
-	main := fmt.Sprintf("use fmt;\n\nfn main() void or error = {\n    fmt.Println(%q) or return;\n};\n", "hello from "+name)
-	if err := os.WriteFile(filepath.Join(abs, "main.str"), []byte(main), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(abs, "AGENTS.md"), []byte(agent.ShortGuide), 0o644); err != nil {
 		return err
 	}
-	gitignore := ".strizh/\nbin/\nzz_strizh.go\nzz_strizh_test.go\n"
+	main := fmt.Sprintf("use fmt;\n\nfn main() void or error {\n    fmt.Println(%q) or return;\n};\n", "hello from "+name)
+	if err := os.WriteFile(filepath.Join(abs, "main.ink"), []byte(main), 0o644); err != nil {
+		return err
+	}
+	gitignore := ".ink/\nbin/\nzz_ink.go\nzz_ink_test.go\n"
 	if err := os.WriteFile(filepath.Join(abs, ".gitignore"), []byte(gitignore), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(abs, "opencode.json"), []byte(openCodeConfig), 0o644); err != nil {
+		return err
+	}
+	skillDir := filepath.Join(abs, ".opencode", "skills", "ink")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(agent.Skill), 0o644); err != nil {
 		return err
 	}
 	gomod := fmt.Sprintf("module %s\n\ngo %s\n", cfg.Module, cfg.Go)
@@ -526,9 +694,18 @@ func Init(dir string) error {
 	if err := config.Save(abs, cfg); err != nil {
 		return err
 	}
-	main := filepath.Join(abs, "main.str")
+	agents := filepath.Join(abs, "AGENTS.md")
+	if _, err := os.Stat(agents); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.WriteFile(agents, []byte(agent.ShortGuide), 0o644); err != nil {
+			return err
+		}
+	}
+	main := filepath.Join(abs, "main.ink")
 	if _, err := os.Stat(main); os.IsNotExist(err) {
-		src := "use fmt;\n\nfn main() void or error = {\n    fmt.Println(\"hello\") or return;\n};\n"
+		src := "use fmt;\n\nfn main() void or error {\n    fmt.Println(\"hello\") or return;\n};\n"
 		return os.WriteFile(main, []byte(src), 0o644)
 	}
 	return nil

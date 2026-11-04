@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func (w *writer) expr(e ast.Expr) string {
@@ -37,7 +37,16 @@ func (w *writer) expr(e ast.Expr) string {
 	case *ast.UnaryExpr:
 		return unaryOp(e.Op) + w.expr(e.X)
 	case *ast.BinaryExpr:
-		return w.expr(e.X) + " " + binaryOp(e.Op) + " " + w.expr(e.Y)
+		left, right := w.expr(e.X), w.expr(e.Y)
+		if e.Op == token.Eq || e.Op == token.Ne {
+			if isNilExpr(e.X) {
+				left = "nil"
+			}
+			if isNilExpr(e.Y) {
+				right = "nil"
+			}
+		}
+		return left + " " + binaryOp(e.Op) + " " + right
 	case *ast.ParenExpr:
 		return "(" + w.expr(e.X) + ")"
 	case *ast.CompositeLit:
@@ -55,6 +64,18 @@ func (w *writer) expr(e ast.Expr) string {
 		return w.expr(e.X)
 	}
 	return ""
+}
+
+func isNilExpr(e ast.Expr) bool {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		e = p.X
+	}
+	_, ok := e.(*ast.NilLit)
+	return ok
 }
 
 func (w *writer) ident(id *ast.Ident) string {
@@ -239,7 +260,7 @@ func isConversion(c *ast.CallExpr) bool {
 		if f.Ref != nil && f.Ref.Kind == ast.RefType {
 			return true
 		}
-		return f.Ref == nil && isStrizhBuiltinType(f.Name)
+		return f.Ref == nil && isInkBuiltinType(f.Name)
 	case *ast.SelectorExpr:
 		return f.Ref != nil && f.Ref.Kind == ast.RefType
 	}
@@ -260,7 +281,7 @@ func (w *writer) conversionTarget(c *ast.CallExpr) ast.Type {
 				return &ast.NamedType{Name: f.Name, Decl: f.Ref.Type, GoName: f.Ref.Type.GoName}
 			}
 		}
-		if f.Ref == nil && isStrizhBuiltinType(f.Name) {
+		if f.Ref == nil && isInkBuiltinType(f.Name) {
 			return &ast.NamedType{Name: f.Name}
 		}
 	case *ast.SelectorExpr:

@@ -17,7 +17,7 @@ func parGapsError(t *testing.T, src string) {
 }
 
 func TestParForMapWriteRejected(t *testing.T) {
-	parGapsError(t, `fn main() void = {
+	parGapsError(t, `fn main() void {
     var m = map[i32, i32] {};
     par for (var i = 0; i < 4; i += 1) {
         m[i] = i;
@@ -27,9 +27,9 @@ func TestParForMapWriteRejected(t *testing.T) {
 }
 
 func TestParForMapFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Cell = struct { v: i32 };
+	parGapsError(t, `type Cell struct { v: i32 };
 
-fn main() void = {
+fn main() void {
     var m = map[i32, Cell] {};
     par for (var i = 0; i < 4; i += 1) {
         m[i].v = i;
@@ -39,9 +39,9 @@ fn main() void = {
 }
 
 func TestParForNestedMapWriteRejected(t *testing.T) {
-	parGapsError(t, `type Group = struct { m: map[i32, i32] };
+	parGapsError(t, `type Group struct { m: map[i32, i32] };
 
-fn main() void = {
+fn main() void {
     var g = Group { m = map[i32, i32] {} };
     par for (var i = 0; i < 4; i += 1) {
         g.m[i] = i;
@@ -51,9 +51,9 @@ fn main() void = {
 }
 
 func TestParForSliceFieldWriteAllowed(t *testing.T) {
-	parGapsOK(t, `type Cell = struct { v: i32 };
+	parGapsOK(t, `type Cell struct { v: i32 };
 
-fn main() void = {
+fn main() void {
     var cs = Cell[] { Cell { v = 0 }, Cell { v = 0 } };
     par for (var i = 0; i < 2; i += 1) {
         cs[i].v = i;
@@ -63,7 +63,7 @@ fn main() void = {
 }
 
 func TestParPlainMapWriteRejected(t *testing.T) {
-	parGapsError(t, `fn main() void = {
+	parGapsError(t, `fn main() void {
     var m = map[i32, i32] {};
     par {
         m[0] = 1;
@@ -73,9 +73,9 @@ func TestParPlainMapWriteRejected(t *testing.T) {
 }
 
 func TestParForAliasFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box = struct { x: i32 };
+	parGapsError(t, `type Box struct { x: i32 };
 
-fn main() void = {
+fn main() void {
     var b = Box { x = 0 };
     var p = &b;
     par for (var i = 0; i < 2; i += 1) {
@@ -87,9 +87,9 @@ fn main() void = {
 }
 
 func TestParForAliasAssignFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box = struct { x: i32 };
+	parGapsError(t, `type Box struct { x: i32 };
 
-fn main() void = {
+fn main() void {
     var b = Box { x = 0 };
     var p = &b;
     par for (var i = 0; i < 2; i += 1) {
@@ -102,9 +102,9 @@ fn main() void = {
 }
 
 func TestParForAddressAliasFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box = struct { x: i32 };
+	parGapsError(t, `type Box struct { x: i32 };
 
-fn main() void = {
+fn main() void {
     var b = Box { x = 0 };
     par for (var i = 0; i < 2; i += 1) {
         var q = &b;
@@ -115,9 +115,9 @@ fn main() void = {
 }
 
 func TestParForAliasChainFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box = struct { x: i32 };
+	parGapsError(t, `type Box struct { x: i32 };
 
-fn main() void = {
+fn main() void {
     var b = Box { x = 0 };
     var p = &b;
     par for (var i = 0; i < 2; i += 1) {
@@ -130,9 +130,9 @@ fn main() void = {
 }
 
 func TestParForLocalAliasFieldWriteAllowed(t *testing.T) {
-	parGapsOK(t, `type Box = struct { x: i32 };
+	parGapsOK(t, `type Box struct { x: i32 };
 
-fn main() void = {
+fn main() void {
     par for (var i = 0; i < 2; i += 1) {
         var b = Box { x = 0 };
         var q = &b;
@@ -143,15 +143,15 @@ fn main() void = {
 }
 
 func TestParForAliasMethodRejected(t *testing.T) {
-	parGapsError(t, `type Counter = struct {
+	parGapsError(t, `type Counter struct {
     n: i32,
 
-    fn Add(v: i32) void = {
+    fn Add(v: i32) void {
         n = n + v;
     };
 };
 
-fn main() void = {
+fn main() void {
     var c = Counter { n = 0 };
     var p = &c;
     par for (var i = 0; i < 2; i += 1) {
@@ -163,15 +163,15 @@ fn main() void = {
 }
 
 func TestParForCapturedMethodRejected(t *testing.T) {
-	parGapsError(t, `type Counter = struct {
+	parGapsError(t, `type Counter struct {
     n: i32,
 
-    fn Add(v: i32) void = {
+    fn Add(v: i32) void {
         n = n + v;
     };
 };
 
-fn main() void = {
+fn main() void {
     var c = Counter { n = 0 };
     var p = &c;
     par for (var i = 0; i < 2; i += 1) {
@@ -182,15 +182,15 @@ fn main() void = {
 }
 
 func TestParPureMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Counter = struct {
+	parGapsOK(t, `type Counter struct {
     n: i32,
 
-    fn Get() i32 = {
+    fn Get() i32 {
         return n;
     };
 };
 
-fn main() void = {
+fn main() void {
     var c = Counter { n = 1 };
     var p = &c;
     var a = 0;
@@ -204,15 +204,15 @@ fn main() void = {
 }
 
 func TestParForLocalMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Counter = struct {
+	parGapsOK(t, `type Counter struct {
     n: i32,
 
-    fn Add(v: i32) void = {
+    fn Add(v: i32) void {
         n = n + v;
     };
 };
 
-fn main() void = {
+fn main() void {
     par for (var i = 0; i < 2; i += 1) {
         var c = Counter { n = 0 };
         c.Add(i);
@@ -222,15 +222,15 @@ fn main() void = {
 }
 
 func TestParForSliceSlotMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Cell = struct {
+	parGapsOK(t, `type Cell struct {
     v: i32,
 
-    fn Set(x: i32) void = {
+    fn Set(x: i32) void {
         v = x;
     };
 };
 
-fn main() void = {
+fn main() void {
     var cs = Cell[] { Cell { v = 0 }, Cell { v = 0 } };
     par for (var i = 0; i < 2; i += 1) {
         cs[i].Set(i);
@@ -240,10 +240,10 @@ fn main() void = {
 }
 
 func TestParMethodFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Counter = struct {
+	parGapsError(t, `type Counter struct {
     n: i32,
 
-    fn Bump() void = {
+    fn Bump() void {
         par {
             n = 1;
         };
@@ -253,11 +253,11 @@ func TestParMethodFieldWriteRejected(t *testing.T) {
 }
 
 func TestParReadInOtherStatementRejected(t *testing.T) {
-	parGapsError(t, `fn load(x: i32) i32 = {
+	parGapsError(t, `fn load(x: i32) i32 {
     return x;
 };
 
-fn main() void = {
+fn main() void {
     var a = 0;
     var b = 0;
     par {
@@ -269,11 +269,11 @@ fn main() void = {
 }
 
 func TestParIndependentWritesAllowed(t *testing.T) {
-	parGapsOK(t, `fn load(x: i32) i32 = {
+	parGapsOK(t, `fn load(x: i32) i32 {
     return x;
 };
 
-fn main() void = {
+fn main() void {
     var a = 0;
     var b = 0;
     par {
@@ -285,7 +285,7 @@ fn main() void = {
 }
 
 func TestParReadOwnWriteAllowed(t *testing.T) {
-	parGapsOK(t, `fn main() void = {
+	parGapsOK(t, `fn main() void {
     var a = 0;
     par {
         a = a + 1;
@@ -295,7 +295,7 @@ func TestParReadOwnWriteAllowed(t *testing.T) {
 }
 
 func TestParReadViaAliasRejected(t *testing.T) {
-	parGapsError(t, `fn main() void = {
+	parGapsError(t, `fn main() void {
     var xs = i32[] { 0 };
     var b = 0;
     par {

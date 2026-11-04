@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func File(f *ast.File) []byte {
@@ -111,7 +111,7 @@ func (p *printer) use(u *ast.Use) {
 	p.flush(u.Pos().Offset)
 	p.write("use ")
 	p.write(quotePath(u))
-	if u.Alias != "" && u.Alias != defaultAlias(u.Path) {
+	if u.Alias != "" && (versionedPath(u.Path) || u.Alias != defaultAlias(u.Path)) {
 		p.write(" as ")
 		p.write(u.Alias)
 	}
@@ -129,14 +129,34 @@ func quotePath(u *ast.Use) string {
 
 func defaultAlias(path string) string {
 	path = strings.TrimSuffix(path, "/")
+	parts := strings.Split(path, "/")
+	base := parts[len(parts)-1]
+	if len(parts) > 1 && versionSegment(base) {
+		base = parts[len(parts)-2]
+	}
+	return strings.ReplaceAll(base, "-", "_")
+}
+
+func versionedPath(path string) bool {
+	path = strings.TrimSuffix(path, "/")
 	if i := strings.LastIndexByte(path, '/'); i >= 0 {
 		path = path[i+1:]
 	}
-	path = strings.ReplaceAll(path, "-", "_")
-	if path == "v2" || path == "v3" || path == "v4" {
-		return path
+	return versionSegment(path)
+}
+
+func versionSegment(s string) bool {
+	if len(s) < 2 || s[0] != 'v' {
+		return false
 	}
-	return path
+	n := 0
+	for _, r := range s[1:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n >= 2
 }
 
 func (p *printer) decl(d ast.Decl) {
@@ -161,11 +181,15 @@ func (p *printer) funcDecl(f *ast.FuncDecl) {
 	p.write(f.Name)
 	p.typeParams(f.TypeParams)
 	p.params(f.Params)
-	p.results(f.Results, false)
+	if len(f.Results) == 0 {
+		p.write(" void")
+	} else {
+		p.results(f.Results, false)
+	}
 	if f.Err {
 		p.write(" or error")
 	}
-	p.write(" = ")
+	p.write(" ")
 	p.block(f.Body)
 	p.write(";")
 	p.line()
@@ -224,10 +248,9 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 	p.write("type ")
 	p.write(t.Name)
 	p.typeParams(t.TypeParams)
-	p.write(" = ")
 	switch t.Kind {
 	case ast.TypeStruct:
-		p.write("struct {")
+		p.write(" struct {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -256,7 +279,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	case ast.TypeEnum:
-		p.write("enum {")
+		p.write(" enum {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -285,7 +308,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	case ast.TypeInterface:
-		p.write("interface {")
+		p.write(" interface {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -301,6 +324,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	default:
+		p.write(" = ")
 		p.typ(t.Target)
 		p.write(";")
 	}
@@ -308,10 +332,13 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 }
 
 func (p *printer) ifaceMethod(m *ast.IFaceMethod) {
-	p.write("fn ")
 	p.write(m.Name)
 	p.params(m.Params)
-	p.results(m.Results, false)
+	if len(m.Results) == 0 {
+		p.write(" void")
+	} else {
+		p.results(m.Results, false)
+	}
 	if m.Err {
 		p.write(" or error")
 	}
@@ -326,6 +353,10 @@ func (p *printer) varDecl(v *ast.VarDecl) {
 		p.write("var ")
 	}
 	p.write(strings.Join(v.Names, ", "))
+	if v.Type != nil {
+		p.write(": ")
+		p.typ(v.Type)
+	}
 	p.write(" = ")
 	p.exprList(v.Values)
 	p.write(";")
@@ -372,6 +403,7 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 	switch s := s.(type) {
 	case *ast.Block:
 		p.block(s)
+		p.write(";")
 	case *ast.EmptyStmt:
 		p.write(";")
 	case *ast.DeclStmt:
@@ -387,14 +419,7 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.expr(s.X)
 		p.write(";")
 	case *ast.IfStmt:
-		p.write("if (")
-		p.expr(s.Cond)
-		p.write(") ")
-		p.block(s.Then)
-		if s.Else != nil {
-			p.write(" else ")
-			p.elsePart(s.Else)
-		}
+		p.ifClause(s)
 		p.write(";")
 	case *ast.ForStmt:
 		p.forStmt(s)
@@ -428,9 +453,24 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 	}
 }
 
+func (p *printer) ifClause(s *ast.IfStmt) {
+	p.write("if (")
+	p.expr(s.Cond)
+	p.write(") ")
+	p.block(s.Then)
+	if s.Else != nil {
+		p.write(" else ")
+		p.elsePart(s.Else)
+	}
+}
+
 func (p *printer) elsePart(s ast.Stmt) {
 	if b, ok := s.(*ast.Block); ok {
 		p.block(b)
+		return
+	}
+	if i, ok := s.(*ast.IfStmt); ok {
+		p.ifClause(i)
 		return
 	}
 	p.inlineStmt(s)
@@ -441,12 +481,13 @@ func (p *printer) forStmt(f *ast.ForStmt) {
 		p.write("par ")
 	}
 	p.write("for (")
-	if f.Range != nil {
+	switch {
+	case f.Range != nil:
 		p.write("var ")
 		p.write(strings.Join(f.Range.Names, ", "))
 		p.write(" in ")
 		p.expr(f.Range.X)
-	} else {
+	case f.Init != nil || f.Cond != nil || f.Post != nil:
 		if f.Init != nil {
 			p.inlineStmt(f.Init)
 			p.trimSemi()
@@ -487,6 +528,10 @@ func (p *printer) inlineVarDecl(v *ast.VarDecl) {
 		p.write("var ")
 	}
 	p.write(strings.Join(v.Names, ", "))
+	if v.Type != nil {
+		p.write(": ")
+		p.typ(v.Type)
+	}
 	p.write(" = ")
 	p.exprList(v.Values)
 	p.write(";")
@@ -582,6 +627,25 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 		p.write(")")
 	case *ast.CompositeLit:
 		p.typ(e.Type)
+		if e.Pos().Line != e.EndPos().Line && len(e.Entries) > 0 {
+			p.write(" {")
+			p.line()
+			p.lastLine = e.Pos().Line
+			p.indent++
+			for _, en := range e.Entries {
+				p.flush(en.Pos().Offset)
+				p.gap(en.Pos().Line)
+				p.ind()
+				p.compositeEntry(en)
+				p.write(",")
+				p.line()
+				p.lastLine = en.EndPos().Line
+			}
+			p.indent--
+			p.ind()
+			p.write("}")
+			return
+		}
 		p.write(" {")
 		if len(e.Entries) > 0 {
 			p.write(" ")
@@ -589,14 +653,7 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 				if i > 0 {
 					p.write(", ")
 				}
-				if en.Key != "" {
-					p.write(en.Key)
-					p.write(" = ")
-				} else if en.KeyExpr != nil {
-					p.expr(en.KeyExpr)
-					p.write(" = ")
-				}
-				p.expr(en.Value)
+				p.compositeEntry(en)
 			}
 			p.write(" ")
 		}
@@ -644,6 +701,17 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 	default:
 		p.write("?")
 	}
+}
+
+func (p *printer) compositeEntry(en *ast.CompositeEntry) {
+	if en.Key != "" {
+		p.write(en.Key)
+		p.write(" = ")
+	} else if en.KeyExpr != nil {
+		p.expr(en.KeyExpr)
+		p.write(" = ")
+	}
+	p.expr(en.Value)
 }
 
 func (p *printer) paren(e ast.Expr, parent, prec int) {

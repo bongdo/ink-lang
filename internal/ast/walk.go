@@ -3,7 +3,7 @@ package ast
 import (
 	"reflect"
 
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/token"
 )
 
 var skipped = map[reflect.Type]bool{

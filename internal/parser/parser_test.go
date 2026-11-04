@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/token"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/token"
 )
 
 func mustParse(t *testing.T, src string) *ast.File {
 	t.Helper()
-	f, errs := Parse("test.str", []byte(src))
+	f, errs := Parse("test.ink", []byte(src))
 	if f == nil {
 		t.Fatal("Parse returned nil file")
 	}
@@ -153,42 +153,42 @@ use "./ed" as ed;
 
 const Max = 100;
 
-type User = struct {
+type User struct {
     Name: str,
     age: u32,
 
-    fn Greet() str = {
+    fn Greet() str {
         return "hi, " + Name;
     };
 
-    fn Rename(n: str) void = {
+    fn Rename(n: str) void {
         Name = n;
     };
 };
 
-type Shape = enum {
+type Shape enum {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
 };
 
-type Writer = interface {
-    fn Write(p: u8[]) int or error;
-    fn Flush() void;
+type Writer interface {
+    Write(p: u8[]) int or error;
+    Flush() void;
 };
 
 type Id = u64;
 type Handler = fn(Request) Response or error;
 
-type Stack[Item] = struct {
+type Stack[Item] struct {
     data: Item[],
 
-    fn Push(x: Item) void = {
+    fn Push(x: Item) void {
         data = append(data, x);
     };
 };
 
-fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] = {
+fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] {
     var out = Out[] {};
     for (var x in xs) {
         out = append(out, f(x));
@@ -199,7 +199,7 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] = {
 var global = User { Name = "Alice", age = 30 };
 var mapping = map[str, User] {};
 
-fn main() void or error = {
+fn main() void or error {
     fmt.Println(global.Name) or return;
 };
 
@@ -214,7 +214,7 @@ func TestRealisticFile(t *testing.T) {
 	f := mustParse(t, realisticSrc)
 	checkSpans(t, f)
 
-	if f.Path != "test.str" {
+	if f.Path != "test.ink" {
 		t.Errorf("Path = %q", f.Path)
 	}
 	if string(f.Src) != realisticSrc {
@@ -355,7 +355,7 @@ func TestUseCanonical(t *testing.T) {
 		`use "./lib" as lib;`,
 		`use "../x";`,
 	} {
-		f, errs := Parse("use.str", []byte(src))
+		f, errs := Parse("use.ink", []byte(src))
 		if len(errs) != 0 {
 			t.Errorf("%q: unexpected errors: %v", src, errs)
 		}
@@ -369,14 +369,147 @@ func TestUseCanonical(t *testing.T) {
 		{`use "fmt" as f;`, "use fmt;"},
 		{"use `os`;", "use os;"},
 	} {
-		_, errs := Parse("use.str", []byte(c.src))
+		_, errs := Parse("use.ink", []byte(c.src))
 		if len(errs) != 1 || !strings.Contains(errs[0].Msg, c.hint) {
 			t.Errorf("%q: errors = %v", c.src, errs)
 		}
 	}
 }
 
-const statementsSrc = `fn f(n: int) void = {
+func TestVersionedImportRequiresAlias(t *testing.T) {
+	f, errs := Parse("use.ink", []byte(`use "charm.land/bubbletea/v2" as tea;`))
+	if len(errs) != 0 {
+		t.Fatalf("aliased import: %v", errs)
+	}
+	if len(f.Uses) != 1 || f.Uses[0].Alias != "tea" {
+		t.Fatalf("uses = %+v", f.Uses)
+	}
+
+	for _, src := range []string{
+		`use "charm.land/bubbletea/v2";`,
+		`use "github.com/x/y/v3";`,
+		`use "example.com/v10";`,
+	} {
+		_, errs := Parse("use.ink", []byte(src))
+		if len(errs) != 1 || !strings.Contains(errs[0].Msg, "requires an alias") {
+			t.Errorf("%q: errors = %v", src, errs)
+		}
+	}
+
+	for _, src := range []string{
+		`use "./v2";`,
+		`use "net/http";`,
+		`use "example.com/v2x";`,
+	} {
+		_, errs := Parse("use.ink", []byte(src))
+		if len(errs) != 0 {
+			t.Errorf("%q: unexpected errors: %v", src, errs)
+		}
+	}
+}
+
+func TestTypeDeclSyntax(t *testing.T) {
+	src := `type User struct {
+    Name: str,
+};
+
+type Shape enum {
+    Circle,
+};
+
+type Writer interface {
+    Write(p: u8[]) int or error;
+};
+
+type UserId = u64;
+`
+	f := mustParse(t, src)
+	checkSpans(t, f)
+
+	if td := declType(t, f, "User"); td.Kind != ast.TypeStruct || len(td.Fields) != 1 {
+		t.Errorf("User = %+v", td)
+	}
+	if td := declType(t, f, "Shape"); td.Kind != ast.TypeEnum || len(td.Variants) != 1 {
+		t.Errorf("Shape = %+v", td)
+	}
+	if td := declType(t, f, "Writer"); td.Kind != ast.TypeInterface || len(td.IFace) != 1 {
+		t.Errorf("Writer = %+v", td)
+	}
+	if td := declType(t, f, "UserId"); td.Kind != ast.TypeAlias || td.Target == nil {
+		t.Errorf("UserId = %+v", td)
+	}
+}
+
+func TestTypeDefinitionRejectsAssign(t *testing.T) {
+	cases := []string{
+		"type X = struct {\n    A: int,\n};\n",
+		"type X = enum {\n    A,\n};\n",
+		"type X = interface {\n    Close() void;\n};\n",
+	}
+	for _, src := range cases {
+		f, errs := Parse("oldtype.ink", []byte(src))
+		if len(errs) != 1 || errs[0].Msg != "type definitions are declared without '='" {
+			t.Fatalf("%q: errors = %v", src, errs)
+		}
+		checkSpans(t, f)
+		if td := declType(t, f, "X"); td.Kind == ast.TypeAlias {
+			t.Errorf("%q: parsed as alias: %+v", src, td)
+		}
+	}
+}
+
+func TestTypeAliasRequiresAssign(t *testing.T) {
+	_, errs := Parse("alias.ink", []byte("type Id u64;\n"))
+	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "expected '='") {
+		t.Fatalf("errors = %v", errs)
+	}
+}
+
+func TestFuncDeclSyntax(t *testing.T) {
+	src := `fn New() User {
+    return User { Name = "x" };
+};
+
+fn Literals() void {
+    var f = fn(x: i32) i32 => x;
+    var g = fn(x: i32) i32 { return x; };
+    _ = f;
+    _ = g;
+};
+`
+	f := mustParse(t, src)
+	checkSpans(t, f)
+
+	if fd := declFunc(t, f, "New"); fd.Body == nil || len(fd.Body.Stmts) != 1 {
+		t.Errorf("New = %+v", fd)
+	}
+	if fd := declFunc(t, f, "Literals"); fd.Body == nil || len(fd.Body.Stmts) != 4 {
+		t.Errorf("Literals = %+v", fd)
+	}
+	if n := countNodes(f)["funclit"]; n != 2 {
+		t.Errorf("function literals = %d, want 2", n)
+	}
+}
+
+func TestFuncBodyRejectsAssign(t *testing.T) {
+	cases := []string{
+		"fn f() void = {\n    return;\n};\n",
+		"fn f() int = {\n    return 1;\n};\n",
+		"fn f() int or error = {\n    return 1;\n};\n",
+	}
+	for _, src := range cases {
+		f, errs := Parse("oldfn.ink", []byte(src))
+		if len(errs) != 1 || errs[0].Msg != "function bodies are declared without '='" {
+			t.Fatalf("%q: errors = %v", src, errs)
+		}
+		checkSpans(t, f)
+		if fd := declFunc(t, f, "f"); fd.Body == nil || len(fd.Body.Stmts) != 1 {
+			t.Errorf("%q: body not recovered: %+v", src, fd)
+		}
+	}
+}
+
+const statementsSrc = `fn f(n: int) void {
     var a, b = 1, 2;
     const c = 3;
     a = a + 1;
@@ -565,7 +698,7 @@ func TestStatements(t *testing.T) {
 	}
 }
 
-const expressionsSrc = "fn e() void or error = {\n" +
+const expressionsSrc = "fn e() void or error {\n" +
 	"    var p = 1 + 2 * 3 - 4;\n" +
 	"    var q = a || b && c == d + e * f;\n" +
 	"    var c1 = f(1, 2);\n" +
@@ -869,7 +1002,7 @@ type K = ed.Shape.Circle;
 type L = u8[2 + 2];
 type M = T[N];
 type N = fn(A) B;
-type P = interface {
+type P interface {
     Close() void;
 };
 `
@@ -985,28 +1118,28 @@ const specExampleSrc = `use fmt;
 use os;
 use sort;
 
-type User = struct {
+type User struct {
     Name: str,
     age: u32,
 
-    fn Greet() str = {
+    fn Greet() str {
         return "hi, " + Name;
     };
 };
 
-type Shape = enum {
+type Shape enum {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
 };
 
-fn area(s: Shape) f64 = {
+fn area(s: Shape) f64 {
     return match (s) {
     case Circle { radius } => 3.14159 * radius * radius;
     case Rect { w, h } => w * h;
     };
 };
 
-fn read(path: str) u8[] or error = {
+fn read(path: str) u8[] or error {
     var f = os.Open(path) or return;
     defer f.Close();
     var buf = u8[4096] {};
@@ -1014,7 +1147,7 @@ fn read(path: str) u8[] or error = {
     return buf[:n];
 };
 
-fn main() void or error = {
+fn main() void or error {
     var users = User[] {
         User { Name = "Alice", age = 30 },
         User { Name = "Bob", age = 25 },
@@ -1073,7 +1206,7 @@ func TestSpecExample(t *testing.T) {
 }
 
 func TestComments(t *testing.T) {
-	src := "// head\nuse fmt; // mid\nfn f() void = {\n    // body\n};\n"
+	src := "// head\nuse fmt; // mid\nfn f() void {\n    // body\n};\n"
 	f := mustParse(t, src)
 	checkSpans(t, f)
 
@@ -1093,8 +1226,8 @@ func TestComments(t *testing.T) {
 }
 
 func TestBlockCommentRejected(t *testing.T) {
-	src := "// head\nuse fmt; /* mid */\nfn f() void = {\n};\n"
-	f, errs := Parse("block.str", []byte(src))
+	src := "// head\nuse fmt; /* mid */\nfn f() void {\n};\n"
+	f, errs := Parse("block.ink", []byte(src))
 	if len(errs) != 1 {
 		t.Fatalf("errors = %v", errs)
 	}
@@ -1112,26 +1245,26 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 		"fn f( {",
 		"type = ;",
 		"var = ;",
-		"fn f() void = {",
-		"fn f() void = { var x = ; };",
+		"fn f() void {",
+		"fn f() void { var x = ; };",
 		"if (",
 		"match (x) { case => ;",
-		"fn f() void = { x = [; };",
+		"fn f() void { x = [; };",
 		"@@@ ???",
-		"type X = struct { a: int fn };",
+		"type X struct { a: int fn };",
 		"test \"x\" {",
 		"(((((((((",
-		"fn f() void = { defer 1; };",
-		"type X = enum { A { ; } };",
-		"fn f() void = { return 1 2; };",
+		"fn f() void { defer 1; };",
+		"type X enum { A { ; } };",
+		"fn f() void { return 1 2; };",
 		"type M = map[str; };",
-		"fn f() void = { or return; };",
-		"fn f() void = { match (a) { case Circle { radius } => ; }; };",
-		"type X = struct { a: };",
-		"fn f() void = { case 1 => 2; };",
+		"fn f() void { or return; };",
+		"fn f() void { match (a) { case Circle { radius } => ; }; };",
+		"type X struct { a: };",
+		"fn f() void { case 1 => 2; };",
 	}
 	for _, src := range cases {
-		f, errs := Parse("bad.str", []byte(src))
+		f, errs := Parse("bad.ink", []byte(src))
 		if f == nil {
 			t.Fatalf("nil file for %q", src)
 		}
@@ -1144,7 +1277,7 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 		checkSpans(t, f)
 	}
 
-	f, errs := Parse("empty.str", nil)
+	f, errs := Parse("empty.ink", nil)
 	if f == nil || len(errs) != 0 || len(f.Decls) != 0 || len(f.Uses) != 0 {
 		t.Errorf("empty file = %+v, errs = %+v", f, errs)
 	}
@@ -1155,18 +1288,18 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 
 func TestRecoveryKeepsLaterDecls(t *testing.T) {
 	src := `var = ;
-type Good = struct {
+type Good struct {
     ok: int,
 
-    fn Ping() void = {
+    fn Ping() void {
         return;
     };
 };
-fn fine() void = {
+fn fine() void {
     return;
 };
 `
-	f, errs := Parse("recover.str", []byte(src))
+	f, errs := Parse("recover.ink", []byte(src))
 	if len(errs) == 0 {
 		t.Fatal("expected errors")
 	}
@@ -1182,9 +1315,66 @@ fn fine() void = {
 	}
 }
 
+func TestInterfaceMethodRejectsFn(t *testing.T) {
+	src := "type Writer interface {\n    fn Write(p: u8[]) int or error;\n};\n"
+	f, errs := Parse("iface.ink", []byte(src))
+	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "without 'fn'") {
+		t.Fatalf("errors = %v", errs)
+	}
+	checkSpans(t, f)
+	writer := declType(t, f, "Writer")
+	if len(writer.IFace) != 1 || writer.IFace[0].Name != "Write" {
+		t.Errorf("methods = %+v", writer.IFace)
+	}
+}
+
+func TestPatternLiterals(t *testing.T) {
+	src := `fn f(x: i32) void {
+    match (x) {
+    case -1 => {};
+    case -2.5 => {};
+    case -10ms => {};
+    case nil => {};
+    else => {};
+    };
+};
+`
+	f := mustParse(t, src)
+	checkSpans(t, f)
+
+	var m *ast.MatchExpr
+	ast.Inspect(f, func(n ast.Node) bool {
+		if v, ok := n.(*ast.MatchExpr); ok {
+			m = v
+		}
+		return true
+	})
+	if m == nil || len(m.Cases) != 5 {
+		t.Fatalf("match = %+v", m)
+	}
+	want := []struct {
+		kind  token.Kind
+		value string
+	}{
+		{token.Int, "-1"},
+		{token.Float, "-2.5"},
+		{token.Duration, "-10ms"},
+	}
+	for i, w := range want {
+		lit, ok := m.Cases[i].Pat.Literal.(*ast.BasicLit)
+		if !ok || lit.Kind != w.kind || lit.Value != w.value {
+			t.Errorf("case %d literal = %#v", i, m.Cases[i].Pat.Literal)
+		}
+	}
+	nilLit, ok := m.Cases[3].Pat.Literal.(*ast.NilLit)
+	if !ok || nilLit.Type != nil {
+		t.Errorf("nil pattern = %#v", m.Cases[3].Pat.Literal)
+	}
+}
+
 func TestErrorCap(t *testing.T) {
 	src := strings.Repeat("var = ;\n", maxErrors+50)
-	f, errs := Parse("cap.str", []byte(src))
+	f, errs := Parse("cap.ink", []byte(src))
 	if f == nil {
 		t.Fatal("nil file")
 	}
@@ -1194,21 +1384,91 @@ func TestErrorCap(t *testing.T) {
 	checkSpans(t, f)
 }
 
+func TestTypedVarDecl(t *testing.T) {
+	f := mustParse(t, `
+type Point struct {
+    X: i32,
+};
+
+var p: *Point = nil;
+var xs: i32[] = nil;
+var m: map[str, i32] = nil;
+var h: fn(i32) i32 = nil;
+var e: error = nil;
+const C: i32 = 1;
+
+fn main() void {
+    var n: i32 = 1;
+    var a, b: i32 = 1, 2;
+    for (var i: i32 = 0; i < n; i += 1) {};
+    _ = p;
+    _ = xs;
+    _ = m;
+    _ = h;
+    _ = e;
+    _ = a;
+    _ = b;
+};
+`)
+	if _, ok := findVar(t, f, "p").Type.(*ast.PointerType); !ok {
+		t.Fatalf("p type = %#v", findVar(t, f, "p").Type)
+	}
+	if _, ok := findVar(t, f, "xs").Type.(*ast.SliceType); !ok {
+		t.Fatalf("xs type = %#v", findVar(t, f, "xs").Type)
+	}
+	if _, ok := findVar(t, f, "m").Type.(*ast.MapType); !ok {
+		t.Fatalf("m type = %#v", findVar(t, f, "m").Type)
+	}
+	if _, ok := findVar(t, f, "h").Type.(*ast.FuncType); !ok {
+		t.Fatalf("h type = %#v", findVar(t, f, "h").Type)
+	}
+	if n, ok := findVar(t, f, "e").Type.(*ast.NamedType); !ok || n.Name != "error" {
+		t.Fatalf("e type = %#v", findVar(t, f, "e").Type)
+	}
+	c := findVar(t, f, "C")
+	if !c.Const || c.Type == nil {
+		t.Fatalf("C = %+v", c)
+	}
+	fn := declFunc(t, f, "main")
+	if d := fn.Body.Stmts[0].(*ast.DeclStmt).Decl; d.Type == nil || d.Names[0] != "n" {
+		t.Fatalf("n = %+v", d)
+	}
+	if d := fn.Body.Stmts[1].(*ast.DeclStmt).Decl; d.Type == nil || len(d.Names) != 2 {
+		t.Fatalf("a, b = %+v", d)
+	}
+	loop := fn.Body.Stmts[2].(*ast.ForStmt)
+	if d := loop.Init.(*ast.DeclStmt).Decl; d.Type == nil || d.Names[0] != "i" {
+		t.Fatalf("for init = %+v", d)
+	}
+	checkSpans(t, f)
+}
+
+func TestErrorEnd(t *testing.T) {
+	_, errs := Parse("end.ink", []byte("fn main() void {\n    var x = 1 + return;\n};\n"))
+	if len(errs) == 0 {
+		t.Fatal("expected an error")
+	}
+	e := errs[0]
+	if !e.End.Valid() || e.End.Line != e.Pos.Line || e.End.Col <= e.Pos.Col {
+		t.Fatalf("end = %+v, pos = %+v", e.End, e.Pos)
+	}
+}
+
 func FuzzParse(f *testing.F) {
 	f.Add([]byte(realisticSrc))
 	f.Add([]byte(statementsSrc))
 	f.Add([]byte(expressionsSrc))
 	f.Add([]byte(typesSrc))
 	for _, src := range []string{
-		"fn f() void = {",
+		"fn f() void {",
 		"match (x) { case => ;",
-		"type X = struct { a: int fn };",
+		"type X struct { a: int fn };",
 		"@@@",
 	} {
 		f.Add([]byte(src))
 	}
 	f.Fuzz(func(t *testing.T, src []byte) {
-		file, errs := Parse("fuzz.str", src)
+		file, errs := Parse("fuzz.ink", src)
 		if file == nil {
 			t.Fatal("nil file")
 		}

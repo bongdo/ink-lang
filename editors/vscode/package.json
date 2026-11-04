@@ -1,7 +1,7 @@
 {
-  "name": "strizh",
-  "displayName": "Strizh",
-  "description": "Strizh language support",
+  "name": "ink",
+  "displayName": "Ink",
+  "description": "Ink language support",
   "version": "0.1.0",
   "publisher": "bongdo",
   "private": true,
@@ -10,30 +10,30 @@
   },
   "categories": ["Programming Languages"],
   "main": "./out/extension.js",
-  "activationEvents": ["onLanguage:strizh"],
+  "activationEvents": ["onLanguage:ink"],
   "contributes": {
     "languages": [
       {
-        "id": "strizh",
-        "aliases": ["Strizh", "strizh"],
-        "extensions": [".str"],
+        "id": "ink",
+        "aliases": ["Ink", "ink"],
+        "extensions": [".ink"],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "strizh",
-        "scopeName": "source.strizh",
-        "path": "./syntaxes/strizh.tmLanguage.json"
+        "language": "ink",
+        "scopeName": "source.ink",
+        "path": "./syntaxes/ink.tmLanguage.json"
       }
     ],
     "configuration": {
-      "title": "Strizh",
+      "title": "Ink",
       "properties": {
-        "strizh.serverPath": {
+        "ink.serverPath": {
           "type": "string",
-          "default": "strizh",
-          "description": "Path to the strizh executable used as the language server."
+          "default": "ink",
+          "description": "Path to the ink executable used as the language server."
         }
       }
     }

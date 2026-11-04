@@ -1,4 +1,4 @@
-# Strizh — compiler implementation notes
+# Ink — compiler implementation notes
 
 Internal contract between packages. Not user documentation.
 
@@ -85,8 +85,15 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program
 The driver guarantees `go.mod` exists and Go imports are resolvable before
 `Check` is called; sema returns an error if they are not.
 
+The parser accepts only the canonical declaration forms (`type X struct`,
+`type X enum`, `type X interface`, `fn f() R { ... }`); `=` before a body is a
+parse error. The formatter prints the canonical form. Aliases always require
+`=` (`type X = Y`). A quoted non-local Go import path ending in `/v2`, `/v3`,
+... without an alias is a parse error.
+
 Sema fills:
 
+- `VarDecl.Type` for typed `var`; one type applies to every name
 - `Ident.Ref`, `SelectorExpr.Ref`
 - `ast.Use.GoPath`, `PackageName`, `LocalDir`, `LocalPackage`
 - `ast.NamedType.Decl/Variant/GoName/PkgAlias`
@@ -104,15 +111,28 @@ Sema fills:
 - `ast.ArrayType` normalization from `GenericType` when a single argument is a
   constant expression
 
+Sema rules added with the canonical surface:
+
+- `const` is package-level only; a local `const` is an error (`use var`).
+  `const` cannot have a type. It is a compile-time name used for array lengths
+  and case patterns, not immutable runtime storage.
+- Typed `var` resolves `VarDecl.Type`, applies it to bare `nil` values and
+  declares every name with that one type.
+- `void` is accepted only as a function result. `rejectVoid` rejects it in
+  variables, fields, parameters, arguments, returns with values and composite
+  elements.
+- `par for` over a map is rejected; `for ()` is rejected in a `par`/`par for`
+  body. Function literals remain outside the static analysis.
+
 Sema also checks interface conformance (`internal/sema/iface.go`): method sets
 for local structs, local interfaces and Go types, compared at assignments,
 arguments, returns and composite elements. Hidden context is not added to the
-compared Strizh signature; an explicit Go `context.Context` parameter is
+compared Ink signature; an explicit Go `context.Context` parameter is
 compared as an ordinary parameter. Signatures that cannot be named (generics,
 enum variants, arrays, function values, variadic methods) are skipped and left
 to `go build`; multi-result assignments/returns are also skipped.
 
-Sema checks Strizh-specific rules only. Go checks the rest of the types.
+Sema checks Ink-specific rules only. Go checks the rest of the types.
 
 ### `internal/gen`
 
@@ -122,12 +142,13 @@ type Options struct { Root, Module string; IncludeTests bool }
 func Generate(p *sema.Program, files map[string][]*ast.File, opt Options) ([]File, []error)
 ```
 
-Outputs one `zz_strizh.go` per local package and, if `IncludeTests`, one
-`zz_strizh_test.go` per package with test declarations.
+Outputs one `zz_ink.go` per local package and, if `IncludeTests`, one
+`zz_ink_test.go` per package with test declarations.
 Generated files are formatted with `go/format`.
-Every declaration, statement and expression gets a `//line <abs path>:<line>`
+Every declaration, statement and expression gets a `//line <abs path>:<line>:<col>`
 directive where practical (at least decls, statements, and call expressions).
-The absolute path and missing column are known limits (G34).
+The absolute path and one-character fallback ends for sema/typecheck diagnostics
+are known limits (G34).
 
 ### `internal/typecheck`
 
@@ -136,11 +157,11 @@ type Error struct { Path string; Pos token.Pos; Msg string }
 func Check(p *sema.Program, files map[string][]*ast.File, opt Options) []Error
 ```
 
-Generates Go in memory with `internal/gen`, overlays every `zz_strizh.go` and
+Generates Go in memory with `internal/gen`, overlays every `zz_ink.go` and
 the embedded runtime into `go/packages`, and maps `//line` positions back to
-`.str` files. The load mode is `LoadImports | NeedExportFile`, not `LoadTypes`.
+`.ink` files. The load mode is `LoadImports | NeedExportFile`, not `LoadTypes`.
 Results are cached in memory by a SHA-256 of generated files, `go.mod`,
-`go.sum` and the runtime source. `strizh check` and LSP call it; `build`,
+`go.sum` and the runtime source. `ink check` and LSP call it; `build`,
 `run` and `test` still let `go build`/`go test` find type errors. Details:
 [`TYPECHECK.md`](TYPECHECK.md).
 
@@ -151,7 +172,9 @@ func File(f *ast.File) []byte
 ```
 
 Canonical source. Tabs are not used; indentation is four spaces.
-Comments are preserved by line.
+Comments are preserved by line. The formatter drops `=` before struct/enum/
+interface bodies and function bodies, keeps `=` on aliases, adds explicit
+`void` to a result-less declaration and prints interface methods without `fn`.
 
 ### `internal/lsp`
 
@@ -159,16 +182,23 @@ Comments are preserved by line.
 func Run(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) error
 ```
 
+One JSON-RPC loop over stdio. It publishes parse/sema/typecheck diagnostics with
+stable codes and provides hover, definition, completion, document and workspace
+symbols, signature help, formatting, references/rename for project
+declarations, and code actions for canonical errors. Sema is synchronous;
+the generated-Go typecheck is debounced by 150 ms and stale generations are
+dropped. `ink check` remains the authoritative whole-project check.
+
 ### `internal/driver`
 
-High-level operations used by the CLI. The driver owns `strizh.toml`,
+High-level operations used by the CLI. The driver owns `ink.toml`,
 `go.mod`, the Go import stub, parsing, checking, generation and Go commands.
 
 ## Codegen rules
 
 ### Type mapping
 
-| Strizh | Go |
+| Ink | Go |
 |---|---|
 | `str` | `string` |
 | `u8`…`u64` | `uint8`…`uint64` |
@@ -197,7 +227,7 @@ High-level operations used by the CLI. The driver owns `strizh.toml`,
 - Go import keeps its path, alias from the `use` declaration or the real Go
   package name.
 - Imports are merged per package; conflicting aliases are a sema error.
-- Generated support package: `<module>/.strizh/runtime`, imported only when
+- Generated support package: `<module>/.ink/runtime`, imported only when
   needed (defer stack, asserts, `has`, par helpers).
 
 ### Main wrapper
@@ -222,7 +252,7 @@ a plain wrapper. If `main` does not need a context, no context is passed.
   - public `Name(...)` with the exact source signature;
   - internal `_s_Name_ctx(_s_ctx, ...)` (or `_s_Type_Name_ctx`) with the body.
 - The public wrapper calls the internal function with
-  `context.Background()`. Direct Strizh calls inside `par`/`within` call the
+  `context.Background()`. Direct Ink calls inside `par`/`within` call the
   internal function with the current `_s_ctx`.
 - Methods follow the same rule: the public method keeps the Go interface
   signature, the internal free function holds the body.
@@ -269,8 +299,9 @@ defer _s_d.RunTo(0)
 - Direct call with no assignment and only an error result:
   `if _s_err := f(); _s_err != nil { ... }`.
 - `CallInfo.Results`, `ResultTypes` and `HasError` drive the shape.
-- `or` supports at most one non-error result; multi-result calls cannot be
-  used as a single expression.
+- `or` supports multiple non-error results: `var a, b = f() or return;`
+  generates `a, b` from `CallInfo.ResultTypes[:Results]`. A multi-result call
+  is still not a tuple value and cannot be nested in another expression.
 
 ### Multiple results
 
@@ -303,6 +334,14 @@ func (ShapeRect) _s_shape() {}
 - Methods: `func (self *T) Name(args) ...`.
 - Bare field identifiers resolved with `RefField` are emitted as `self.Field`.
 - Struct literal: `T{Field: value}`.
+- Typed `var` emits the declared type; `const` emits Go `const`.
+
+### Loops and `match`
+
+- `break`/`continue` inside a `match` case target the enclosing loop.
+- `loopNeedsLabel` labels a loop when its body contains a match with
+  `break`/`continue`; the statement is emitted as `break _s_loop` or
+  `continue _s_loop`. Plain `break` outside a match stays unlabeled.
 
 ### `par`
 
@@ -350,7 +389,8 @@ _s_cancel()
 
 ### `par for`
 
-- Sema has already rejected `return`/`break`/`continue` that leave the body.
+- Sema has already rejected `return`/`break`/`continue` that leave the body,
+  a map range, and `for ()` in the body.
 - `limit N` default `runtime.GOMAXPROCS(0)`.
 - Each iteration runs in its own goroutine with its own `DeferStack` and the
   same recovery boundary as `par`.
@@ -358,12 +398,11 @@ _s_cancel()
   assignment (`par for (i = 0; ...)`) captures `_s_iN := i` per iteration and
   rewrites body references to the copy; the condition and post use the outer
   variable. A direct write to `i` in the body is rejected.
-- Errors are stored by iteration ordinal; lowest index wins. Map ranges use
-  ord `-1` and first-completed semantics, including aliases and Go map types.
+- Errors are stored by iteration ordinal; lowest index wins.
 - `for (var x in xs)` uses the range index as ordinal.
-- Map iterations report ord `-1`: every iteration is unordered, so the first
-  error that reaches `ParErrors` wins. `First()` prefers any non-negative
-  index before falling back to the earliest `-1` entry.
+- Map ranges are rejected by sema, so Ink source never reports ord `-1`.
+  The runtime keeps the `-1` path (first-completed wins, after all
+  non-negative indexes) for compatibility.
 
 ### `within`
 
@@ -380,19 +419,19 @@ shared `par` context still cancels every worker's `within`.
 ### Tests
 
 - `test "name" { ... };` → `func TestName(t *testing.T)` in
-  `zz_strizh_test.go`, with unique suffix on duplicates.
+  `zz_ink_test.go`, with unique suffix on duplicates.
 - `assert(cond)` → `runtime.Assert(cond, "file:line")`.
 - `assert_eq(a, b)` → `runtime.AssertEq(a, b, "file:line")`.
 
 ## Deep recursion
 
-Strizh does not guarantee tail calls. Deep recursion can overflow the Go stack
+Ink does not guarantee tail calls. Deep recursion can overflow the Go stack
 the same way Go code does.
 
 ## Generated runtime
 
 `runtime/` is a normal Go package that is embedded into the compiler and copied
-to `.strizh/runtime` in the target project.
+to `.ink/runtime` in the target project.
 
 Required API:
 
@@ -419,5 +458,5 @@ func (p *ParErrors) First() error
 ```
 
 `ParErrors.First()` returns the lowest non-negative index. Entries with `-1`
-(map iterations) are considered only when no non-negative entry exists, and
-then the earliest `Add` wins.
+(legacy map iterations; source-level map ranges are rejected) are considered
+only when no non-negative entry exists, and then the earliest `Add` wins.

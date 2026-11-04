@@ -15,18 +15,19 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/bongdo/strizh/internal/ast"
-	"github.com/bongdo/strizh/internal/config"
-	"github.com/bongdo/strizh/internal/gen"
-	"github.com/bongdo/strizh/internal/sema"
-	"github.com/bongdo/strizh/internal/token"
-	strizhrt "github.com/bongdo/strizh/runtime"
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/config"
+	"github.com/bongdo/ink/internal/gen"
+	"github.com/bongdo/ink/internal/sema"
+	"github.com/bongdo/ink/internal/token"
+	inkrt "github.com/bongdo/ink/runtime"
 )
 
 type Options struct {
 	Root   string
 	Module string
 	Tests  bool
+	Race   bool
 }
 
 type Error struct {
@@ -36,8 +37,8 @@ type Error struct {
 }
 
 var (
-	posRE    = regexp.MustCompile(`^(.+?\.str):(\d+)(?::(\d+))?$`)
-	msgPosRE = regexp.MustCompile(`^(.+?\.str):(\d+)(?::(\d+))?: (.+)$`)
+	posRE    = regexp.MustCompile(`^(.+?\.ink):(\d+)(?::(\d+))?$`)
+	msgPosRE = regexp.MustCompile(`^(.+?\.ink):(\d+)(?::(\d+))?: (.+)$`)
 )
 
 // shortcut: local replace targets are not hashed, restart LSP after editing them
@@ -71,11 +72,11 @@ func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Er
 		return []Error{{Path: opt.Root, Msg: "typecheck: " + err.Error()}}
 	}
 	gosum, _ := os.ReadFile(filepath.Join(opt.Root, "go.sum"))
-	key := cacheKey(module, generated, gomod, gosum, opt.Tests)
+	key := cacheKey(module, generated, gomod, gosum, opt.Tests, opt.Race)
 	if errs, ok := cacheGet(key); ok {
 		return errs
 	}
-	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests)
+	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests, opt.Race)
 	cachePut(key, out)
 	return out
 }
@@ -95,11 +96,14 @@ func knownFiles(files map[string][]*ast.File) map[string]bool {
 	return known
 }
 
-func cacheKey(module string, files []gen.File, gomod, gosum []byte, tests bool) string {
+func cacheKey(module string, files []gen.File, gomod, gosum []byte, tests, race bool) string {
 	h := sha256.New()
-	io.WriteString(h, "strizh-typecheck-v1\x00")
+	io.WriteString(h, "ink-typecheck-v1\x00")
 	if tests {
 		io.WriteString(h, "tests\x00")
+	}
+	if race {
+		io.WriteString(h, "race\x00")
 	}
 	io.WriteString(h, module)
 	io.WriteString(h, "\x00")
@@ -109,7 +113,7 @@ func cacheKey(module string, files []gen.File, gomod, gosum []byte, tests bool) 
 		h.Write(f.Src)
 		io.WriteString(h, "\x00")
 	}
-	h.Write(strizhrt.Source)
+	h.Write(inkrt.Source)
 	io.WriteString(h, "\x00")
 	h.Write(gomod)
 	io.WriteString(h, "\x00")
@@ -136,7 +140,7 @@ func cacheGet(key string) ([]Error, bool) {
 
 func cachePut(key string, errs []Error) {
 	for _, e := range errs {
-		if !strings.HasSuffix(e.Path, ".str") {
+		if !strings.HasSuffix(e.Path, ".ink") {
 			return
 		}
 	}
@@ -153,7 +157,7 @@ func cachePut(key string, errs []Error) {
 	cacheOrder = append(cacheOrder, key)
 }
 
-func load(root, module string, files []gen.File, known map[string]bool, tests bool) []Error {
+func load(root, module string, files []gen.File, known map[string]bool, tests, race bool) []Error {
 	overlay := make(map[string][]byte, len(files)+1)
 	importDirs := make(map[string]string, len(files))
 	seen := make(map[string]bool)
@@ -185,13 +189,16 @@ func load(root, module string, files []gen.File, known map[string]bool, tests bo
 	if len(patterns) == 0 {
 		return []Error{{Path: root, Msg: "typecheck: no generated packages"}}
 	}
-	overlay[filepath.Join(root, ".strizh", "runtime", "runtime.go")] = strizhrt.Source
+	overlay[filepath.Join(root, ".ink", "runtime", "runtime.go")] = inkrt.Source
 	cfg := &packages.Config{
 		Mode:    packages.LoadImports | packages.NeedExportFile,
 		Dir:     root,
 		Tests:   tests,
 		Overlay: overlay,
 		Env:     append(os.Environ(), "GOFLAGS=-buildvcs=false"),
+	}
+	if race {
+		cfg.BuildFlags = []string{"-race"}
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
