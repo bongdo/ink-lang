@@ -173,10 +173,12 @@ tuple/struct patterns, no multi-type case lists.
 ### G18. Type arguments on calls — fixed
 **Статус:** fixed in 0.2 preview. Sema resolves every explicit `TypeArg` with
 `resolveType`, stores `TypeParams`/`TypeArgs` on `CallInfo`, and instantiates
-the parameter and result types. Wrong arity and type arguments on a
-non-generic target are errors.
-**Остаток:** when explicit arguments are omitted, sema still leaves the type
-parameters unresolved and lets Go infer them.
+Ink parameter and result types. Explicit arguments on Go generic functions are
+accepted (codegen already emits them) and their arity is checked. Wrong arity
+and type arguments on a non-generic Ink function are errors.
+**Остаток:** when explicit arguments are omitted, sema still leaves Ink type
+parameters unresolved and lets Go infer them; Go generic result types are not
+substituted into Ink hover types.
 **Оценка:** S.
 
 ### G20. `nil` typing — fixed in 0.2
@@ -241,8 +243,10 @@ GoName collisions.
 
 ### G29. Top-level forward references — fixed
 **Статус:** fixed in 0.2 preview. Package variables are resolved to a fixpoint,
-so `var a = b; var b = 1;` gives `a` the type of `b`. Direct initialization
-cycles are reported as `initialization cycle: a -> b`.
+so `var a = b; var b = 1;` gives `a` the type of `b`. The cycle graph covers
+declared types too: `var a: i32 = b; var b = a + 1;` is reported by
+`ink check --fast` as `initialization cycle: a -> b`. References inside
+function literal bodies do not create initialization dependencies, matching Go.
 **Остаток:** inference through function results still relies on the declared
 function type, not on a call graph.
 **Оценка:** M.
@@ -350,9 +354,11 @@ the in-memory buffer and re-analyzes from disk. Diagnostics for the file on
 disk can appear again by design.
 
 ### G46. Formatter comment fidelity and wrapping
-**Статус:** fixed for trailing comments in 0.2 preview. A comment on the same
-line as a declaration, field, statement or block stays on that line; the
-formatter test pins the golden output.
+**Статус:** fixed for trailing comments in 0.2 preview. A comment after
+`use`, a top-level `};`, a struct field, a statement, a block or the last
+`match` arm stays on its line, and one `ink fmt -w` is a fixed point:
+`ink fmt -l` is empty after the first write. The golden test also formats the
+output a second time.
 **Остаток:** no line-width wrapping; an optional `--wrap` remains a later
 feature, not a language gap.
 **Оценка:** M.
