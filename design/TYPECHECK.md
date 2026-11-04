@@ -73,9 +73,9 @@ in-process cache makes repeated opens and saves free.
 
 ## Known limits
 
-- Start columns are exact from `//line path:line:col`; end columns are
-  one-character fallbacks for sema and typecheck diagnostics, and generated
-  paths are absolute (G34).
+- Start columns are exact from `//line path:line:col`; generated paths are
+  relative to the generated file and mapped back to source files. End columns
+  are one-character fallbacks for sema and typecheck diagnostics (G34).
 - Errors are only as good as Go's position mapping: an error in generated
   code that is not covered by a `//line` directive becomes a project-level
   error. If the package also has a `.ink` parse/sema error, that unmapped
@@ -93,7 +93,7 @@ in-process cache makes repeated opens and saves free.
 1. Move sema to a worker with a latest-version queue and cancellation (G43).
 2. Cache per package instead of per project, so editing one package does not
    reload unrelated ones.
-3. Use relative `//line` paths and exact end positions (G34).
+3. Add exact end positions for sema and typecheck diagnostics (G34).
 
 ## Verification
 

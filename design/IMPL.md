@@ -145,10 +145,11 @@ func Generate(p *sema.Program, files map[string][]*ast.File, opt Options) ([]Fil
 Outputs one `zz_ink.go` per local package and, if `IncludeTests`, one
 `zz_ink_test.go` per package with test declarations.
 Generated files are formatted with `go/format`.
-Every declaration, statement and expression gets a `//line <abs path>:<line>:<col>`
-directive where practical (at least decls, statements, and call expressions).
-The absolute path and one-character fallback ends for sema/typecheck diagnostics
-are known limits (G34).
+Every declaration, statement and expression gets a
+`//line <path>:<line>:<col>` directive where practical (at least decls,
+statements, and call expressions). The path is relative to the generated file.
+One-character fallback ends for sema/typecheck diagnostics are a known limit
+(G34).
 
 ### `internal/typecheck`
 

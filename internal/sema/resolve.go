@@ -568,6 +568,20 @@ func (p *Program) checkPackageVars() {
 		}
 		p.checkVarCycles(pkg, vars)
 	}
+	p.dedupeLitCalls()
+}
+
+func (p *Program) dedupeLitCalls() {
+	seen := make(map[*ast.FuncLit]bool, len(p.litCalls))
+	out := p.litCalls[:0]
+	for _, lc := range p.litCalls {
+		if lc.lit == nil || seen[lc.lit] {
+			continue
+		}
+		seen[lc.lit] = true
+		out = append(out, lc)
+	}
+	p.litCalls = out
 }
 
 func (p *Program) resolvePackageVar(item packageVar) {
