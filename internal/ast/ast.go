@@ -305,6 +305,8 @@ type CallInfo struct {
 	ParamTypes  []Type
 	Builtin     string
 	Fn          *FuncDecl
+	TypeParams  []*TypeParam
+	TypeArgs    []Type
 }
 
 type CallExpr struct {

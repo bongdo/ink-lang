@@ -348,6 +348,12 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 			result = firstResult(ft.Results)
 		}
 	}
+	if len(call.TypeArgs) > 0 {
+		result = c.resolveCallTypeArgs(call, info, result)
+		if info != nil {
+			params = info.ParamTypes
+		}
+	}
 	for i, arg := range call.Args {
 		var expected ast.Type
 		if i < len(params) {
@@ -379,6 +385,79 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	}
 	_ = goCall
 	return result
+}
+
+func (c *checker) resolveCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, result ast.Type) ast.Type {
+	args := make([]ast.Type, len(call.TypeArgs))
+	for i, t := range call.TypeArgs {
+		args[i] = c.resolveType(t)
+		c.p.rejectVoid(c.fc, args[i], call.Pos())
+	}
+	call.TypeArgs = args
+	if info == nil || info.Kind == ast.CallUnknown {
+		return result
+	}
+	if info.Kind != ast.CallFunc || info.Fn == nil || len(info.Fn.TypeParams) == 0 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "function is not generic")
+		return result
+	}
+	if len(args) != len(info.Fn.TypeParams) {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "function %s wants %d type arguments, got %d", info.Fn.Name, len(info.Fn.TypeParams), len(args))
+		return result
+	}
+	subst := make(map[string]ast.Type, len(args))
+	for i, tp := range info.Fn.TypeParams {
+		subst[tp.Name] = args[i]
+	}
+	info.TypeParams = info.Fn.TypeParams
+	info.TypeArgs = args
+	for i, p := range info.ParamTypes {
+		info.ParamTypes[i] = instantiateType(p, subst)
+	}
+	for i, r := range info.ResultTypes {
+		info.ResultTypes[i] = instantiateType(r, subst)
+	}
+	return instantiateType(result, subst)
+}
+
+func instantiateType(t ast.Type, subst map[string]ast.Type) ast.Type {
+	if t == nil {
+		return nil
+	}
+	switch t := t.(type) {
+	case *ast.NamedType:
+		if t.Package == "" {
+			if arg, ok := subst[t.Name]; ok {
+				return arg
+			}
+		}
+		return t
+	case *ast.SliceType:
+		return &ast.SliceType{Span: t.Span, Elem: instantiateType(t.Elem, subst)}
+	case *ast.ArrayType:
+		return &ast.ArrayType{Span: t.Span, Elem: instantiateType(t.Elem, subst), Len: t.Len}
+	case *ast.MapType:
+		return &ast.MapType{Span: t.Span, Key: instantiateType(t.Key, subst), Value: instantiateType(t.Value, subst)}
+	case *ast.PointerType:
+		return &ast.PointerType{Span: t.Span, Elem: instantiateType(t.Elem, subst)}
+	case *ast.GenericType:
+		args := make([]ast.Type, len(t.Args))
+		for i, arg := range t.Args {
+			args[i] = instantiateType(arg, subst)
+		}
+		return &ast.GenericType{Span: t.Span, Base: instantiateType(t.Base, subst), Args: args}
+	case *ast.FuncType:
+		params := make([]ast.Type, len(t.Params))
+		for i, param := range t.Params {
+			params[i] = instantiateType(param, subst)
+		}
+		results := make([]ast.Type, len(t.Results))
+		for i, res := range t.Results {
+			results[i] = instantiateType(res, subst)
+		}
+		return &ast.FuncType{Span: t.Span, Params: params, Results: results, Err: t.Err, NeedsCtx: t.NeedsCtx}
+	}
+	return t
 }
 
 func ifaceFuncType(m *ast.IFaceMethod) *ast.FuncType {
