@@ -73,6 +73,23 @@ fn main() void {
 	noErrors(t, p)
 }
 
+func TestGlobalIIFECycle(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a: i32 = fn() i32 {
+    return b;
+}();
+
+var b = a + 1;
+
+fn main() void {
+    _ = a;
+    _ = b;
+};
+`})
+	if !hasError(p, "initialization cycle: a -> b") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
 func TestGlobalSelfCycle(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `var a = a;
 
@@ -87,7 +104,8 @@ fn main() void {
 
 func TestStringIndexIsByte(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void {
-    var b = "hi"[1];
+    var word = "é";
+    var b: byte = word[0];
     _ = b;
 };
 `})

@@ -309,6 +309,9 @@ func TestConformanceCases(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(base, entry.Name(), "expected-fast.txt")); err == nil {
 				t.Skip("fast-check case")
 			}
+			if _, err := os.Stat(filepath.Join(base, entry.Name(), "expected-check.txt")); err == nil {
+				t.Skip("check case")
+			}
 			dir := filepath.Join(t.TempDir(), entry.Name())
 			copyTree(t, filepath.Join(base, entry.Name()), dir)
 			p, err := Open(dir)

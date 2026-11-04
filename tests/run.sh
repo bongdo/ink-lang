@@ -113,24 +113,30 @@ for dir in "$root"/tests/cases/*/; do
   name=$(basename "$dir")
   out=$(mktemp)
   err=$(mktemp)
-  if [ -f "$dir/expected-fast.txt" ]; then
+  if [ -f "$dir/expected-fast.txt" ] || [ -f "$dir/expected-check.txt" ]; then
     objects=$(mktemp)
-    if (cd "$dir" && timeout 120 "$ink" check --json --fast >"$out" 2>"$err"); then
-      echo "FAIL $name (check --fast exited 0, want 1)" >&2
+    expected="$dir/expected-fast.txt"
+    check_args=(--json --fast)
+    if [ -f "$dir/expected-check.txt" ]; then
+      expected="$dir/expected-check.txt"
+      check_args=(--json)
+    fi
+    if (cd "$dir" && timeout 120 "$ink" check "${check_args[@]}" >"$out" 2>"$err"); then
+      echo "FAIL $name (check exited 0, want 1)" >&2
       fail=1
     else
       check_status=$?
       if [ "$check_status" -ne 1 ]; then
-        echo "FAIL $name (check --fast exited $check_status, want 1)" >&2
+        echo "FAIL $name (check exited $check_status, want 1)" >&2
         cat "$out" "$err" >&2
         fail=1
       else
         tr -d '\n' <"$out" | sed 's/},{/}\n{/g' >"$objects"
         printf '\n' >>"$objects"
-        total=$(wc -l <"$dir/expected-fast.txt")
+        total=$(wc -l <"$expected")
         actual=$(wc -l <"$objects")
         if [ "$actual" -ne "$total" ]; then
-          echo "FAIL $name (want $total fast diagnostics, got $actual)" >&2
+          echo "FAIL $name (want $total diagnostics, got $actual)" >&2
           cat "$objects" >&2
           fail=1
         else
@@ -151,17 +157,17 @@ for dir in "$root"/tests/cases/*/; do
             got="$line:$col:$code"
             wgot="$wline:$wcol:$wcode"
             if [ "$got" != "$wgot" ]; then
-              echo "FAIL $name (fast diagnostic $i): want $wgot, got $got" >&2
+              echo "FAIL $name (diagnostic $i): want $wgot, got $got" >&2
               fail=1
             fi
             case "$msg" in
               "$wmsg"*) ;;
               *)
-                echo "FAIL $name (fast diagnostic $i message): want prefix '$wmsg', got '$msg'" >&2
+                echo "FAIL $name (diagnostic $i message): want prefix '$wmsg', got '$msg'" >&2
                 fail=1
                 ;;
             esac
-          done <"$dir/expected-fast.txt"
+          done <"$expected"
         fi
       fi
     fi

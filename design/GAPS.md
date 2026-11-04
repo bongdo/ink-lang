@@ -200,6 +200,12 @@ labels still do not exist.
 **Статус:** fixed in 0.2 preview. `s[i]` is Go's byte and sema types it as
 `byte`; `runes(s)` is the documented form for code points. Changing `s[i]` to
 rune was rejected because it would surprise Go users.
+**Оракул:** `TestStringIndexIsByte` asserts the sema `ExprTypes` entry and
+fails on the pre-G23 nil type. `tests/cases/string_index_byte` pins the
+positive declaration (`var b: byte = word[0]`), and
+`tests/cases/string_index_rune` pins the exact `go-type` error for
+`var r: rune = word[0]` at 3:20. `tests/cases/strings` only pins runtime
+byte-vs-rune output; it is not a sema regression oracle.
 **Оценка:** S.
 
 ## C. Sema and type checking
@@ -246,9 +252,13 @@ GoName collisions.
 so `var a = b; var b = 1;` gives `a` the type of `b`. The cycle graph covers
 declared types too: `var a: i32 = b; var b = a + 1;` is reported by
 `ink check --fast` as `initialization cycle: a -> b`. References inside
-function literal bodies do not create initialization dependencies, matching Go.
-**Остаток:** inference through function results still relies on the declared
-function type, not on a call graph.
+non-invoked function literal bodies are skipped; immediately invoked literals
+are traversed, so `var a: i32 = fn() i32 { return b; }(); var b = a + 1;` is
+reported by `ink check --fast` as well.
+**Остаток:** the graph does not traverse free function calls. A cycle through
+`fn getB() { return b; }; var a = getB(); var b = a + 1;` is clean under
+`--fast` and is caught only by the full Go typecheck (`initialization cycle for
+a`).
 **Оценка:** M.
 
 ### G30. `void` value positions — fixed in 0.2

@@ -721,11 +721,24 @@ func walkVarCycle(cur, start *ast.VarDecl, members map[*ast.VarDecl]bool, seen m
 }
 
 func varRefs(v *ast.VarDecl) []*ast.VarDecl {
+	invoked := make(map[*ast.FuncLit]bool)
+	for _, val := range v.Values {
+		ast.Inspect(val, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if lit := calleeFuncLit(call.Fun); lit != nil {
+				invoked[lit] = true
+			}
+			return true
+		})
+	}
 	var refs []*ast.VarDecl
 	seen := make(map[*ast.VarDecl]bool)
 	for _, val := range v.Values {
 		ast.Inspect(val, func(n ast.Node) bool {
-			if _, ok := n.(*ast.FuncLit); ok {
+			if lit, ok := n.(*ast.FuncLit); ok && !invoked[lit] {
 				return false
 			}
 			id, ok := n.(*ast.Ident)
@@ -742,6 +755,18 @@ func varRefs(v *ast.VarDecl) []*ast.VarDecl {
 		})
 	}
 	return refs
+}
+
+func calleeFuncLit(e ast.Expr) *ast.FuncLit {
+	for {
+		paren, ok := e.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		e = paren.X
+	}
+	lit, _ := e.(*ast.FuncLit)
+	return lit
 }
 
 func varDeclName(v *ast.VarDecl) string {

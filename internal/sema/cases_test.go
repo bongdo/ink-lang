@@ -28,6 +28,9 @@ func TestConformanceCases(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, "expected-fast.txt")); err == nil {
 			continue
 		}
+		if _, err := os.Stat(filepath.Join(dir, "expected-check.txt")); err == nil {
+			continue
+		}
 		parsed := make(map[string][]*ast.File)
 		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
