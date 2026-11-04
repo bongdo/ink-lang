@@ -128,6 +128,27 @@ func TestCheckPathWithSpaces(t *testing.T) {
 	}
 }
 
+func TestCheckFastGlobalCycle(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"cycle\"\nmodule = \"example.com/cycle\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "var a: i32 = b;\nvar b = a + 1;\n\nfn main() void {\n    _ = a;\n    _ = b;\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Fast: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Errors) != 1 || !strings.Contains(p.Errors[0].Msg, "initialization cycle: a -> b") {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+}
+
 func TestCheckFastAndJSON(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"tc\"\nmodule = \"example.com/tc\"\n"), 0o644); err != nil {
@@ -285,6 +306,9 @@ func TestConformanceCases(t *testing.T) {
 			continue
 		}
 		t.Run(entry.Name(), func(t *testing.T) {
+			if _, err := os.Stat(filepath.Join(base, entry.Name(), "expected-fast.txt")); err == nil {
+				t.Skip("fast-check case")
+			}
 			dir := filepath.Join(t.TempDir(), entry.Name())
 			copyTree(t, filepath.Join(base, entry.Name()), dir)
 			p, err := Open(dir)
@@ -326,6 +350,36 @@ func TestConformanceCases(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFormatCommentFixedPoint(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.ink")
+	src := "use fmt; // note\n\ntype User struct {\n    Name: str,\n}; // point\n\nfn main() void {\n    var x = match (1) {\n    case 1 => fmt.Println(\"one\");\n    else => fmt.Println(\"other\"); // tail\n    };\n    _ = x;\n}; // done\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := Format(true, false, false, []string{path}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var buf bytes.Buffer
+	if err := Format(false, true, true, []string{dir}, &buf); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(buf.String()) != "[]" {
+		t.Fatalf("still unformatted: %s", buf.String())
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"use fmt; // note", "}; // point", "// tail"} {
+		if !strings.Contains(string(got), want) {
+			t.Fatalf("missing %q:\n%s", want, got)
+		}
 	}
 }
 

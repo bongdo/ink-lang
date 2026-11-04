@@ -44,6 +44,35 @@ fn main() void {
 	}
 }
 
+func TestTypedGlobalInitializationCycle(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a: i32 = b;
+var b = a + 1;
+
+fn main() void {
+    _ = a;
+    _ = b;
+};
+`})
+	if !hasError(p, "initialization cycle: a -> b") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestGlobalCycleIgnoresFunctionBodies(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var f = fn() i32 {
+    return a;
+};
+
+var a = 1;
+
+fn main() void {
+    _ = f;
+    _ = a;
+};
+`})
+	noErrors(t, p)
+}
+
 func TestGlobalSelfCycle(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `var a = a;
 

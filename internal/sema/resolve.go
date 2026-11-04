@@ -665,23 +665,18 @@ func (p *Program) packageVarUnresolved(pkg *Package, item packageVar) bool {
 }
 
 func (p *Program) checkVarCycles(pkg *Package, vars []packageVar) {
-	unresolved := make(map[*ast.VarDecl]bool)
-	for _, item := range vars {
-		if p.packageVarUnresolved(pkg, item) {
-			unresolved[item.decl] = true
-		}
-	}
-	if len(unresolved) == 0 {
+	if len(vars) == 0 {
 		return
+	}
+	members := make(map[*ast.VarDecl]bool, len(vars))
+	for _, item := range vars {
+		members[item.decl] = true
 	}
 	reported := make(map[string]bool)
 	for _, item := range vars {
-		if !unresolved[item.decl] {
-			continue
-		}
 		seen := make(map[*ast.VarDecl]bool)
 		var path []*ast.VarDecl
-		cycle := findVarCycle(item.decl, unresolved, seen, &path)
+		cycle := findVarCycle(item.decl, members, seen, &path)
 		if cycle == nil {
 			continue
 		}
@@ -701,11 +696,11 @@ func (p *Program) checkVarCycles(pkg *Package, vars []packageVar) {
 	}
 }
 
-func findVarCycle(start *ast.VarDecl, unresolved map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
-	return walkVarCycle(start, start, unresolved, seen, path)
+func findVarCycle(start *ast.VarDecl, members map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
+	return walkVarCycle(start, start, members, seen, path)
 }
 
-func walkVarCycle(cur, start *ast.VarDecl, unresolved map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
+func walkVarCycle(cur, start *ast.VarDecl, members map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
 	if cur == nil || seen[cur] {
 		return nil
 	}
@@ -715,8 +710,8 @@ func walkVarCycle(cur, start *ast.VarDecl, unresolved map[*ast.VarDecl]bool, see
 		if next == start {
 			return append([]*ast.VarDecl(nil), *path...)
 		}
-		if unresolved[next] {
-			if cycle := walkVarCycle(next, start, unresolved, seen, path); cycle != nil {
+		if members[next] {
+			if cycle := walkVarCycle(next, start, members, seen, path); cycle != nil {
 				return cycle
 			}
 		}
@@ -730,6 +725,9 @@ func varRefs(v *ast.VarDecl) []*ast.VarDecl {
 	seen := make(map[*ast.VarDecl]bool)
 	for _, val := range v.Values {
 		ast.Inspect(val, func(n ast.Node) bool {
+			if _, ok := n.(*ast.FuncLit); ok {
+				return false
+			}
 			id, ok := n.(*ast.Ident)
 			if !ok || id.Ref == nil || id.Ref.Kind != ast.RefGlobal {
 				return true

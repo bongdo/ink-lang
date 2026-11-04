@@ -113,6 +113,63 @@ for dir in "$root"/tests/cases/*/; do
   name=$(basename "$dir")
   out=$(mktemp)
   err=$(mktemp)
+  if [ -f "$dir/expected-fast.txt" ]; then
+    objects=$(mktemp)
+    if (cd "$dir" && timeout 120 "$ink" check --json --fast >"$out" 2>"$err"); then
+      echo "FAIL $name (check --fast exited 0, want 1)" >&2
+      fail=1
+    else
+      check_status=$?
+      if [ "$check_status" -ne 1 ]; then
+        echo "FAIL $name (check --fast exited $check_status, want 1)" >&2
+        cat "$out" "$err" >&2
+        fail=1
+      else
+        tr -d '\n' <"$out" | sed 's/},{/}\n{/g' >"$objects"
+        printf '\n' >>"$objects"
+        total=$(wc -l <"$dir/expected-fast.txt")
+        actual=$(wc -l <"$objects")
+        if [ "$actual" -ne "$total" ]; then
+          echo "FAIL $name (want $total fast diagnostics, got $actual)" >&2
+          cat "$objects" >&2
+          fail=1
+        else
+          i=0
+          while IFS= read -r want; do
+            i=$((i + 1))
+            obj=$(sed -n "${i}p" "$objects")
+            line=$(json_number "$obj" line)
+            col=$(json_number "$obj" col)
+            code=$(json_field "$obj" code)
+            msg=$(json_field "$obj" message)
+            wline=${want%%:*}
+            rest=${want#*:}
+            wcol=${rest%%:*}
+            rest=${rest#*:}
+            wcode=${rest%%:*}
+            wmsg=${rest#*:}
+            got="$line:$col:$code"
+            wgot="$wline:$wcol:$wcode"
+            if [ "$got" != "$wgot" ]; then
+              echo "FAIL $name (fast diagnostic $i): want $wgot, got $got" >&2
+              fail=1
+            fi
+            case "$msg" in
+              "$wmsg"*) ;;
+              *)
+                echo "FAIL $name (fast diagnostic $i message): want prefix '$wmsg', got '$msg'" >&2
+                fail=1
+                ;;
+            esac
+          done <"$dir/expected-fast.txt"
+        fi
+      fi
+    fi
+    rm -f "$objects"
+    rm -f "$out" "$err"
+    cleanup "$dir"
+    continue
+  fi
   if [ -f "$dir/test" ]; then
     if ! (cd "$dir" && timeout 180 "$ink" test >"$out" 2>"$err"); then
       echo "FAIL $name (test)" >&2
