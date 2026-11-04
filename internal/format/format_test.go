@@ -164,6 +164,48 @@ fn main() void {
 	}
 }
 
+func TestTrailingCommentsUseAndMatch(t *testing.T) {
+	src := `use fmt; // note
+
+type User struct {
+    Name: str,
+}; // point
+
+fn main() void {
+    var x = match (1) {
+    case 1 => fmt.Println("one");
+    else => fmt.Println("other"); // tail
+    };
+    _ = x;
+}; // done
+`
+	want := `use fmt; // note
+
+type User struct {
+    Name: str,
+}; // point
+
+fn main() void {
+    var x = match (1) {
+        case 1 => fmt.Println("one");
+        else => fmt.Println("other"); // tail
+    };
+    _ = x;
+}; // done
+`
+	out := formatSrc(t, src)
+	if out != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+	}
+	f, errs := parser.Parse("comments.ink", []byte(out))
+	if len(errs) > 0 {
+		t.Fatalf("parse formatted: %v\n%s", errs, out)
+	}
+	if out2 := string(File(f)); out2 != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, out2)
+	}
+}
+
 func TestBlockCommentDiagnostic(t *testing.T) {
 	_, errs := parser.Parse("block.ink", []byte("fn main() void {\n    /* nope */\n};\n"))
 	if len(errs) != 1 || errs[0].Msg != "block comments are not supported; use //" {

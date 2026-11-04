@@ -94,9 +94,11 @@ func (p *printer) flush(offset int) {
 		if p.lastLine > 0 && c.Pos().Line == p.lastLine {
 			p.trimRight()
 			b := p.buf.Bytes()
-			if len(b) > 0 && b[len(b)-1] == '\n' {
-				p.buf.Truncate(len(b) - 1)
+			for len(b) > 0 && b[len(b)-1] == '\n' {
+				b = b[:len(b)-1]
 			}
+			p.buf.Reset()
+			p.buf.Write(b)
 			p.write(" ")
 			p.write(c.Text)
 			p.line()
@@ -795,6 +797,7 @@ func (p *printer) match(m *ast.MatchExpr) {
 		}
 		p.lastLine = c.EndPos().Line
 	}
+	p.flush(m.EndPos().Offset)
 	p.indent--
 	p.ind()
 	p.write("}")
