@@ -132,6 +132,38 @@ fn main() void {
 	}
 }
 
+func TestTrailingCommentsStay(t *testing.T) {
+	src := `use fmt;
+
+type User struct {
+    Name: str, // name
+};
+
+fn main() void {
+    var x = 1; // tail
+    if (x > 0) {
+        fmt.Println(x) or return; // print
+    }; // block
+};
+`
+	want := `use fmt;
+
+type User struct {
+    Name: str, // name
+};
+
+fn main() void {
+    var x = 1; // tail
+    if (x > 0) {
+        fmt.Println(x) or return; // print
+    }; // block
+};
+`
+	if got := formatSrc(t, src); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestBlockCommentDiagnostic(t *testing.T) {
 	_, errs := parser.Parse("block.ink", []byte("fn main() void {\n    /* nope */\n};\n"))
 	if len(errs) != 1 || errs[0].Msg != "block comments are not supported; use //" {

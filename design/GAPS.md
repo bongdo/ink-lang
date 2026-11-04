@@ -170,12 +170,13 @@ fallible multi-result call through. This unlocks `tea.Model` and Go APIs.
 **Границы:** patterns are literal, variant or type patterns only; no guards, no
 tuple/struct patterns, no multi-type case lists.
 
-### G18. Type arguments on calls are not resolved by sema
-**Сейчас:** `Map[i32, str](...)` is parsed and codegen reparses raw types; sema
-does not resolve `Call.TypeArgs`, so hover/completion/inference are blind.
-**Почему:** call resolution ignores `TypeArgs`.
-**Фикс:** resolve each `TypeArg` with `resolveType`; attach the generic
-declaration and instantiated types to `CallInfo`.
+### G18. Type arguments on calls — fixed
+**Статус:** fixed in 0.2 preview. Sema resolves every explicit `TypeArg` with
+`resolveType`, stores `TypeParams`/`TypeArgs` on `CallInfo`, and instantiates
+the parameter and result types. Wrong arity and type arguments on a
+non-generic target are errors.
+**Остаток:** when explicit arguments are omitted, sema still leaves the type
+parameters unresolved and lets Go infer them.
 **Оценка:** S.
 
 ### G20. `nil` typing — fixed in 0.2
@@ -193,11 +194,10 @@ loop. Codegen labels loops that contain a match with `break`/`continue` and
 emits `break _s_loop` / `continue _s_loop`, so Go's switch is not left. User
 labels still do not exist.
 
-### G23. String indexing returns a byte
-**Сейчас:** `s[i]` is Go's byte; users must call `runes(s)` for rune work.
-**Почему:** `str` maps directly to Go `string`.
-**Фикс:** document the byte rule, or add `at(s, i) rune` / `runes(s)` as the
-preferred form; changing `s[i]` to rune would surprise Go users.
+### G23. String indexing returns a byte — documented
+**Статус:** fixed in 0.2 preview. `s[i]` is Go's byte and sema types it as
+`byte`; `runes(s)` is the documented form for code points. Changing `s[i]` to
+rune was rejected because it would surprise Go users.
 **Оценка:** S.
 
 ## C. Sema and type checking
@@ -239,12 +239,12 @@ symbol-table limit, not a variant-name ambiguity.
 GoName collisions.
 **Оценка:** S.
 
-### G29. Top-level forward references have no inferred type
-**Сейчас:** `var a = b; var b = 1;` gives `a` no sema type; hover/completion
-are weak, even though Go compiles it.
-**Почему:** one pass over package vars.
-**Фикс:** build a dependency graph, iterate type inference to a fixpoint, detect
-cycles.
+### G29. Top-level forward references — fixed
+**Статус:** fixed in 0.2 preview. Package variables are resolved to a fixpoint,
+so `var a = b; var b = 1;` gives `a` the type of `b`. Direct initialization
+cycles are reported as `initialization cycle: a -> b`.
+**Остаток:** inference through function results still relies on the declared
+function type, not on a call graph.
 **Оценка:** M.
 
 ### G30. `void` value positions — fixed in 0.2
@@ -280,14 +280,14 @@ Go accepts it, but it is noise.
 it already imports the same path.
 **Оценка:** S.
 
-### G34. `//line` columns and absolute paths
-**Статус:** partly fixed in 0.2. `writeLineDirective` emits
-`path:line:col`, and `typecheck` maps the column back; `check --json` carries
+### G34. `//line` columns and paths
+**Статус:** fixed for paths in 0.2 preview. `//line` uses a path relative to
+the generated file, so `zz_ink.go` no longer embeds the absolute project path;
+`typecheck` maps relative paths and package test bundles back to source files,
+including paths with spaces. Columns are kept; `check --json` carries
 `endLine`/`endCol`.
-**Остаток:** sema and typecheck end positions are one-character fallbacks, and
-generated files still embed absolute paths; spaces in paths are not escaped.
-**Фикс:** keep the column, add a relative-path convention and escape or reject
-spaces.
+**Остаток:** sema and typecheck end positions are still one-character
+fallbacks; Go diagnostics carry no end column.
 **Оценка:** S.
 
 ### G35. `GoType.Text` can reference packages that are not imported
@@ -350,11 +350,11 @@ the in-memory buffer and re-analyzes from disk. Diagnostics for the file on
 disk can appear again by design.
 
 ### G46. Formatter comment fidelity and wrapping
-**Сейчас:** comments are preserved by line but can move to the next line;
-there is no line-width wrapping.
-**Почему:** the formatter prints comments before the next node.
-**Фикс:** attach trailing comments to the previous node; add a golden corpus;
-optional `--wrap` later.
+**Статус:** fixed for trailing comments in 0.2 preview. A comment on the same
+line as a declaration, field, statement or block stays on that line; the
+formatter test pins the golden output.
+**Остаток:** no line-width wrapping; an optional `--wrap` remains a later
+feature, not a language gap.
 **Оценка:** M.
 
 ## Bubble Tea
@@ -380,17 +380,18 @@ Agent readiness is priority 1, ahead of 1.0 polish. The detailed roadmap is in
 1. **P0 — agent contract and feedback.** Implemented: agent guide, JSON
    diagnostics with codes/hints, `--fast`, diagnostics on change and a stable
    CLI contract. A2 remains partial: parser ends are exact, sema/typecheck ends
-   are one-character spans, and G34 paths are still absolute.
+   are one-character spans; `//line` paths are relative (G34).
 2. **P1 — agent editing.** Implemented: LSP references/rename, code actions,
    test diagnostics and workspace symbols. A7 remains partial: the
    `nil-untyped` fix is conservative and rename does not check conflicts.
 3. **P2 — concurrency confidence.** Implemented: `-race` path
    (`run`/`test`/`check`), G10 boundary docs, G11 static-analysis docs.
    G1–G9 are closed; G10 and G11 remain as documented limits.
-4. **P3 — 1.0 polish.** G18, G23, G29, G32–G38, remaining G34 path work and
-   G43–G46, performance and the compatibility freeze.
+4. **P3 — 1.0 polish.** G32–G38, G43, G44 and optional formatter wrapping,
+   performance and the compatibility freeze.
 
-G13, G14, G20, G21, G28, G30 and G39 are fixed. G34, G43 and A2/A7 are partial.
+G13, G14, G18, G20, G21, G23, G28, G29, G30, G34, G39, G45 and G46 are fixed.
+G43 and A2/A7 are partial.
 G44 is not reproduced in the current transport; G45 is fixed for buffer
 diagnostics. G36 is a clear diagnostic, not a missing feature.
 

@@ -212,7 +212,10 @@ func TestHello(t *testing.T) {
 	contains(t, src, "func _s_main() error")
 	contains(t, src, "func main()")
 	contains(t, src, "_s_fmt.Fprintln(_s_os.Stderr, _s_err)")
-	contains(t, src, "//line "+filepath.Join(p.dir, "main.ink")+":3:1")
+	contains(t, src, "//line main.ink:3:1")
+	if strings.Contains(src, p.dir) {
+		t.Fatalf("generated source embeds the project path:\n%s", src)
+	}
 	if strings.Contains(src, "_s_rt") {
 		t.Fatalf("unexpected runtime import:\n%s", src)
 	}

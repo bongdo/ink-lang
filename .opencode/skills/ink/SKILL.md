@@ -75,6 +75,7 @@ fn pair() i32, bool { return 1, true; };
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.
+- `s[i]` on a string is a `byte` (Go semantics); use `runes(s)` for code points.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

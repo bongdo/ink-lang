@@ -249,7 +249,11 @@ func parseBundle(root string, known map[string]bool, importDirs map[string]strin
 	for _, line := range strings.Split(msg, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "# ") {
-			if d, ok := importDirs[strings.TrimSpace(strings.TrimPrefix(line, "# "))]; ok {
+			key := strings.TrimSpace(strings.TrimPrefix(line, "# "))
+			if i := strings.Index(key, " ["); i >= 0 {
+				key = key[:i]
+			}
+			if d, ok := importDirs[key]; ok {
 				dir = d
 			}
 			continue
@@ -269,6 +273,9 @@ func parseBundle(root string, known map[string]bool, importDirs map[string]strin
 			}
 		}
 		path, ok := resolvePath(root, known, dir, m[1])
+		if !ok {
+			path, ok = resolveBase(root, known, dir, m[1])
+		}
 		if !ok {
 			continue
 		}
@@ -320,6 +327,23 @@ func resolvePath(root string, known map[string]bool, base, path string) (string,
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, true
 		}
+	}
+	return "", false
+}
+
+func resolveBase(root string, known map[string]bool, dir, path string) (string, bool) {
+	if path == "" {
+		return "", false
+	}
+	candidate := filepath.Clean(filepath.Join(dir, filepath.Base(filepath.FromSlash(path))))
+	if !underRoot(root, candidate) {
+		return "", false
+	}
+	if known[candidate] {
+		return candidate, true
+	}
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, true
 	}
 	return "", false
 }

@@ -99,6 +99,35 @@ func TestCheckTypeErrors(t *testing.T) {
 	}
 }
 
+func TestCheckPathWithSpaces(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "space dir")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"space\"\nmodule = \"example.com/space\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "main.ink")
+	src := "fn main() void {\n    var n = 1 + \"x\";\n    _ = n;\n};\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Typecheck: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Errors) != 1 {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+	got := p.Errors[0]
+	if got.Path != path || !strings.Contains(got.Msg, "mismatched types") {
+		t.Fatalf("error: %+v", got)
+	}
+}
+
 func TestCheckFastAndJSON(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"tc\"\nmodule = \"example.com/tc\"\n"), 0o644); err != nil {

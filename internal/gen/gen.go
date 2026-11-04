@@ -161,7 +161,7 @@ func (g *generator) errAt(n ast.Node, format string, args ...any) {
 	g.errs = append(g.errs, fmt.Errorf("%s%s", pos, fmt.Sprintf(format, args...)))
 }
 
-func (g *generator) pos(n ast.Node) string {
+func (g *generator) sourcePath(n ast.Node) string {
 	if n == nil {
 		return ""
 	}
@@ -172,6 +172,18 @@ func (g *generator) pos(n ast.Node) string {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(g.opt.Root, path)
 	}
+	return path
+}
+
+func (g *generator) pos(n ast.Node) string {
+	path := g.sourcePath(n)
+	if path == "" {
+		return ""
+	}
+	if rel, err := filepath.Rel(g.opt.Root, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		path = rel
+	}
+	path = filepath.ToSlash(path)
 	line := n.Pos().Line
 	if line < 1 {
 		line = 1
@@ -180,16 +192,18 @@ func (g *generator) pos(n ast.Node) string {
 }
 
 func (g *generator) writeLineDirective(w *writer, n ast.Node) {
-	if n == nil {
-		return
-	}
-	path := g.fileOf[n]
+	path := g.sourcePath(n)
 	if path == "" {
 		return
 	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(g.opt.Root, path)
+	dir := w.f.pkg.Dir
+	if dir == "" {
+		dir = filepath.Join(g.opt.Root, filepath.FromSlash(w.f.pkg.Rel))
 	}
+	if rel, err := filepath.Rel(dir, path); err == nil {
+		path = rel
+	}
+	path = filepath.ToSlash(path)
 	line := n.Pos().Line
 	if line < 1 {
 		line = 1

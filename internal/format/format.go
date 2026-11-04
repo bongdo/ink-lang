@@ -91,6 +91,18 @@ func (p *printer) flush(offset int) {
 	for p.ci < len(p.comments) && p.comments[p.ci].Pos().Offset < offset {
 		c := p.comments[p.ci]
 		p.ci++
+		if p.lastLine > 0 && c.Pos().Line == p.lastLine {
+			p.trimRight()
+			b := p.buf.Bytes()
+			if len(b) > 0 && b[len(b)-1] == '\n' {
+				p.buf.Truncate(len(b) - 1)
+			}
+			p.write(" ")
+			p.write(c.Text)
+			p.line()
+			p.lastLine = c.EndPos().Line
+			continue
+		}
 		if p.lastLine > 0 && c.Pos().Line > p.lastLine+1 {
 			p.blank()
 		}
@@ -275,6 +287,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 			p.flush(m.Pos().Offset)
 			p.funcDecl(m)
 		}
+		p.flush(t.EndPos().Offset)
 		p.indent--
 		p.ind()
 		p.write("};")
@@ -304,6 +317,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 			p.line()
 			p.lastLine = v.EndPos().Line
 		}
+		p.flush(t.EndPos().Offset)
 		p.indent--
 		p.ind()
 		p.write("};")
@@ -320,6 +334,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 			p.line()
 			p.lastLine = m.EndPos().Line
 		}
+		p.flush(t.EndPos().Offset)
 		p.indent--
 		p.ind()
 		p.write("};")
@@ -387,6 +402,7 @@ func (p *printer) block(b *ast.Block) {
 		p.gap(s.Pos().Line)
 		p.stmt(s)
 	}
+	p.flush(b.EndPos().Offset)
 	p.indent--
 	p.ind()
 	p.write("}")

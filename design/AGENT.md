@@ -18,7 +18,7 @@ These are prerequisites. Nothing in P1–P3 starts before P0 is usable.
 |---|---|---|---|
 | A0 | Agent guide (`AGENTS.md` or `docs/agent-guide.md`) | done | Root `AGENTS.md` is a short ambient contract; the full reference is `internal/agent/guide.md`, printed by `ink guide` and exposed as the `ink` OpenCode skill. `ink new` / `ink init` install the short guide; `internal/agent/guide_test.go` enforces both files. |
 | A1 | Machine-readable diagnostics | done | `ink check --json` returns `file`, `line`, `col`, `endLine`, `endCol`, `severity`, `code`, `message`, `hint`; clean output is `[]`, exit 1 on errors. `ink fmt -l --json` returns paths. Codes and hints live in `internal/diag`. |
-| A2 | Precise positions | partial | Lexer and parser errors carry exact token ends; sema and typecheck spans are one-character fallbacks (`driver.spanEnd`). Codegen now emits `//line path:line:col`, so type errors have real columns; absolute paths and non-exact sema ends remain (G34). |
+| A2 | Precise positions | partial | Lexer and parser errors carry exact token ends; sema and typecheck spans are one-character fallbacks (`driver.spanEnd`). Codegen emits relative `//line path:line:col`, so type errors have real columns and no absolute project path; non-exact sema ends remain (G34). |
 | A3 | Fast loop | done | `ink check --fast` stops after parse, resolve and sema. The LSP runs sema on `didChange` and debounces the generated-Go typecheck by 150 ms, dropping stale generations; full `check` includes `test` blocks. |
 | A4 | Canonical oracle | done | `tests/run.sh` checks `examples/tour` (run, test, output) and `examples/problems` (positions, codes, messages); `tests/cases` covers the implemented surface. `tests/acceptance/agent.sh` walks `new` → fast JSON → `const-local`/`err-manual` → `fmt -l --json` → `test` → `run` → cleanup, and `bin/check` runs it. |
 | A5 | CLI contract | done | `cmd/ink/main.go` usage lists flags and exit codes 0/1/2; README and `ink guide` document `--json`, `--fast`, `--race`, and generated `zz_ink.go` / `.ink/`. Commands do not prompt. |
@@ -42,10 +42,8 @@ These are prerequisites. Nothing in P1–P3 starts before P0 is usable.
 
 Only after P0–P2:
 
-- G18 explicit call type arguments in sema, G23 string indexing rule,
-  G29 top-level forward references.
 - G32–G38 codegen/runtime cleanup.
-- Remaining diagnostics and formatter work: G34 path handling, G43–G46.
+- Remaining diagnostics and formatter work: G43, G44 and optional wrapping.
 - Performance, compatibility policy and the 1.0 freeze.
 
 ## Definition of done for agent readiness
