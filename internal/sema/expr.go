@@ -273,6 +273,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	var params []ast.Type
 	var goCall bool
 	var goResult types.Type
+	var goSig *types.Signature
 	switch fun := call.Fun.(type) {
 	case *ast.Ident:
 		c.resolveExpr(fun, false)
@@ -315,6 +316,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 				result = t
 			case *types.Func:
 				if sig, ok := goObj.Type().(*types.Signature); ok {
+					goSig = sig
 					info, result, goResult = c.goCallInfo(sig, call.Pos())
 					params = info.ParamTypes
 					if goResult != nil {
@@ -349,7 +351,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 		}
 	}
 	if len(call.TypeArgs) > 0 {
-		result = c.resolveCallTypeArgs(call, info, result)
+		result = c.resolveCallTypeArgs(call, info, result, goSig)
 		if info != nil {
 			params = info.ParamTypes
 		}
@@ -387,7 +389,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	return result
 }
 
-func (c *checker) resolveCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, result ast.Type) ast.Type {
+func (c *checker) resolveCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, result ast.Type, goSig *types.Signature) ast.Type {
 	args := make([]ast.Type, len(call.TypeArgs))
 	for i, t := range call.TypeArgs {
 		args[i] = c.resolveType(t)
@@ -397,7 +399,14 @@ func (c *checker) resolveCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, re
 	if info == nil || info.Kind == ast.CallUnknown {
 		return result
 	}
-	if info.Kind != ast.CallFunc || info.Fn == nil || len(info.Fn.TypeParams) == 0 {
+	if info.Kind != ast.CallFunc {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "function is not generic")
+		return result
+	}
+	if info.Fn == nil {
+		return c.resolveGoCallTypeArgs(call, info, result, goSig, args)
+	}
+	if len(info.Fn.TypeParams) == 0 {
 		c.p.errorf(c.fc.file.Path, call.Pos(), "function is not generic")
 		return result
 	}
@@ -418,6 +427,30 @@ func (c *checker) resolveCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, re
 		info.ResultTypes[i] = instantiateType(r, subst)
 	}
 	return instantiateType(result, subst)
+}
+
+func (c *checker) resolveGoCallTypeArgs(call *ast.CallExpr, info *ast.CallInfo, result ast.Type, goSig *types.Signature, args []ast.Type) ast.Type {
+	if goSig == nil || goSig.TypeParams().Len() == 0 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "function is not generic")
+		return result
+	}
+	want := goSig.TypeParams().Len()
+	if len(args) != want {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "function %s wants %d type arguments, got %d", callFunName(call), want, len(args))
+		return result
+	}
+	info.TypeArgs = args
+	return result
+}
+
+func callFunName(call *ast.CallExpr) string {
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		return fun.Name
+	case *ast.SelectorExpr:
+		return fun.Name
+	}
+	return "function"
 }
 
 func instantiateType(t ast.Type, subst map[string]ast.Type) ast.Type {

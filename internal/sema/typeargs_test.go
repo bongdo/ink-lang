@@ -18,8 +18,15 @@ func findCall(p *Program, name string) *ast.CallExpr {
 				if !ok {
 					return true
 				}
-				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == name {
-					found = call
+				switch fun := call.Fun.(type) {
+				case *ast.Ident:
+					if fun.Name == name {
+						found = call
+					}
+				case *ast.SelectorExpr:
+					if fun.Name == name {
+						found = call
+					}
 				}
 				return true
 			})
@@ -117,6 +124,32 @@ fn main() void {
 };
 `})
 	if !hasError(p, "Buf does not implement Writer") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestExplicitGoCallTypeArgs(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use cmp;
+
+fn main() void {
+    _ = cmp.Compare[int](1, 2);
+};
+`})
+	noErrors(t, p)
+	call := findCall(p, "Compare")
+	if call == nil || call.Info == nil || len(call.Info.TypeArgs) != 1 {
+		t.Fatalf("call info = %#v", call)
+	}
+}
+
+func TestExplicitGoCallTypeArgsArity(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use cmp;
+
+fn main() void {
+    _ = cmp.Compare[int, str](1, 2);
+};
+`})
+	if !hasError(p, "wants 1 type argument") {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }
