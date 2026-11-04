@@ -220,6 +220,9 @@ const Greeting = "hello";
 | `panic(msg)` | abort |
 | `assert(cond)`, `assert_eq(got, want)` | checks for tests and code |
 
+String indexing follows Go: `s[i]` is the byte at `i`. Use `runes(s)` when
+code points are needed.
+
 Conversions use the type as a function: `i32(x)`, `u64(x)`, `f64(x)`,
 `str(runes)`, `bytes(text)`.
 

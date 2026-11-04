@@ -1032,6 +1032,9 @@ func elemType(t ast.Type) ast.Type {
 		if t.Decl != nil && t.Decl.Kind == ast.TypeAlias {
 			return elemType(t.Decl.Target)
 		}
+		if t.Package == "" && t.Name == "str" {
+			return &ast.NamedType{Span: t.Span, Name: "byte", GoName: "byte"}
+		}
 	}
 	return nil
 }

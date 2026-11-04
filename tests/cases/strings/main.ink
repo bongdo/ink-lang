@@ -3,6 +3,7 @@ use fmt;
 fn main() void or error {
     var r = runes("ab");
     fmt.Println(len(r), r[0]) or return;
+    fmt.Println("ab"[1]) or return;
     var b = bytes("hi");
     fmt.Println(len(b)) or return;
     var s = str(r);

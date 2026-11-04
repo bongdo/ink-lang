@@ -2,6 +2,7 @@ package sema
 
 import (
 	"go/types"
+	"sort"
 	"strings"
 
 	"github.com/bongdo/ink/internal/ast"
@@ -515,6 +516,12 @@ func (p *Program) checkEnumVariants(pkg *Package) {
 	}
 }
 
+type packageVar struct {
+	fc       *fileCtx
+	decl     *ast.VarDecl
+	declType ast.Type
+}
+
 func (p *Program) checkPackageVars() {
 	for _, pkg := range p.Packages {
 		p.checkEnumVariants(pkg)
@@ -522,6 +529,7 @@ func (p *Program) checkPackageVars() {
 		for name := range pkg.Vars {
 			p.global[pkg][name] = nil
 		}
+		var vars []packageVar
 		for _, f := range pkg.Files {
 			fc := p.fileCtx(pkg, f)
 			for _, d := range f.Decls {
@@ -539,31 +547,196 @@ func (p *Program) checkPackageVars() {
 					v.Type = declType
 					p.rejectVoid(fc, declType, v.Pos())
 				}
-				for _, val := range v.Values {
-					if _, ok := val.(*ast.OrExpr); ok {
-						p.errorf(f.Path, val.Pos(), "or is not allowed in a package-level initializer")
-					}
-					c.applyNil(val, declType)
-					c.checkMatchValue(val)
-					c.resolveExpr(val, true)
-					c.checkVoidValue(val)
-					c.checkAssign(declType, val)
+				item := packageVar{fc: fc, decl: v, declType: declType}
+				vars = append(vars, item)
+				p.resolvePackageVar(item)
+			}
+		}
+		for {
+			changed := false
+			for _, item := range vars {
+				if !p.packageVarUnresolved(pkg, item) {
+					continue
 				}
-				var ts []ast.Type
-				for _, val := range v.Values {
-					ts = append(ts, c.exprType(val))
+				if p.resolvePackageVarRetry(item) {
+					changed = true
 				}
-				for i, name := range v.Names {
-					if name == "_" {
-						continue
-					}
-					t := declType
-					if t == nil && len(ts) == len(v.Names) {
-						t = ts[i]
-					}
-					p.global[pkg][name] = t
-				}
+			}
+			if !changed {
+				break
+			}
+		}
+		p.checkVarCycles(pkg, vars)
+	}
+}
+
+func (p *Program) resolvePackageVar(item packageVar) {
+	c := &checker{p: p, fc: item.fc}
+	v := item.decl
+	for _, val := range v.Values {
+		if _, ok := val.(*ast.OrExpr); ok {
+			p.errorf(item.fc.file.Path, val.Pos(), "or is not allowed in a package-level initializer")
+		}
+		c.applyNil(val, item.declType)
+		c.checkMatchValue(val)
+		c.resolveExpr(val, true)
+		c.checkVoidValue(val)
+		c.checkAssign(item.declType, val)
+	}
+	var ts []ast.Type
+	for _, val := range v.Values {
+		ts = append(ts, c.exprType(val))
+	}
+	for i, name := range v.Names {
+		if name == "_" {
+			continue
+		}
+		t := item.declType
+		if t == nil && len(ts) == len(v.Names) {
+			t = ts[i]
+		}
+		p.global[item.fc.pkg][name] = t
+	}
+}
+
+func (p *Program) resolvePackageVarRetry(item packageVar) bool {
+	pkg := item.fc.pkg
+	before := make(map[string]ast.Type, len(item.decl.Names))
+	for _, name := range item.decl.Names {
+		if name != "_" {
+			before[name] = p.global[pkg][name]
+		}
+	}
+	errs, edges, lits := len(p.Errors), len(p.edges), len(p.litCalls)
+	p.resolvePackageVar(item)
+	added := append([]Error(nil), p.Errors[errs:]...)
+	p.Errors = p.Errors[:errs]
+	for _, e := range added {
+		if !p.hasError(e) {
+			p.Errors = append(p.Errors, e)
+		}
+	}
+	changed := false
+	for name, old := range before {
+		if old == nil && p.global[pkg][name] != nil {
+			changed = true
+		}
+	}
+	if !changed {
+		p.edges = p.edges[:edges]
+		p.litCalls = p.litCalls[:lits]
+	}
+	return changed
+}
+
+func (p *Program) hasError(e Error) bool {
+	for _, have := range p.Errors {
+		if have.Path == e.Path && have.Pos == e.Pos && have.Msg == e.Msg {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Program) packageVarUnresolved(pkg *Package, item packageVar) bool {
+	if len(item.decl.Values) == 0 || item.declType != nil {
+		return false
+	}
+	for _, name := range item.decl.Names {
+		if name != "_" && p.global[pkg][name] == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Program) checkVarCycles(pkg *Package, vars []packageVar) {
+	unresolved := make(map[*ast.VarDecl]bool)
+	for _, item := range vars {
+		if p.packageVarUnresolved(pkg, item) {
+			unresolved[item.decl] = true
+		}
+	}
+	if len(unresolved) == 0 {
+		return
+	}
+	reported := make(map[string]bool)
+	for _, item := range vars {
+		if !unresolved[item.decl] {
+			continue
+		}
+		seen := make(map[*ast.VarDecl]bool)
+		var path []*ast.VarDecl
+		cycle := findVarCycle(item.decl, unresolved, seen, &path)
+		if cycle == nil {
+			continue
+		}
+		names := make([]string, 0, len(cycle))
+		keyNames := make([]string, 0, len(cycle))
+		for _, d := range cycle {
+			names = append(names, varDeclName(d))
+			keyNames = append(keyNames, varDeclName(d))
+		}
+		sort.Strings(keyNames)
+		key := strings.Join(keyNames, "|")
+		if reported[key] {
+			continue
+		}
+		reported[key] = true
+		p.errorf(item.fc.file.Path, item.decl.Pos(), "initialization cycle: %s", strings.Join(names, " -> "))
+	}
+}
+
+func findVarCycle(start *ast.VarDecl, unresolved map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
+	return walkVarCycle(start, start, unresolved, seen, path)
+}
+
+func walkVarCycle(cur, start *ast.VarDecl, unresolved map[*ast.VarDecl]bool, seen map[*ast.VarDecl]bool, path *[]*ast.VarDecl) []*ast.VarDecl {
+	if cur == nil || seen[cur] {
+		return nil
+	}
+	seen[cur] = true
+	*path = append(*path, cur)
+	for _, next := range varRefs(cur) {
+		if next == start {
+			return append([]*ast.VarDecl(nil), *path...)
+		}
+		if unresolved[next] {
+			if cycle := walkVarCycle(next, start, unresolved, seen, path); cycle != nil {
+				return cycle
 			}
 		}
 	}
+	*path = (*path)[:len(*path)-1]
+	return nil
+}
+
+func varRefs(v *ast.VarDecl) []*ast.VarDecl {
+	var refs []*ast.VarDecl
+	seen := make(map[*ast.VarDecl]bool)
+	for _, val := range v.Values {
+		ast.Inspect(val, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if !ok || id.Ref == nil || id.Ref.Kind != ast.RefGlobal {
+				return true
+			}
+			d, ok := id.Ref.Decl.(*ast.VarDecl)
+			if !ok || d == nil || seen[d] {
+				return true
+			}
+			seen[d] = true
+			refs = append(refs, d)
+			return true
+		})
+	}
+	return refs
+}
+
+func varDeclName(v *ast.VarDecl) string {
+	for _, name := range v.Names {
+		if name != "_" {
+			return name
+		}
+	}
+	return "var"
 }

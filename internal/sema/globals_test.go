@@ -1,0 +1,82 @@
+package sema
+
+import (
+	"testing"
+
+	"github.com/bongdo/ink/internal/ast"
+)
+
+func TestForwardGlobalInference(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = b;
+var b = c;
+var c = i32(7);
+
+fn main() void {
+    _ = a;
+    _ = b;
+    _ = c;
+};
+`})
+	noErrors(t, p)
+	pkg := p.Packages["."]
+	for _, name := range []string{"a", "b", "c"} {
+		typ := p.global[pkg][name]
+		if typ == nil {
+			t.Fatalf("%s has no type", name)
+		}
+		n, ok := typ.(*ast.NamedType)
+		if !ok || n.Name != "i32" {
+			t.Fatalf("%s type = %#v", name, typ)
+		}
+	}
+}
+
+func TestGlobalInitializationCycle(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = b;
+var b = a;
+
+fn main() void {
+    _ = a;
+};
+`})
+	if !hasError(p, "initialization cycle") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestGlobalSelfCycle(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = a;
+
+fn main() void {
+    _ = a;
+};
+`})
+	if !hasError(p, "initialization cycle: a") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestStringIndexIsByte(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
+    var b = "hi"[1];
+    _ = b;
+};
+`})
+	noErrors(t, p)
+	var index *ast.IndexExpr
+	for _, f := range p.Packages["."].Files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			if e, ok := n.(*ast.IndexExpr); ok {
+				index = e
+			}
+			return true
+		})
+	}
+	if index == nil {
+		t.Fatal("index expression not found")
+	}
+	typ, ok := p.ExprTypes[index].(*ast.NamedType)
+	if !ok || typ.Name != "byte" {
+		t.Fatalf("index type = %#v", p.ExprTypes[index])
+	}
+}
