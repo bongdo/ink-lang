@@ -34,6 +34,7 @@ var rules = []struct {
 	{"par-loop", "for () is not allowed inside par", "use a bounded loop", false},
 	{"array-const", "must be declared in a local package", "use a const from a local package", false},
 	{"generic-args", "requires type arguments", "Stack[i32]", false},
+	{"missing-return", "missing return", "end every path with return;", false},
 	{"unused-import", "imported and not used", "remove the import or use it", false},
 	{"undefined", "undefined:", "declare or import the name", false},
 	{"unused-var", "declared and not used", "use the variable or replace it with _", false},

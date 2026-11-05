@@ -13,3 +13,4 @@
 131:14:match-nil-enum:case nil is not supported on enum E
 139:17:array-const:constant strconv.IntSize must be declared in a local package
 150:13:void-value:void is not a value
+173:26:missing-return:missing return

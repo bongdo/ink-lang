@@ -128,6 +128,34 @@ func TestCheckPathWithSpaces(t *testing.T) {
 	}
 }
 
+func TestMissingReturnDiagnostic(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"ret\"\nmodule = \"example.com/ret\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "fn f() i32 {\n};\n\nfn main() void {\n    _ = f();\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Fast: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Errors) != 1 {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+	got := p.Errors[0]
+	if !strings.Contains(got.Msg, "missing return") || got.Code != "missing-return" || got.Hint == "" {
+		t.Fatalf("diagnostic: %+v", got)
+	}
+	if got.Pos.Line != 2 || got.Pos.Col < 1 {
+		t.Fatalf("position: %+v", got.Pos)
+	}
+}
+
 func TestCheckFastGlobalCycle(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"cycle\"\nmodule = \"example.com/cycle\"\n"), 0o644); err != nil {

@@ -168,6 +168,10 @@ fn voidValue() void {
 //     return x;
 // };
 
+// 18. A non-void function can fall off its end.
+//     Expected: missing return in function returning i32.
+fn missingReturn() i32 {};
+
 fn main() void {
     fmt.Println("problems: run `ink check` for diagnostics", strconv.IntSize);
 };

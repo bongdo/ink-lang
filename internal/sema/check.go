@@ -167,9 +167,106 @@ func (c *checker) checkFunction(fn *ast.FuncDecl, outer *checker) {
 		c.declare(&symbol{name: param.Name, kind: ast.RefParam, typ: param.Type, goType: c.goTypeOf(param.Type), decl: param})
 	}
 	c.checkBlock(fn.Body)
+	if c.fn != nil && len(c.fn.results) > 0 && !terminatesBlock(fn.Body) {
+		pos := fn.EndPos()
+		if fn.Body != nil {
+			pos = fn.Body.End
+		}
+		name := inkTypeName(c.fn.results[0])
+		if len(c.fn.results) > 1 {
+			name = "multiple values"
+		}
+		c.p.errorf(c.fc.file.Path, pos, "missing return in function returning %s", name)
+	}
 	if outer != nil {
 		c.scopes = nil
 	}
+}
+
+func inkTypeName(t ast.Type) string {
+	n, ok := t.(*ast.NamedType)
+	if !ok || n.Decl != nil || n.Package != "" {
+		return typeDesc(t)
+	}
+	if n.PkgAlias != "" {
+		return n.PkgAlias + "." + n.Name
+	}
+	return n.Name
+}
+
+func terminatesBlock(b *ast.Block) bool {
+	if b == nil || len(b.Stmts) == 0 {
+		return false
+	}
+	return terminatesStmt(b.Stmts[len(b.Stmts)-1])
+}
+
+func terminatesStmt(s ast.Stmt) bool {
+	switch s := s.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.Block:
+		return terminatesBlock(s)
+	case *ast.IfStmt:
+		return s.Else != nil && terminatesStmt(s.Then) && terminatesStmt(s.Else)
+	case *ast.ExprStmt:
+		if isPanicExpr(s.X) {
+			return true
+		}
+		m, ok := unparen(s.X).(*ast.MatchExpr)
+		return ok && !m.IsExpr && terminatesMatch(m)
+	case *ast.ForStmt:
+		if s.Par || s.Range != nil || s.Cond != nil {
+			return false
+		}
+		return !blockBreaks(s.Body)
+	case *ast.WithinStmt:
+		return terminatesBlock(s.Body)
+	}
+	return false
+}
+
+func isPanicExpr(e ast.Expr) bool {
+	call, ok := unparen(e).(*ast.CallExpr)
+	return ok && call.Info != nil && call.Info.Kind == ast.CallBuiltin && call.Info.Builtin == "panic"
+}
+
+func terminatesMatch(m *ast.MatchExpr) bool {
+	if m == nil || len(m.Cases) == 0 {
+		return false
+	}
+	for _, c := range m.Cases {
+		if c.Block != nil {
+			if !terminatesBlock(c.Block) {
+				return false
+			}
+			continue
+		}
+		if len(c.Body) == 0 || !terminatesStmt(c.Body[len(c.Body)-1]) {
+			return false
+		}
+	}
+	return true
+}
+
+func blockBreaks(b *ast.Block) bool {
+	if b == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ForStmt:
+			return false
+		case *ast.BreakStmt:
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
 }
 
 func (c *checker) checkBlock(b *ast.Block) {
