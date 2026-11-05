@@ -279,11 +279,16 @@ are not a separate Ink pass.
 ## D. Codegen and runtime
 
 ### G32. Generated Go can contain unreachable `panic("unreachable")`
-**Сейчас:** every function with a result gets a trailing panic; `go vet` warns
-`unreachable code`.
-**Почему:** no definite-return analysis.
-**Фикс:** compute whether a block always returns; emit the panic only when a
-path can fall through.
+**Статус:** partly fixed in 0.2 preview. Sema now reports `missing-return` when
+a non-void function can fall off its syntactic end (`return`, `panic`, complete
+`if/else`, complete `match`, and an infinite `for` with no `break` all count).
+**Остаток:** codegen still appends a trailing `panic("unreachable")` to every
+function with a result, so `go vet` can warn; the check is syntactic and not
+flow-sensitive: an `if/else` whose branches terminate syntactically but fall
+through semantically remains a false negative. Function literals are not
+checked.
+**Фикс (codegen):** emit the panic only when the flow analysis proves a path can
+fall through.
 **Оценка:** S.
 
 ### G33. Duplicate std imports when the user imports `fmt`/`os`
