@@ -116,9 +116,15 @@ listed=$("$ink" fmt -l --json) || die "fmt -l --json failed"
 "$ink" fmt -w . || die "fmt -w . failed"
 listed=$("$ink" fmt -l --json) || die "fmt -l --json after write failed"
 [ "$listed" = "[]" ] || die "fmt -l --json after write: want [], got '$listed'"
-if ! "$ink" test >test.out 2>&1; then
+if ! "$ink" test -v >test.out 2>&1; then
   cat test.out >&2
   die "ink test failed"
+fi
+passed=$(grep -c '^--- PASS:' test.out || true)
+[ "$passed" -eq 1 ] || die "ink test: want 1 PASS, got $passed"
+grep -q '^--- PASS: TestCounter' test.out || die "ink test: TestCounter did not run"
+if grep -q '\[no test files\]' test.out; then
+  die "ink test: no test files"
 fi
 if ! run_out=$("$ink" run 2>run.err); then
   cat run.err >&2

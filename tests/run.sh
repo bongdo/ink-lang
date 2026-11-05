@@ -177,13 +177,27 @@ for dir in "$root"/tests/cases/*/; do
     continue
   fi
   if [ -f "$dir/test" ]; then
-    if ! (cd "$dir" && timeout 180 "$ink" test >"$out" 2>"$err"); then
+    if ! (cd "$dir" && timeout 180 "$ink" test -v >"$out" 2>"$err"); then
       echo "FAIL $name (test)" >&2
       cat "$err" >&2
       fail=1
       rm -f "$out" "$err"
       cleanup "$dir"
       continue
+    fi
+    declared=$(grep -Rh '^test "' --include='*.ink' "$dir" | wc -l || true)
+    declared=${declared//[[:space:]]/}
+    passed=$(grep -c '^--- PASS:' "$out" || true)
+    passed=${passed//[[:space:]]/}
+    if grep -q '\[no test files\]' "$out"; then
+      echo "FAIL $name (no test files)" >&2
+      fail=1
+    elif [ "$declared" -eq 0 ] || [ "$passed" -ne "$declared" ]; then
+      echo "FAIL $name (declared $declared, passed $passed)" >&2
+      cat "$out" >&2
+      fail=1
+    else
+      echo "$name: $declared declared, $passed passed"
     fi
     if [ -f "$dir/expected-test.txt" ] && ! diff -u "$dir/expected-test.txt" <(grep -E '^(ok|FAIL|---)' "$out" || true); then
       fail=1
