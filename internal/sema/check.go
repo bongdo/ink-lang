@@ -210,11 +210,10 @@ func terminatesStmt(s ast.Stmt) bool {
 	case *ast.IfStmt:
 		return s.Else != nil && terminatesStmt(s.Then) && terminatesStmt(s.Else)
 	case *ast.ExprStmt:
-		if isPanicExpr(s.X) {
-			return true
+		if m, ok := unparen(s.X).(*ast.MatchExpr); ok {
+			return terminatesMatch(m)
 		}
-		m, ok := unparen(s.X).(*ast.MatchExpr)
-		return ok && !m.IsExpr && terminatesMatch(m)
+		return isPanicExpr(s.X)
 	case *ast.ForStmt:
 		if s.Par || s.Range != nil || s.Cond != nil {
 			return false
@@ -222,6 +221,16 @@ func terminatesStmt(s ast.Stmt) bool {
 		return !blockBreaks(s.Body)
 	case *ast.WithinStmt:
 		return terminatesBlock(s.Body)
+	}
+	return false
+}
+
+func terminatesExpr(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.CallExpr:
+		return isPanicExpr(e)
+	case *ast.MatchExpr:
+		return e.IsExpr && terminatesMatch(e)
 	}
 	return false
 }
@@ -236,17 +245,27 @@ func terminatesMatch(m *ast.MatchExpr) bool {
 		return false
 	}
 	for _, c := range m.Cases {
-		if c.Block != nil {
-			if !terminatesBlock(c.Block) {
-				return false
-			}
-			continue
-		}
-		if len(c.Body) == 0 || !terminatesStmt(c.Body[len(c.Body)-1]) {
+		if !terminatesCase(c) {
 			return false
 		}
 	}
 	return true
+}
+
+func terminatesCase(c *ast.Case) bool {
+	if c == nil {
+		return false
+	}
+	if c.Block != nil {
+		return terminatesBlock(c.Block)
+	}
+	if len(c.Body) > 0 {
+		return terminatesStmt(c.Body[len(c.Body)-1])
+	}
+	if c.Expr != nil {
+		return terminatesExpr(c.Expr)
+	}
+	return false
 }
 
 func blockBreaks(b *ast.Block) bool {

@@ -286,7 +286,8 @@ a non-void function can fall off its syntactic end (`return`, `panic`, complete
 function with a result, so `go vet` can warn; the check is syntactic and not
 flow-sensitive: an `if/else` whose branches terminate syntactically but fall
 through semantically remains a false negative. Function literals are not
-checked.
+checked at all, so a non-void literal can still fall through and `ink run` still
+panics with `panic: unreachable`.
 **Фикс (codegen):** emit the panic only when the flow analysis proves a path can
 fall through.
 **Оценка:** S.

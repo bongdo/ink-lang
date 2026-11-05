@@ -110,6 +110,7 @@ within 30s { ... };
 | `par-loop` | replace `for ()` with a bounded loop |
 | `comment-block` | use `//`; block comments are rejected |
 | `void-value` | return or store a value; `void` is a result only |
+| `missing-return` | end every path with `return;` |
 | `unused-import` | remove the import or use it |
 | `unused-var` | use the variable or replace it with `_` |
 | `syntax` / `go-type` | read `message` and `hint` |

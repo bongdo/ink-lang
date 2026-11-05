@@ -102,6 +102,46 @@ fn main() void {
 			want: true,
 		},
 		{
+			name: "match panic expression and block return",
+			src: `type E enum {
+    A,
+    B,
+};
+
+fn m(e: E) i32 {
+    match (e) {
+    case A => panic("bad");
+    case B => { return 2; };
+    };
+};
+
+fn main() void {
+    _ = m(E.A);
+};
+`,
+			want: false,
+		},
+		{
+			name: "match all panic expressions",
+			src: `type E enum {
+    A,
+    B,
+};
+
+fn m(e: E) i32 {
+    match (e) {
+    case A => panic("bad");
+    case B => panic("bad");
+    };
+};
+
+fn main() void {
+    _ = m(E.A);
+};
+`,
+			want: false,
+		},
+		{
 			name: "infinite for",
 			src: `fn f() i32 {
     for () {
