@@ -14,3 +14,4 @@
 139:17:array-const:constant strconv.IntSize must be declared in a local package
 150:13:void-value:void is not a value
 173:26:missing-return:missing return
+178:13:semantic:unknown type Missing

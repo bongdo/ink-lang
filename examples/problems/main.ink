@@ -172,6 +172,13 @@ fn voidValue() void {
 //     Expected: missing return in function returning i32.
 fn missingReturn() i32 {};
 
+// 19. A typed var must not report an unknown pointer element twice.
+//     Expected: unknown type Missing (one diagnostic).
+fn duplicateDiagnostic() void {
+    var p: *Missing = nil;
+    _ = p;
+};
+
 fn main() void {
     fmt.Println("problems: run `ink check` for diagnostics", strconv.IntSize);
 };

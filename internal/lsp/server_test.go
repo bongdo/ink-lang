@@ -341,6 +341,37 @@ func TestDiagnostics(t *testing.T) {
 	})
 }
 
+func TestDuplicateSemanticDiagnostics(t *testing.T) {
+	src := `fn main() void or error {
+    var p: *Missing = nil;
+    return;
+};
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	c.notify("textDocument/didOpen", DidOpenParams{
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: src},
+	})
+	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
+		for _, diag := range params.Diagnostics {
+			if strings.Contains(diag.Message, "unknown type Missing") {
+				return true
+			}
+		}
+		return false
+	})
+	count := 0
+	for _, diag := range diags.Diagnostics {
+		if strings.Contains(diag.Message, "unknown type Missing") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("unknown type diagnostics = %d, want 1; diagnostics: %+v", count, diags.Diagnostics)
+	}
+}
+
 func TestTypeDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{

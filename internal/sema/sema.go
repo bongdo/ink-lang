@@ -73,6 +73,7 @@ type Program struct {
 	edges     []ctxEdge
 	litCalls  []litCall
 	goCache   map[string]*GoPkg
+	seenError map[string]bool
 }
 
 type Options struct {
@@ -111,6 +112,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 		funcs:     make(map[ast.Node]*funcInfo),
 		needsCtx:  make(map[ast.Node]bool),
 		goCache:   opt.GoCache,
+		seenError: make(map[string]bool),
 	}
 	for rel, files := range parsed {
 		pkg := &Package{
@@ -172,11 +174,20 @@ func packageName(rel string) string {
 }
 
 func (p *Program) errorf(path string, pos token.Pos, format string, args ...any) {
-	p.Errors = append(p.Errors, Error{Path: path, Pos: pos, Msg: fmt.Sprintf(format, args...)})
+	p.recordError(Error{Path: path, Pos: pos, Msg: fmt.Sprintf(format, args...)})
 }
 
 func (p *Program) warnf(path string, pos token.Pos, format string, args ...any) {
-	p.Errors = append(p.Errors, Error{Path: path, Pos: pos, Msg: fmt.Sprintf(format, args...), Warning: true})
+	p.recordError(Error{Path: path, Pos: pos, Msg: fmt.Sprintf(format, args...), Warning: true})
+}
+
+func (p *Program) recordError(e Error) {
+	key := fmt.Sprintf("%s\x00%d\x00%d\x00%d\x00%t\x00%s", e.Path, e.Pos.Offset, e.Pos.Line, e.Pos.Col, e.Warning, e.Msg)
+	if p.seenError[key] {
+		return
+	}
+	p.seenError[key] = true
+	p.Errors = append(p.Errors, e)
 }
 
 func checkDeclName(p *Program, file *ast.File, name string, pos token.Pos) bool {

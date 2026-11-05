@@ -156,6 +156,38 @@ func TestMissingReturnDiagnostic(t *testing.T) {
 	}
 }
 
+func TestDuplicateDiagnosticsJSON(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"dup\"\nmodule = \"example.com/dup\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "fn main() void or error {\n    var p: *Missing = nil;\n    return;\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Fast: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Errors) != 1 {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+	var buf bytes.Buffer
+	if err := p.WriteJSON(&buf); err != nil {
+		t.Fatal(err)
+	}
+	var diags []JSONError
+	if err := json.Unmarshal(buf.Bytes(), &diags); err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) != 1 || diags[0].Code != "semantic" || !strings.Contains(diags[0].Message, "unknown type Missing") {
+		t.Fatalf("diagnostics: %+v", diags)
+	}
+}
+
 func TestCheckFastGlobalCycle(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"cycle\"\nmodule = \"example.com/cycle\"\n"), 0o644); err != nil {
