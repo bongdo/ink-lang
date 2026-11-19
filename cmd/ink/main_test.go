@@ -43,3 +43,27 @@ func TestParseRunArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestDirArgBeforeSeparator(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "dot", args: []string{"."}, want: true},
+		{name: "after separator", args: []string{"--", "."}},
+		{name: "with race", args: []string{"-race", "."}, want: true},
+		{name: "temp dir", args: []string{dir}, want: true},
+		{name: "plain arg", args: []string{"not-a-dir"}},
+		{name: "no args"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, got := dirArgBeforeSeparator(tc.args)
+			if got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -27,6 +27,9 @@ module = "example.com/hello"
 - A quoted non-local Go import path whose last segment is a version (`/v2`,
   `/v3`, ...) requires an alias: `use "charm.land/bubbletea/v2" as tea;`. The
   default alias would be `v2`, which names the version, not the package.
+- `as _` is a blank import: the package is linked for its side effects and
+  binds no name, so it is never reported as unused. It is allowed only for Go
+  import paths; a local `use "./lib" as _;` is an error.
 - Generated Go lives next to the sources as `zz_ink.go` and
   `zz_ink_test.go`. `.ink/` holds generated support files.
 
@@ -202,6 +205,14 @@ const Greeting = "hello";
   (`_ = a;`). There is no `discard` builtin.
 - `has(m, key)` reports key presence.
 - `*p` reads a pointer and `*p = v` writes through it.
+- `&x` takes an address: a variable (`&n`), a field (`&s.X`), an array or
+  slice element, or a composite literal (`&User { ... }`). This is the form
+  required by Go APIs that write through a pointer: `json.Unmarshal(data, &u)`,
+  `rows.Scan(&name)`, `flag.IntVar(&n, ...)`.
+- `xs[i]` indexes a slice, array or map; on a string it is the byte at `i`.
+  `xs[a:b]`, `xs[:b]`, `xs[a:]` and `xs[:]` slice a slice, array or string and
+  share the underlying storage; bounds follow Go. Use `runes(s)` for code
+  points.
 
 ### 4.1. Builtins
 

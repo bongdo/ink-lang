@@ -961,3 +961,15 @@ fn main() void or error {
 		t.Fatalf("stderr does not contain propagated inner error: %s", stderr)
 	}
 }
+
+func TestBlankImport(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": "use \"net/http/pprof\" as _;\n\nfn main() void {\n};\n",
+	})
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, "_ \"net/http/pprof\"")
+	if strings.Contains(src, "pprof \"net/http/pprof\"") {
+		t.Fatalf("blank import got a package alias:\n%s", src)
+	}
+	p.build(t)
+}

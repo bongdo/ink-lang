@@ -463,3 +463,14 @@ func TestVersionedImportKeepsAlias(t *testing.T) {
 		}
 	}
 }
+
+func TestBlankImportKept(t *testing.T) {
+	for _, want := range []string{
+		"use \"net/http/pprof\" as _;\n",
+		"use fmt as _;\n",
+	} {
+		if out := formatSrc(t, strings.TrimSuffix(want, "\n")); out != want {
+			t.Fatalf("got %q, want %q", out, want)
+		}
+	}
+}

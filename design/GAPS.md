@@ -240,11 +240,11 @@ results.
 ### G28. Enum variant names — fixed in 0.2
 **Сейчас:** duplicate variant names in one package are rejected
 deterministically (`enum variant Y is already declared in A`), so bare `case`
-patterns are unambiguous. A `<Enum><Variant>` GoName colliding with a later
-type can still be missed depending on map iteration order; that is a codegen
-symbol-table limit, not a variant-name ambiguity.
-**Фикс (remaining):** final package-wide symbol table pass after collection for
-GoName collisions.
+patterns are unambiguous. A `<Enum><Variant>` GoName colliding with a type or
+another variant is reported by a final package-wide pass over collected
+declarations, so the order in the source no longer matters.
+**Фикс:** final package-wide symbol table pass after collection for GoName
+collisions; the diagnostic names both declarations and the earlier position.
 **Оценка:** S.
 
 ### G29. Top-level forward references — fixed
@@ -407,13 +407,63 @@ Agent readiness is priority 1, ahead of 1.0 polish. The detailed roadmap is in
 3. **P2 — concurrency confidence.** Implemented: `-race` path
    (`run`/`test`/`check`), G10 boundary docs, G11 static-analysis docs.
    G1–G9 are closed; G10 and G11 remain as documented limits.
-4. **P3 — 1.0 polish.** G32–G38, G43, G44 and optional formatter wrapping,
-   performance and the compatibility freeze.
+4. **P3 — 1.0 polish.** Optional formatter wrapping, performance and the
+   compatibility freeze. G32, G33, G35, G37, G38 and G43 are done.
 
-G13, G14, G18, G20, G21, G23, G28, G29, G30, G34, G39, G45 and G46 are fixed.
-G43 and A2/A7 are partial.
+G13, G14, G18, G20, G21, G23, G28, G29, G30, G32, G33, G34, G35, G37, G38,
+G39, G43, G45 and G46 are fixed.
+A2/A7 are partial.
 G44 is not reproduced in the current transport; G45 is fixed for buffer
 diagnostics. G36 is a clear diagnostic, not a missing feature.
+G47–G50 are language or contract decisions, not bugs; see section F.
+
+## F. Стены для сервисов (решения, не баги)
+
+Четыре вопроса, которые сервис поднимает сразу и которые нельзя закрыть
+кодом без решения владельца языка. У каждого есть рабочая форма сегодня;
+решение нужно, только чтобы убрать цену. Подробности — [`FFI.md`](FFI.md) §10.
+
+### G47. Имена JSON-полей
+**Статус:** open.
+**Сейчас:** struct tags отсутствуют, `encoding/json` берёт имена Go-полей,
+поэтому публичный API отдаёт `{"Name": ...}`, а поле с маленькой буквы
+неэкспортировано и в JSON не попадает.
+**Рабочая форма:** `map[str, any]` для ответа или DTO с тегами в binding.
+**Варианты:** один атрибут `@[json: "name"]`; соглашение «JSON = имя поля»;
+ничего не менять.
+**Цена:** attributes в SPEC §10 объявлены отсутствующими; тег добавляет
+второй источник имени поля.
+**Оценка:** S/M, решение важнее кода.
+
+### G48. `//go:embed`
+**Статус:** open.
+**Сейчас:** шаблоны и статика читаются с диска (`os.DirFS`) или через binding.
+**Варианты:** один атрибут `@[embed]` для `[]u8`/`str`; ничего не менять.
+**Цена:** attributes; честная работа требует списка путей, то есть мини-языка
+в атрибуте.
+**Оценка:** M.
+
+### G49. Каналы в app-коде
+**Статус:** by design, documented.
+**Сейчас:** `chan`, `go` и `select` запрещены; SIGTERM и подписки живут в
+Go-binding. Проверено: 12-строчный binding с `signal.Notify` и
+`srv.Shutdown` работает, app-код видит обычный `fn`.
+**Решение:** оставить как есть. Канал в app-коде ломает модель `par` и
+статический анализ записи.
+**Оценка:** 0 — это позиция, а не долг.
+
+### G50. Дедлайн через границу пакета
+**Статус:** open, расширение G10.
+**Сейчас:** скрытый ctx сбрасывается в `Background()` на публичной обёртке,
+поэтому `within` не пересекает границу пакета и не проходит через значение
+функции. Попытка с неэкспортируемым `_s_X_ctx` не работает: идентичность
+метода в interface включает пакет, и type assertion не совпадает.
+**Варианты:** экспортируемый ctx-метод в генерируемых типах (`FetchCtx`);
+изменение представления function values; ничего не менять.
+**Цена:** экспортируемый метод попадает в публичный Go method set и может
+столкнуться с пользовательским именем; представление function values меняет
+SPEC §3.2 и §5.
+**Оценка:** M–L.
 
 ## Commands
 

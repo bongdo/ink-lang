@@ -76,7 +76,11 @@ fn pair() i32, bool { return 1, true; };
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.
-- `s[i]` on a string is a `byte` (Go semantics); use `runes(s)` for code points.
+- `&x` takes an address (`&n`, `&s.X`, `&User { ... }`); `*p` reads and writes
+  through a pointer. Go APIs that output through a pointer need `&`:
+  `json.Unmarshal(data, &u)`, `rows.Scan(&name)`.
+- `xs[i]` indexes; `xs[a:b]`, `xs[:b]`, `xs[a:]`, `xs[:]` slice and share
+  storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

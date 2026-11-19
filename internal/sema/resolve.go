@@ -472,7 +472,7 @@ func (p *Program) finalChecks() {
 	for _, pkg := range p.Packages {
 		for _, f := range pkg.Files {
 			for _, u := range f.Uses {
-				if !u.Used {
+				if !u.Used && u.Alias != "_" {
 					p.errorf(f.Path, u.Pos(), "import %s is not used", u.Alias)
 				}
 			}

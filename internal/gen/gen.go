@@ -378,6 +378,13 @@ func (f *fileGen) assemble(path string) ([]byte, error) {
 		}
 		specs[alias] = importSpec{alias: alias, path: p}
 	}
+	for _, file := range f.pkg.Files {
+		for _, u := range file.Uses {
+			if u.Alias == "_" && !u.Local {
+				specs["\x00"+u.Path] = importSpec{alias: "_", path: u.Path}
+			}
+		}
+	}
 	var list []importSpec
 	for _, s := range specs {
 		list = append(list, s)

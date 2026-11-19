@@ -127,7 +127,23 @@ func build(args []string) int {
 	return finish(p)
 }
 
+func dirArgBeforeSeparator(args []string) (string, bool) {
+	for _, a := range args {
+		if a == "--" {
+			return "", false
+		}
+		if fi, err := os.Stat(a); err == nil && fi.IsDir() {
+			return a, true
+		}
+	}
+	return "", false
+}
+
 func run(args []string) int {
+	if dir, ok := dirArgBeforeSeparator(args); ok {
+		fmt.Fprintf(os.Stderr, "ink: %q is a directory; cd into the project and put program args after --\n", dir)
+		return 2
+	}
 	race, progArgs, err := parseRunArgs(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ink:", err)

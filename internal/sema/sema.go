@@ -281,6 +281,44 @@ func (p *Program) collect() {
 				}
 			}
 		}
+		p.checkGeneratedNames(pkg)
+	}
+}
+
+func (p *Program) checkGeneratedNames(pkg *Package) {
+	type genDecl struct {
+		what string
+		file string
+		pos  token.Pos
+	}
+	seen := make(map[string]genDecl)
+	add := func(name string, d genDecl) {
+		prev, ok := seen[name]
+		if !ok {
+			seen[name] = d
+			return
+		}
+		p.errorf(d.file, d.pos, "generated type %s for %s conflicts with %s declared at %s:%d:%d", name, d.what, prev.what, prev.file, prev.pos.Line, prev.pos.Col)
+	}
+	for _, f := range pkg.Files {
+		for _, d := range f.Decls {
+			td, ok := d.(*ast.TypeDecl)
+			if !ok || pkg.Types[td.Name] != td {
+				continue
+			}
+			add(td.Name, genDecl{what: "type " + td.Name, file: f.Path, pos: td.Pos()})
+			if td.Kind != ast.TypeEnum {
+				continue
+			}
+			seenV := make(map[string]bool)
+			for _, v := range td.Variants {
+				if seenV[v.Name] {
+					continue
+				}
+				seenV[v.Name] = true
+				add(td.Name+v.Name, genDecl{what: "variant " + td.Name + "." + v.Name, file: f.Path, pos: v.Pos()})
+			}
+		}
 	}
 }
 
@@ -333,9 +371,6 @@ func (p *Program) collectTypeMembers(pkg *Package, f *ast.File, d *ast.TypeDecl)
 				}
 				seenF[fld.Name] = true
 			}
-			if _, ok := pkg.Types[v.GoName]; ok {
-				p.errorf(f.Path, v.Pos(), "generated type %s conflicts with a declared type", v.GoName)
-			}
 		}
 	case ast.TypeInterface:
 		seen := make(map[string]bool)
@@ -355,6 +390,14 @@ func (p *Program) resolveUses() {
 	for _, pkg := range p.Packages {
 		for _, f := range pkg.Files {
 			for _, u := range f.Uses {
+				if u.Alias == "_" {
+					if u.Local {
+						p.errorf(f.Path, u.Pos(), "blank import must be a Go package: %s", u.Path)
+						continue
+					}
+					u.GoPath = u.Path
+					continue
+				}
 				if u.Alias != "" && !checkDeclName(p, f, u.Alias, u.Pos()) {
 					continue
 				}
@@ -439,6 +482,14 @@ func (p *Program) loadGo() {
 				paths = append(paths, imp.Path)
 			}
 		}
+		for _, f := range pkg.Files {
+			for _, u := range f.Uses {
+				if u.Alias == "_" && !u.Local && !seen[u.Path] {
+					seen[u.Path] = true
+					paths = append(paths, u.Path)
+				}
+			}
+		}
 	}
 	if len(paths) == 0 {
 		return
@@ -508,6 +559,12 @@ func (p *Program) bindImports() {
 	for _, pkg := range p.Packages {
 		for _, f := range pkg.Files {
 			for _, u := range f.Uses {
+				if u.Alias == "_" {
+					if gp := p.goCache[u.Path]; gp != nil && gp.Err != "" {
+						p.errorf(f.Path, u.Pos(), "cannot load Go package %s: %s", u.Path, gp.Err)
+					}
+					continue
+				}
 				imp := pkg.Imports[u.Alias]
 				if imp == nil {
 					continue
