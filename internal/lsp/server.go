@@ -93,11 +93,14 @@ type fileInfo struct {
 }
 
 type analysis struct {
-	files    map[string]*fileInfo
-	nodeFile map[ast.Node]string
-	diags    map[string][]Diagnostic
-	parsed   map[string][]*ast.File
-	prog     *sema.Program
+	files          map[string]*fileInfo
+	nodeFile       map[ast.Node]string
+	diags          map[string][]Diagnostic
+	parsed         map[string][]*ast.File
+	prog           *sema.Program
+	root           string
+	module         string
+	asyncTypecheck bool
 }
 
 type server struct {
@@ -111,9 +114,10 @@ type server struct {
 	last      *analysis
 	published map[string]bool
 
-	mu    sync.Mutex
-	gen   int
-	timer *time.Timer
+	mu     sync.Mutex
+	gen    int
+	timer  *time.Timer
+	worker *queue
 }
 
 func Run(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) error {
@@ -134,10 +138,16 @@ func Run(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) error
 		cache:     make(map[string]*sema.GoPkg),
 		published: make(map[string]bool),
 	}
+	s.worker = newQueue(nil, func(gen int, result any) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.publishAnalysis(gen, result)
+	})
 	return s.serve()
 }
 
 func (s *server) serve() error {
+	defer s.stop()
 	for {
 		m, err := s.conn.Read()
 		if err != nil {
@@ -505,18 +515,58 @@ func (s *server) reload(typecheckOn bool) error {
 		s.timer = nil
 	}
 	gen := s.gen
+	docs := make(map[string]*document, len(s.docs))
+	for path, doc := range s.docs {
+		copied := *doc
+		docs[path] = &copied
+	}
+	root, module := s.root, s.module
+	s.worker.submit(gen, func() any {
+		return s.analyze(docs, root, module, typecheckOn)
+	})
+	return nil
+}
+
+func (s *server) stop() {
+	s.worker.close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gen++
+	if s.timer != nil {
+		s.timer.Stop()
+		s.timer = nil
+	}
+}
+
+func (s *server) publishAnalysis(gen int, result any) {
+	if s.gen != gen {
+		return
+	}
+	a := result.(*analysis)
+	s.last = a
+	if a.asyncTypecheck {
+		s.scheduleTypecheck(a, gen)
+	}
+	if err := s.publish(a); err != nil {
+		s.logf("publish: %v", err)
+	}
+}
+
+func (s *server) analyze(docs map[string]*document, root, module string, typecheckOn bool) *analysis {
 	a := &analysis{
 		files:    make(map[string]*fileInfo),
 		nodeFile: make(map[ast.Node]string),
 		diags:    make(map[string][]Diagnostic),
+		root:     root,
+		module:   module,
 	}
 	parsed := make(map[string][]*ast.File)
 	parseErrs := make(map[string][]parser.Error)
 	parsedPath := make(map[string]bool)
 	var semaErrs []sema.Error
 
-	if s.root != "" {
-		err := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, walkErr error) error {
+	if root != "" {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				s.logf("%v", walkErr)
 				if d != nil && d.IsDir() {
@@ -526,7 +576,7 @@ func (s *server) reload(typecheckOn bool) error {
 			}
 			name := d.Name()
 			if d.IsDir() {
-				if path == s.root {
+				if path == root {
 					return nil
 				}
 				if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "vendor" || name == "node_modules" {
@@ -538,7 +588,7 @@ func (s *server) reload(typecheckOn bool) error {
 				return nil
 			}
 			full := filepath.Clean(path)
-			src, err := s.source(full)
+			src, err := s.source(docs, full)
 			if err != nil {
 				s.logf("%v", err)
 				return nil
@@ -547,7 +597,7 @@ func (s *server) reload(typecheckOn bool) error {
 			if f == nil {
 				return nil
 			}
-			rel := relDir(s.root, filepath.Dir(full))
+			rel := relDir(root, filepath.Dir(full))
 			parsed[rel] = append(parsed[rel], f)
 			parseErrs[full] = errs
 			parsedPath[full] = true
@@ -559,11 +609,11 @@ func (s *server) reload(typecheckOn bool) error {
 		}
 	}
 
-	for _, path := range s.docPaths() {
+	for _, path := range s.docPaths(docs) {
 		if parsedPath[path] {
 			continue
 		}
-		doc := s.docs[path]
+		doc := docs[path]
 		if doc == nil {
 			continue
 		}
@@ -573,8 +623,8 @@ func (s *server) reload(typecheckOn bool) error {
 			continue
 		}
 		indexNodes(a.nodeFile, f, path)
-		if projectFile(s.root, path) {
-			rel := relDir(s.root, filepath.Dir(path))
+		if projectFile(root, path) {
+			rel := relDir(root, filepath.Dir(path))
 			parsed[rel] = append(parsed[rel], f)
 			parseErrs[path] = errs
 			parsedPath[path] = true
@@ -589,7 +639,7 @@ func (s *server) reload(typecheckOn bool) error {
 	}
 
 	if len(parsed) > 0 {
-		prog := s.check(parsed, s.root, s.module)
+		prog := s.check(parsed, root, module)
 		if prog != nil {
 			semaErrs = append(semaErrs, prog.Errors...)
 		}
@@ -600,11 +650,11 @@ func (s *server) reload(typecheckOn bool) error {
 				a.files[f.Path] = &fileInfo{path: f.Path, rel: rel, src: f.Src, file: f, prog: prog}
 			}
 		}
-		if prog != nil && s.canTypecheck() && !hasFatalErrors(parseErrs, prog.Errors) {
+		if prog != nil && canTypecheck(root, module) && !hasFatalErrors(parseErrs, prog.Errors) {
 			if typecheckOn {
 				s.addTypecheckDiags(a, prog, parsed)
 			} else {
-				s.scheduleTypecheck(a, gen)
+				a.asyncTypecheck = true
 			}
 		}
 	}
@@ -620,8 +670,8 @@ func (s *server) reload(typecheckOn bool) error {
 	}
 	for _, e := range semaErrs {
 		fi := a.files[canonicalPath(e.Path)]
-		if fi == nil && e.Path != "" && !filepath.IsAbs(e.Path) && s.root != "" {
-			fi = a.files[canonicalPath(filepath.Join(s.root, filepath.FromSlash(e.Path)))]
+		if fi == nil && e.Path != "" && !filepath.IsAbs(e.Path) && root != "" {
+			fi = a.files[canonicalPath(filepath.Join(root, filepath.FromSlash(e.Path)))]
 		}
 		if fi == nil {
 			fi = a.fileAtPos(e.Pos)
@@ -635,8 +685,7 @@ func (s *server) reload(typecheckOn bool) error {
 		sortDiagnostics(diags)
 	}
 
-	s.last = a
-	return s.publish(a)
+	return a
 }
 
 func (s *server) addTypecheckDiags(a *analysis, prog *sema.Program, parsed map[string][]*ast.File) {
@@ -648,7 +697,7 @@ func (s *server) typecheckDiagnostics(a *analysis, prog *sema.Program, parsed ma
 	if prog == nil {
 		return out
 	}
-	for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: s.root, Module: s.module, Tests: true}) {
+	for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: a.root, Module: a.module, Tests: true}) {
 		fi := a.files[canonicalPath(e.Path)]
 		if fi == nil {
 			s.logf("typecheck: %s", e.Msg)
@@ -698,11 +747,11 @@ func (s *server) runTypecheck(a *analysis, gen int) {
 	}
 }
 
-func (s *server) canTypecheck() bool {
-	if s.root == "" || s.module == "" {
+func canTypecheck(root, module string) bool {
+	if root == "" || module == "" {
 		return false
 	}
-	_, err := os.Stat(filepath.Join(s.root, "go.mod"))
+	_, err := os.Stat(filepath.Join(root, "go.mod"))
 	return err == nil
 }
 
@@ -760,16 +809,16 @@ func (a *analysis) fileAtPos(pos token.Pos) *fileInfo {
 	return nil
 }
 
-func (s *server) source(path string) ([]byte, error) {
-	if doc := s.docs[path]; doc != nil {
+func (s *server) source(docs map[string]*document, path string) ([]byte, error) {
+	if doc := docs[path]; doc != nil {
 		return []byte(doc.text), nil
 	}
 	return os.ReadFile(path)
 }
 
-func (s *server) docPaths() []string {
-	paths := make([]string, 0, len(s.docs))
-	for path := range s.docs {
+func (s *server) docPaths(docs map[string]*document) []string {
+	paths := make([]string, 0, len(docs))
+	for path := range docs {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
@@ -1838,7 +1887,7 @@ func (s *server) formatting(p FormattingParams) (any, error) {
 	if err != nil {
 		return nil, errInvalidParams
 	}
-	src, err := s.source(path)
+	src, err := s.source(s.docs, path)
 	if err != nil {
 		return []TextEdit{}, nil
 	}

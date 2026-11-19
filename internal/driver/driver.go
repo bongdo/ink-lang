@@ -349,13 +349,15 @@ func (p *Project) Generate(tests bool) error {
 		}
 		return errs[0]
 	}
+	current := make(map[string]bool, len(files))
 	for _, f := range files {
 		if err := os.MkdirAll(filepath.Dir(f.Path), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(f.Path, f.Src, 0o644); err != nil {
+		if _, err := writeIfChanged(f.Path, f.Src); err != nil {
 			return err
 		}
+		current[p.relDir(f.Path)] = true
 	}
 	if tests {
 		for _, pkg := range p.Program.Packages {
@@ -364,7 +366,68 @@ func (p *Project) Generate(tests bool) error {
 			}
 		}
 	}
+	for _, rel := range p.readManifest() {
+		if current[rel] {
+			continue
+		}
+		if !tests && strings.HasSuffix(rel, "zz_ink_test.go") {
+			current[rel] = true
+			continue
+		}
+		if !filepath.IsLocal(filepath.FromSlash(rel)) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(p.Root, filepath.FromSlash(rel))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	if err := p.writeManifest(current); err != nil {
+		return err
+	}
 	return p.writeRuntime()
+}
+
+func (p *Project) manifestPath() string {
+	return filepath.Join(p.Root, ".ink", "generated.json")
+}
+
+func (p *Project) readManifest() []string {
+	data, err := os.ReadFile(p.manifestPath())
+	if err != nil {
+		return nil
+	}
+	var files []string
+	if json.Unmarshal(data, &files) != nil {
+		return nil
+	}
+	return files
+}
+
+func (p *Project) writeManifest(current map[string]bool) error {
+	files := make([]string, 0, len(current))
+	for rel := range current {
+		files = append(files, rel)
+	}
+	sort.Strings(files)
+	data, err := json.Marshal(files)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(p.manifestPath()), 0o755); err != nil {
+		return err
+	}
+	_, err = writeIfChanged(p.manifestPath(), append(data, '\n'))
+	return err
+}
+
+func writeIfChanged(path string, data []byte) (bool, error) {
+	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, data) {
+		return false, nil
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func pkgHasTests(pkg *sema.Package) bool {
@@ -383,7 +446,8 @@ func (p *Project) writeRuntime() error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "runtime.go"), inkrt.Source, 0o644)
+	_, err := writeIfChanged(filepath.Join(dir, "runtime.go"), inkrt.Source)
+	return err
 }
 
 func (p *Project) HasErrors() bool {

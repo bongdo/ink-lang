@@ -323,18 +323,16 @@ file import set; fail with an Ink error if a type cannot be named.
 **Статус:** by design. `or` stays statement-level; these positions give a clear
 error. The restriction is listed in [`SPEC.md`](SPEC.md) §10.
 
-### G37. Generation always rewrites whole files
-**Сейчас:** each build writes `zz_ink.go` for every package; there is no
-manifest of generated files and no cleanup for deleted packages.
-**Почему:** simplest correct approach.
-**Фикс:** write only when bytes change; keep `.ink/generated.json`; remove
-stale outputs. Low priority.
+### G37. Generation always rewrites whole files — fixed
+**Сейчас:** `zz_ink.go` and `zz_ink_test.go` are written only when their bytes
+change. `.ink/generated.json` lists every generated file; a build removes the
+outputs of packages that no longer exist. A missing or broken manifest is
+ignored and rewritten.
 **Оценка:** S.
 
-### G38. Runtime is copied on every build
-**Сейчас:** `.ink/runtime/runtime.go` is overwritten each time.
-**Почему:** guarantees the runtime matches the compiler.
-**Фикс:** compare content/hash; keep the current behavior otherwise.
+### G38. Runtime is copied on every build — fixed
+**Сейчас:** `.ink/runtime/runtime.go` is compared with the embedded source and
+written only when it differs, so a compiler upgrade still refreshes it.
 **Оценка:** S.
 
 ## E. Tooling and LSP
@@ -348,14 +346,14 @@ blocks. Start columns come from `//line path:line:col`.
 **Остаток:** exact end columns (G34), per-package cache; the sema pass itself is
 still synchronous (G43).
 
-### G43. LSP sema is synchronous; typecheck is debounced
-**Статус:** partly fixed. The generated-Go typecheck is debounced by 150 ms,
-the timer is stopped on a new reload, and a stale generation is dropped before
-it publishes. The whole-project sema pass still blocks the message loop on
-every `didChange`.
-**Почему:** no worker/versioned analysis for sema.
-**Фикс:** move sema to an analysis worker with a latest-version queue and
-cancellation.
+### G43. LSP sema is synchronous; typecheck is debounced — fixed
+**Статус:** fixed. `didChange` only snapshots the documents and submits a
+generation; parse and sema run on an analysis worker with a latest-version
+queue, so a burst of edits runs the last one and an outdated result is not
+published. The debounced typecheck is scheduled from the published result and
+stopped on shutdown.
+**Остаток:** a running analysis is not cancelled mid-pass; a newer generation
+waits for it to finish. Shutdown waits for the current pass.
 **Оценка:** M.
 
 ### G44. LSP shim drops `didChange` when its queue is full — not reproduced

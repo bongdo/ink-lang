@@ -341,6 +341,56 @@ func TestDiagnostics(t *testing.T) {
 	})
 }
 
+func TestDidChangeLatestAnalysisWins(t *testing.T) {
+	root, _, uri := newProject(t, validSrc)
+	bad := strings.Replace(validSrc, "var total = 1;", "var total = unknown;", 1)
+	last := strings.Replace(validSrc, "var total = 1;", "var total = other;", 1)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	c.notify("textDocument/didOpen", DidOpenParams{
+		TextDocument: TextDocumentItem{URI: uri, LanguageID: "ink", Version: 1, Text: validSrc},
+	})
+	c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
+		return params.Version != nil && *params.Version == 1
+	})
+	c.notify("textDocument/didChange", DidChangeParams{
+		TextDocument:   VersionedTextDocumentIdentifier{URI: uri, Version: 2},
+		ContentChanges: []TextDocumentChange{{Text: bad}},
+	})
+	c.notify("textDocument/didChange", DidChangeParams{
+		TextDocument:   VersionedTextDocumentIdentifier{URI: uri, Version: 3},
+		ContentChanges: []TextDocumentChange{{Text: last}},
+	})
+	published := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
+		return params.Version != nil && *params.Version == 3
+	})
+	if findDiagnostic(published.Diagnostics, "undefined") == nil {
+		t.Fatalf("missing diagnostic for the last text: %+v", published.Diagnostics)
+	}
+	for _, diag := range published.Diagnostics {
+		if strings.Contains(diag.Message, "unknown") {
+			t.Fatalf("published diagnostics for stale text: %+v", published.Diagnostics)
+		}
+	}
+	previous := 0
+	for _, msg := range c.notes {
+		if msg.Method != "textDocument/publishDiagnostics" {
+			continue
+		}
+		var params PublishDiagnosticsParams
+		if err := json.Unmarshal(msg.Params, &params); err != nil || params.URI != uri || params.Version == nil {
+			continue
+		}
+		if *params.Version >= 3 {
+			t.Fatalf("duplicate publication for version %d", *params.Version)
+		}
+		if *params.Version <= previous {
+			t.Fatalf("stale publication %d after %d", *params.Version, previous)
+		}
+		previous = *params.Version
+	}
+}
+
 func TestDuplicateSemanticDiagnostics(t *testing.T) {
 	src := `fn main() void or error {
     var p: *Missing = nil;
