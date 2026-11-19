@@ -8,6 +8,16 @@ func TestClassify(t *testing.T) {
 		code string
 	}{
 		{"simple import must be bare: use fmt;", "import-simple"},
+		{"no ':=' in Ink; declare with var", "colon-equals"},
+		{"files have no package clause; one directory is one package", "go-package"},
+		{"import is not an Ink declaration; Ink imports with use", "go-import"},
+		{"functions are declared with fn, not func", "go-func"},
+		{"switch does not exist; use if or match", "go-switch"},
+		{"go does not exist; use par { ... };", "go-go"},
+		{"chan does not exist; keep channels in a Go adapter", "go-chan"},
+		{"select does not exist; use par or a Go adapter", "go-select"},
+		{"goto does not exist; use for, break and continue", "go-goto"},
+		{"fallthrough does not exist; give each match arm its own body", "go-fallthrough"},
 		{`versioned import path "charm.land/bubbletea/v2" requires an alias: use "charm.land/bubbletea/v2" as <name>;`, "import-alias"},
 		{"type definitions are declared without '='", "decl-equals"},
 		{"interface methods are declared without 'fn'", "iface-fn"},

@@ -3,6 +3,7 @@ package gen
 import (
 	"fmt"
 	"go/format"
+	"go/types"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -122,7 +123,7 @@ func (g *generator) genFile(pkg *sema.Package, tests bool) ([]byte, error) {
 		if tests {
 			continue
 		}
-		w := newWriter(f, "_s_context.Background()")
+		w := newWriter(f, backgroundCtx)
 		g.decl(w, d)
 		f.body.WriteString(w.buf.String())
 	}
@@ -133,7 +134,7 @@ func (g *generator) genFile(pkg *sema.Package, tests bool) ([]byte, error) {
 				if !ok {
 					continue
 				}
-				w := newWriter(f, "_s_context.Background()")
+				w := newWriter(f, backgroundCtx)
 				g.testDecl(w, t)
 				f.body.WriteString(w.buf.String())
 			}
@@ -222,15 +223,92 @@ func (g *generator) writeLineDirective(w *writer, n ast.Node) {
 }
 
 type fileGen struct {
-	g    *generator
-	pkg  *sema.Package
-	body strings.Builder
-	need map[string]bool
-	used map[string]bool
+	g          *generator
+	pkg        *sema.Package
+	body       strings.Builder
+	need       map[string]bool
+	used       map[string]bool
+	stdAliases map[string]string
+	goPkgs     map[string]string
+	extra      map[string]importSpec
 }
 
 func (f *fileGen) needPkg(alias string) {
 	f.need[alias] = true
+}
+
+func (f *fileGen) std(key string) string {
+	f.need[key] = true
+	return f.stdAlias(key)
+}
+
+func (f *fileGen) stdAlias(key string) string {
+	if f.stdAliases == nil {
+		f.stdAliases = make(map[string]string)
+	}
+	if alias, ok := f.stdAliases[key]; ok {
+		return alias
+	}
+	alias := "_s_" + key
+	if p, ok := stdImports[key]; ok {
+		if user, ok := f.userAlias(p); ok {
+			alias = user
+		}
+	}
+	f.stdAliases[key] = alias
+	return alias
+}
+
+func (f *fileGen) background() string {
+	return f.std("context") + ".Background()"
+}
+
+func (f *fileGen) userAlias(path string) (string, bool) {
+	names := make([]string, 0, len(f.pkg.Imports))
+	for alias := range f.pkg.Imports {
+		names = append(names, alias)
+	}
+	sort.Strings(names)
+	for _, alias := range names {
+		if imp := f.pkg.Imports[alias]; imp != nil && imp.Go != nil && imp.Go.Path == path {
+			return alias, true
+		}
+	}
+	return "", false
+}
+
+func (f *fileGen) goPkg(pkg *types.Package) (string, bool) {
+	if pkg == nil || pkg.Path() == "" || pkg.Name() == "" {
+		return "", false
+	}
+	if alias, ok := f.userAlias(pkg.Path()); ok {
+		f.usePkg(alias)
+		return alias, true
+	}
+	if f.goPkgs == nil {
+		f.goPkgs = make(map[string]string)
+	}
+	if alias, ok := f.goPkgs[pkg.Path()]; ok {
+		return alias, true
+	}
+	alias := "_s_go_" + pkg.Name()
+	for f.goAliasTaken(alias) {
+		alias += "_"
+	}
+	f.goPkgs[pkg.Path()] = alias
+	if f.extra == nil {
+		f.extra = make(map[string]importSpec)
+	}
+	f.extra[alias] = importSpec{alias: alias, path: pkg.Path()}
+	return alias, true
+}
+
+func (f *fileGen) goAliasTaken(alias string) bool {
+	if _, ok := f.extra[alias]; ok {
+		return true
+	}
+	_, ok := f.pkg.Imports[alias]
+	return ok
 }
 
 func (f *fileGen) usePkg(alias string) {
@@ -278,7 +356,11 @@ func (f *fileGen) assemble(path string) ([]byte, error) {
 		if !ok {
 			continue
 		}
-		specs["_s_"+alias] = importSpec{alias: "_s_" + alias, path: p}
+		name := f.stdAlias(alias)
+		specs[name] = importSpec{alias: name, path: p}
+	}
+	for alias, s := range f.extra {
+		specs[alias] = s
 	}
 	for alias := range f.used {
 		imp := f.pkg.Imports[alias]
@@ -415,10 +497,10 @@ func (w *writer) sub() *writer {
 
 func (w *writer) currentCtx() string {
 	if w.ctx == "" {
-		w.ctx = "_s_context.Background()"
+		w.ctx = w.f.background()
 	}
-	if w.ctx == "_s_context.Background()" {
-		w.f.needPkg("context")
+	if w.ctx == backgroundCtx {
+		return w.f.background()
 	}
 	return w.ctx
 }

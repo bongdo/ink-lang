@@ -183,8 +183,7 @@ func (w *writer) enumValue(enum *ast.TypeDecl, v *ast.Variant, qual string) stri
 func (w *writer) basicLit(e *ast.BasicLit) string {
 	if e.Kind == token.Duration {
 		if d, err := time.ParseDuration(e.Value); err == nil {
-			w.f.needPkg("time")
-			return fmt.Sprintf("_s_time.Duration(%d)", int64(d))
+			return fmt.Sprintf("%s.Duration(%d)", w.f.std("time"), int64(d))
 		}
 	}
 	return e.Value
@@ -508,7 +507,7 @@ func (w *writer) funcLit(lit *ast.FuncLit) string {
 	sub.results = lit.Results
 	sub.err = lit.Err
 	if lit.GoCallback {
-		sub.ctx = "_s_context.Background()"
+		sub.ctx = sub.f.background()
 	}
 	sub.par = nil
 	sub.loops = nil
@@ -536,10 +535,11 @@ func (w *writer) funcLit(lit *ast.FuncLit) string {
 		sub.bodyContents(lit.Body, hasDirectDefer(lit.Body.Stmts))
 		sub.indent--
 		sub.line("}")
-		if lit.Err && len(lit.Results) == 0 {
+		terminates := blockTerminates(lit.Body)
+		if lit.Err && len(lit.Results) == 0 && !terminates {
 			sub.line("return nil")
 		}
-		if len(lit.Results) > 0 {
+		if len(lit.Results) > 0 && !terminates {
 			sub.line(`panic("unreachable")`)
 		}
 	}

@@ -77,12 +77,11 @@ func (g *generator) ctxFuncDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl,
 	sig += "(" + g.paramsStr(w.f, params, nil, false) + ")" + res
 	w.line(sig + " {")
 	w.indent++
-	w.f.needPkg("context")
 	callArgs := make([]string, 0, len(params)+2)
 	if recv != nil {
 		callArgs = append(callArgs, selfName)
 	}
-	callArgs = append(callArgs, "_s_context.Background()")
+	callArgs = append(callArgs, w.f.background())
 	for _, p := range params {
 		callArgs = append(callArgs, p.Name)
 	}
@@ -114,7 +113,7 @@ func (g *generator) ctxFuncDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl,
 	if recv != nil {
 		parts = append(parts, selfName+" *"+typeNameOf(recv)+g.typeParamsUse(recv.TypeParams))
 	}
-	parts = append(parts, "_s_ctx _s_context.Context")
+	parts = append(parts, "_s_ctx "+w.f.std("context")+".Context")
 	if len(params) > 0 {
 		parts = append(parts, g.paramsStr(w.f, params, nil, false))
 	}
@@ -199,12 +198,132 @@ func (g *generator) funcBody(w *writer, body *ast.Block, results []ast.Type, err
 	w.bodyContents(body, hasDirectDefer(stmts))
 	w.indent--
 	w.line("}")
-	if err && len(results) == 0 {
+	terminates := blockTerminates(body)
+	if err && len(results) == 0 && !terminates {
 		w.line("return nil")
 	}
-	if len(results) > 0 {
+	if len(results) > 0 && !terminates {
 		w.line(`panic("unreachable")`)
 	}
+}
+
+func blockTerminates(b *ast.Block) bool {
+	if b == nil || len(b.Stmts) == 0 {
+		return false
+	}
+	return stmtTerminates(b.Stmts[len(b.Stmts)-1])
+}
+
+func stmtTerminates(s ast.Stmt) bool {
+	switch s := s.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.Block:
+		return blockTerminates(s)
+	case *ast.IfStmt:
+		return s.Else != nil && stmtTerminates(s.Then) && stmtTerminates(s.Else)
+	case *ast.ExprStmt:
+		if m, ok := s.X.(*ast.MatchExpr); ok {
+			return matchTerminates(m)
+		}
+		return panicStatement(s.X)
+	case *ast.ForStmt:
+		return !s.Par && s.Range == nil && s.Cond == nil && !loopBreaks(s.Body)
+	case *ast.WithinStmt:
+		return blockTerminates(s.Body)
+	}
+	return false
+}
+
+func matchTerminates(m *ast.MatchExpr) bool {
+	if m == nil || len(m.Cases) == 0 || !switchHasDefault(m) {
+		return false
+	}
+	for _, cs := range m.Cases {
+		if !caseTerminates(cs) {
+			return false
+		}
+	}
+	return true
+}
+
+func caseTerminates(cs *ast.Case) bool {
+	if cs == nil {
+		return false
+	}
+	if cs.Block != nil {
+		return blockTerminates(cs.Block)
+	}
+	if len(cs.Body) > 0 {
+		return stmtTerminates(cs.Body[len(cs.Body)-1])
+	}
+	return cs.Expr != nil && panicStatement(cs.Expr)
+}
+
+func switchHasDefault(m *ast.MatchExpr) bool {
+	return caseDefault(m) || enumMatch(m)
+}
+
+func caseDefault(m *ast.MatchExpr) bool {
+	value := !m.TypeSwitch && !enumMatch(m)
+	for _, cs := range m.Cases {
+		if cs.Default {
+			return true
+		}
+		if cs.Pat == nil || cs.Pat.Wildcard {
+			return true
+		}
+		if value && cs.Pat.Literal == nil && cs.Pat.Name == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func enumMatch(m *ast.MatchExpr) bool {
+	if n, ok := m.SubjectType.(*ast.NamedType); ok && n.Decl != nil && n.Decl.Kind == ast.TypeEnum {
+		return true
+	}
+	for _, cs := range m.Cases {
+		if cs.Pat != nil && cs.Pat.Variant != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func panicStatement(e ast.Expr) bool {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		e = p.X
+	}
+	c, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	name, ok := builtinName(c)
+	return ok && name == "panic"
+}
+
+func loopBreaks(b *ast.Block) bool {
+	if b == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.FuncLit, *ast.ForStmt:
+			return false
+		case *ast.BreakStmt:
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
 }
 
 func (g *generator) mainWrapper(w *writer, fd *ast.FuncDecl) {
@@ -213,18 +332,17 @@ func (g *generator) mainWrapper(w *writer, fd *ast.FuncDecl) {
 	w.indent++
 	args := ""
 	if fd.NeedsCtx {
-		w.line("_s_ctx := _s_context.Background()")
+		w.line("_s_ctx := " + w.f.background())
 		args = "_s_ctx"
-		w.f.needPkg("context")
 	}
 	call := "_s_main(" + args + ")"
 	if fd.Err {
-		w.f.needPkg("fmt")
-		w.f.needPkg("os")
+		errPkg := w.f.std("fmt")
+		osPkg := w.f.std("os")
 		w.linef("if _s_err := %s; _s_err != nil {", call)
 		w.indent++
-		w.line("_s_fmt.Fprintln(_s_os.Stderr, _s_err)")
-		w.line("_s_os.Exit(1)")
+		w.line(errPkg + ".Fprintln(" + osPkg + ".Stderr, _s_err)")
+		w.line(osPkg + ".Exit(1)")
 		w.indent--
 		w.line("}")
 	} else {
@@ -282,7 +400,7 @@ func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 	}
 	w.line("")
 	for _, m := range d.Methods {
-		mw := newWriter(w.f, "_s_context.Background()")
+		mw := newWriter(w.f, backgroundCtx)
 		g.funcDecl(mw, m, d)
 		w.buf.WriteString(mw.buf.String())
 	}
@@ -348,14 +466,12 @@ func (g *generator) testDecl(w *writer, t *ast.TestDecl) {
 	wrapper := "Test" + id
 	helper := "_s_test" + id
 	needsCtx := g.testNeedsCtx(w.f, t)
-	w.f.needPkg("testing")
 	w.directive(t)
-	w.line("func " + wrapper + "(t *_s_testing.T) {")
+	w.line("func " + wrapper + "(t *" + w.f.std("testing") + ".T) {")
 	w.indent++
 	args := ""
 	if needsCtx {
-		args = "_s_context.Background()"
-		w.f.needPkg("context")
+		args = w.f.background()
 	}
 	w.linef("if _s_err := %s(%s); _s_err != nil {", helper, args)
 	w.indent++
@@ -368,8 +484,7 @@ func (g *generator) testDecl(w *writer, t *ast.TestDecl) {
 	w.directive(t)
 	sig := "func " + helper + "("
 	if needsCtx {
-		sig += "_s_ctx _s_context.Context"
-		w.f.needPkg("context")
+		sig += "_s_ctx " + w.f.std("context") + ".Context"
 	}
 	sig += ") error"
 	w.line(sig + " {")

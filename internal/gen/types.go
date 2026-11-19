@@ -1,10 +1,13 @@
 package gen
 
 import (
+	"go/types"
 	"strings"
 
 	"github.com/bongdo/ink/internal/ast"
 )
+
+const backgroundCtx = "_s_context.Background()"
 
 var builtinGo = map[string]string{
 	"void":  "",
@@ -58,10 +61,78 @@ func (g *generator) typeStr(f *fileGen, t ast.Type) string {
 	case *ast.StructType:
 		return g.structTypeStr(f, t.Fields)
 	case *ast.GoType:
+		return g.goTypeStr(f, t)
+	}
+	return "any"
+}
+
+func (g *generator) goTypeStr(f *fileGen, t *ast.GoType) string {
+	gt := g.p.GoTypeOf(t)
+	if gt == nil {
 		f.noteGoText(t.Text)
 		return t.Text
 	}
-	return "any"
+	bad := false
+	text := types.TypeString(gt, func(pkg *types.Package) string {
+		if pkg == nil {
+			return ""
+		}
+		alias, ok := f.goPkg(pkg)
+		if !ok {
+			bad = true
+			return pkg.Name()
+		}
+		return alias
+	})
+	if bad || !nameableGoType(gt) {
+		g.errAt(t, "cannot name Go type %s", text)
+		return "any"
+	}
+	return text
+}
+
+func nameableGoType(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Basic:
+		return t.Kind() != types.UnsafePointer
+	case *types.TypeParam:
+		return false
+	case *types.Named:
+		if !t.Obj().Exported() {
+			return false
+		}
+		args := t.TypeArgs()
+		for i := 0; i < args.Len(); i++ {
+			if !nameableGoType(args.At(i)) {
+				return false
+			}
+		}
+	case *types.Pointer:
+		return nameableGoType(t.Elem())
+	case *types.Slice:
+		return nameableGoType(t.Elem())
+	case *types.Array:
+		return nameableGoType(t.Elem())
+	case *types.Map:
+		return nameableGoType(t.Key()) && nameableGoType(t.Elem())
+	case *types.Chan:
+		return nameableGoType(t.Elem())
+	case *types.Signature:
+		if t.TypeParams().Len() > 0 || t.RecvTypeParams().Len() > 0 {
+			return false
+		}
+		for i := 0; i < t.Params().Len(); i++ {
+			if !nameableGoType(t.Params().At(i).Type()) {
+				return false
+			}
+		}
+		for i := 0; i < t.Results().Len(); i++ {
+			if !nameableGoType(t.Results().At(i).Type()) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (g *generator) namedTypeStr(f *fileGen, t *ast.NamedType) string {
@@ -110,11 +181,9 @@ func (g *generator) namedTypeStr(f *fileGen, t *ast.NamedType) string {
 	if t.Package == "" {
 		switch t.Name {
 		case "Duration":
-			f.needPkg("time")
-			return "_s_time.Duration"
+			return f.std("time") + ".Duration"
 		case "Type":
-			f.needPkg("reflect")
-			return "_s_reflect.Type"
+			return f.std("reflect") + ".Type"
 		}
 		if v, ok := builtinGo[t.Name]; ok {
 			if v == "" {
@@ -161,18 +230,17 @@ func qualified(qual, name string) string {
 }
 
 func (g *generator) arrayLenStr(f *fileGen, e ast.Expr) string {
-	w := newWriter(f, "_s_context.Background()")
+	w := newWriter(f, backgroundCtx)
 	return w.expr(e)
 }
 
 func (g *generator) funcTypeStr(f *fileGen, t *ast.FuncType) string {
 	params := g.typeListStr(f, t.Params)
 	if t.NeedsCtx {
-		f.needPkg("context")
 		if params == "" {
-			params = "_s_context.Context"
+			params = f.std("context") + ".Context"
 		} else {
-			params = "_s_context.Context, " + params
+			params = f.std("context") + ".Context, " + params
 		}
 	}
 	return "func(" + params + ")" + g.resultStr(f, t.Results, t.Err)
@@ -209,8 +277,7 @@ func (g *generator) typeListStr(f *fileGen, ts []ast.Type) string {
 func (g *generator) paramsStr(f *fileGen, params []*ast.Param, types []ast.Type, needsCtx bool) string {
 	var parts []string
 	if needsCtx {
-		f.needPkg("context")
-		parts = append(parts, "_s_ctx _s_context.Context")
+		parts = append(parts, "_s_ctx "+f.std("context")+".Context")
 	}
 	for i, p := range params {
 		t := p.Type

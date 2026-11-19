@@ -8,10 +8,11 @@ Printed by `ink guide`; loaded on demand as the `ink` OpenCode skill. One canoni
 
 ## Source of truth
 
-- `design/SPEC.md` — language, wins on disagreement; `README.md` — commands.
-- `examples/tour` — valid; `examples/problems` — invalid on purpose.
-- `design/AGENT.md` — roadmap; `design/GAPS.md` — gaps.
-- Historical only: `design/SYNTAX.md`, `design/NIL.md`.
+- `ink guide` — this text, printed by the binary; it wins on disagreement.
+- `ink.toml` — project name and Go module path.
+- In the compiler repository only: `design/SPEC.md` (wins over everything else),
+  `design/GAPS.md`, `examples/tour` (valid), `examples/problems` (invalid on
+  purpose). A project created by `ink new` has no `design/` or `examples/`.
 
 ## Loop
 

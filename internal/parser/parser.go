@@ -68,7 +68,11 @@ func (p *parser) parseFile(f *ast.File) {
 		case token.Test:
 			f.Decls = append(f.Decls, p.parseTestDecl())
 		default:
-			p.errorf(p.tok().Pos, "expected declaration, found %s", describe(p.tok()))
+			if msg := goOnlyMsg(p.tok()); msg != "" {
+				p.errorf(p.tok().Pos, "%s", msg)
+			} else {
+				p.errorf(p.tok().Pos, "expected declaration, found %s", describe(p.tok()))
+			}
 			p.recoverTop()
 		}
 		if p.i == before {
@@ -174,6 +178,33 @@ func describe(t token.Token) string {
 	return t.Kind.String()
 }
 
+func goOnlyMsg(t token.Token) string {
+	if t.Kind != token.Ident {
+		return ""
+	}
+	switch t.Lit {
+	case "package":
+		return "files have no package clause; one directory is one package"
+	case "import":
+		return "import is not an Ink declaration; Ink imports with use"
+	case "func":
+		return "functions are declared with fn, not func"
+	case "switch":
+		return "switch does not exist; use if or match"
+	case "go":
+		return "go does not exist; use par { ... };"
+	case "chan":
+		return "chan does not exist; keep channels in a Go adapter"
+	case "select":
+		return "select does not exist; use par or a Go adapter"
+	case "goto":
+		return "goto does not exist; use for, break and continue"
+	case "fallthrough":
+		return "fallthrough does not exist; give each match arm its own body"
+	}
+	return ""
+}
+
 func (p *parser) expect(k token.Kind) token.Pos {
 	if p.at(k) {
 		return p.next().End
@@ -229,6 +260,26 @@ func (p *parser) recoverStmt() {
 			return
 		case token.RBrace, token.Case:
 			return
+		}
+		p.next()
+	}
+}
+
+func (p *parser) skipStmt() {
+	depth := 0
+	for !p.at(token.EOF) {
+		switch p.kind() {
+		case token.LBrace:
+			depth++
+		case token.RBrace:
+			if depth == 0 {
+				return
+			}
+			depth--
+		case token.Semi:
+			if depth == 0 {
+				return
+			}
 		}
 		p.next()
 	}
@@ -645,6 +696,15 @@ func (p *parser) parseVarDecl(requireSemi bool) *ast.VarDecl {
 	if len(vd.Names) == 0 {
 		p.errorf(p.tok().Pos, "expected variable name, found %s", describe(p.tok()))
 	}
+	if msg := goOnlyMsg(p.tok()); msg != "" {
+		p.errorf(p.tok().Pos, "%s", msg)
+		p.skipStmt()
+		if requireSemi {
+			p.consumeSemi()
+		}
+		vd.Span = p.fin(start)
+		return vd
+	}
 	if p.at(token.Colon) {
 		p.next()
 		vd.Type = p.parseType()
@@ -696,6 +756,11 @@ func (p *parser) parseStmt() ast.Stmt {
 		t := p.next()
 		return &ast.EmptyStmt{Span: spanOf(t)}
 	default:
+		if msg := goOnlyMsg(p.tok()); msg != "" {
+			p.errorf(p.tok().Pos, "%s", msg)
+			p.skipStmt()
+			return nil
+		}
 		return p.parseSimpleStmt(true)
 	}
 }
@@ -920,7 +985,12 @@ func (p *parser) parseSimpleStmt(requireSemi bool) ast.Stmt {
 	}
 	var assign *ast.AssignStmt
 	var expr ast.Expr
-	if p.isAssignOp() {
+	if p.at(token.Colon) && p.peek(1) == token.Assign {
+		p.errorf(p.tok().Pos, "no ':=' in Ink; declare with var")
+		p.next()
+		p.next()
+		assign = &ast.AssignStmt{Lhs: lhs, Op: token.Assign, Rhs: p.parseExprList(true)}
+	} else if p.isAssignOp() {
 		op := p.next().Kind
 		assign = &ast.AssignStmt{Lhs: lhs, Op: op, Rhs: p.parseExprList(true)}
 	} else if len(lhs) == 1 && p.at(token.Or) {

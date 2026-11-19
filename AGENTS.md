@@ -4,9 +4,9 @@ Ink is a Go-backed application language. Do not invent syntax: the full
 reference, canonical forms, diagnostic codes and concurrency limits are in
 `ink guide`; in OpenCode load the `ink` skill instead.
 
-Source of truth: `design/SPEC.md` (wins); `examples/tour` is valid;
-`examples/problems` is invalid on purpose. Historical only: `design/SYNTAX.md`,
-`design/NIL.md`.
+`ink guide` is the only reference: it is printed by the binary and this file is
+its short form. `design/` exists only in the compiler repository; a project
+created by `ink new` has no `design/` or `examples/`, so do not look there.
 
 ## Loop
 
@@ -28,6 +28,6 @@ One directory is one package; no package clause. Local imports:
 `use "./lib";`. Generated and never edited: `zz_ink.go`,
 `zz_ink_test.go`, `.ink/`.
 
-OpenCode starts `ink lsp` for `.ink` and formats on edit when configured
-(see `docs/lsp.md`). Build `bin/ink` first in this repository (`bin/build`);
-installed projects use `ink` from `PATH`.
+OpenCode starts `ink lsp` for `.ink` and formats on edit when configured.
+Build `bin/ink` first in this repository (`bin/build`); installed projects use
+`ink` from `PATH`.

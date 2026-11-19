@@ -14,7 +14,9 @@ func (w *writer) matchExpr(m *ast.MatchExpr) string {
 		rt = w.typeStr(m.ResultType)
 	}
 	sub.matchSwitch(m, true)
-	sub.line(`panic("unreachable")`)
+	if !switchHasDefault(m) {
+		sub.line(`panic("unreachable")`)
+	}
 	return "func() " + rt + " {\n" + sub.buf.String() + "}()"
 }
 
@@ -41,6 +43,12 @@ func (w *writer) matchSwitch(m *ast.MatchExpr, exprMode bool) {
 		}
 		for _, cs := range m.Cases {
 			w.matchEnumCase(cs, tv, enum, qual, exprMode)
+		}
+		if !caseDefault(m) {
+			w.line("default:")
+			w.indent++
+			w.line(`panic("unreachable")`)
+			w.indent--
 		}
 		w.line("}")
 		return

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/diag"
 	"github.com/bongdo/ink/internal/token"
 )
 
@@ -1486,4 +1487,44 @@ func FuzzParse(f *testing.F) {
 			return true
 		})
 	})
+}
+
+func TestGoOnlySyntaxHints(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		code string
+		line int
+		col  int
+	}{
+		{"colon-equals", "fn main() void {\n    x := 1;\n};\n", "colon-equals", 2, 7},
+		{"func", "func main() void {\n};\n", "go-func", 1, 1},
+		{"switch", "fn main() void {\n    switch (x) {\n    };\n};\n", "go-switch", 2, 5},
+		{"package", "package main\n\nfn main() void {\n};\n", "go-package", 1, 1},
+		{"import", "import \"fmt\"\n\nfn main() void {\n};\n", "go-import", 1, 1},
+		{"go", "fn main() void {\n    go f();\n};\n", "go-go", 2, 5},
+		{"chan", "fn main() void {\n    var c chan i32;\n    _ = c;\n};\n", "go-chan", 2, 11},
+		{"select", "fn main() void {\n    select {\n    };\n};\n", "go-select", 2, 5},
+		{"goto", "fn main() void {\n    goto done;\n};\n", "go-goto", 2, 5},
+		{"fallthrough", "fn main() void {\n    fallthrough;\n};\n", "go-fallthrough", 2, 5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := Parse("go.ink", []byte(tc.src))
+			if len(errs) != 1 {
+				t.Fatalf("errors = %v", errs)
+			}
+			e := errs[0]
+			info := diag.Classify(e.Msg)
+			if info.Code != tc.code {
+				t.Fatalf("code = %q, want %q (%s)", info.Code, tc.code, e.Msg)
+			}
+			if info.Hint == "" || strings.Contains(info.Hint, "\n") {
+				t.Fatalf("hint = %q", info.Hint)
+			}
+			if e.Pos.Line != tc.line || e.Pos.Col != tc.col {
+				t.Fatalf("pos = %d:%d, want %d:%d", e.Pos.Line, e.Pos.Col, tc.line, tc.col)
+			}
+		})
+	}
 }

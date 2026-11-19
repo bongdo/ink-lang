@@ -13,6 +13,16 @@ var rules = []struct {
 	Hint    string
 	Warning bool
 }{
+	{"colon-equals", "no ':='", "var x = value;", false},
+	{"go-package", "no package clause", "omit the package clause; one directory is one package", false},
+	{"go-import", "import is not", "use fmt;", false},
+	{"go-func", "functions are declared with fn", "fn main() void { ... };", false},
+	{"go-switch", "switch does not exist", "use if or match", false},
+	{"go-go", "go does not exist", "par { ... };", false},
+	{"go-chan", "chan does not exist", "keep channels in a Go adapter", false},
+	{"go-select", "select does not exist", "use par or a Go adapter", false},
+	{"go-goto", "goto does not exist", "use for, break and continue", false},
+	{"go-fallthrough", "fallthrough does not exist", "give each match arm its own body", false},
 	{"import-simple", "simple import must be bare", "use fmt;", false},
 	{"import-alias", "requires an alias", `use "charm.land/bubbletea/v2" as tea;`, false},
 	{"decl-equals", "declared without '='", "type User struct { ... }; fn f() void { ... };", false},

@@ -13,7 +13,7 @@ func (w *writer) bodyContents(b *ast.Block, mark bool) {
 		return
 	}
 	markName := ""
-	if mark && w.deferStack {
+	if mark && w.deferStack && !blockTerminates(b) {
 		markName = w.next("mark")
 		w.linef("%s := _s_d.Mark()", markName)
 	}
@@ -501,6 +501,24 @@ func (w *writer) deferStmt(s *ast.DeferStmt) {
 	w.linef("_s_d.Push(func() { %s })", callStr)
 }
 
+func loopJumps(b *ast.Block) bool {
+	if b == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.FuncLit, *ast.ForStmt:
+			return false
+		case *ast.BreakStmt, *ast.ContinueStmt:
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
 func loopNeedsLabel(b *ast.Block) bool {
 	if b == nil {
 		return false
@@ -666,7 +684,8 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 	}
 	w.indent++
 	mark := ""
-	if w.deferStack {
+	terminates := blockTerminates(s.Body)
+	if w.deferStack && (!terminates || loopJumps(s.Body)) {
 		mark = w.next("mark")
 		w.linef("%s := _s_d.Mark()", mark)
 		w.loops = append(w.loops, mark)
@@ -675,7 +694,9 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 		w.genStmts(s.Body.Stmts)
 	}
 	if mark != "" {
-		w.linef("_s_d.RunTo(%s)", mark)
+		if !terminates {
+			w.linef("_s_d.RunTo(%s)", mark)
+		}
 		w.loops = w.loops[:len(w.loops)-1]
 	}
 	w.loopLabels = w.loopLabels[:len(w.loopLabels)-1]
@@ -823,14 +844,12 @@ func (w *writer) parStmt(s *ast.ParStmt) {
 	w.line("{")
 	w.indent++
 	wg := w.next("wg")
-	w.linef("var %s _s_sync.WaitGroup", wg)
-	w.f.needPkg("sync")
+	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
 	ctx := w.next("ctx")
 	cancel := w.next("cancel")
 	pe := w.next("pe")
-	w.linef("%s, %s := _s_context.WithCancel(%s)", ctx, cancel, w.currentCtx())
+	w.linef("%s, %s := %s.WithCancel(%s)", ctx, cancel, w.f.std("context"), w.currentCtx())
 	w.linef("_ = %s", ctx)
-	w.f.needPkg("context")
 	w.linef("var %s _s_rt.ParErrors", pe)
 	w.f.needPkg("rt")
 	w.linef("%s.Add(%d)", wg, len(s.Body.Stmts))
@@ -870,21 +889,19 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	w.indent++
 	wg := w.next("wg")
 	sem := w.next("sem")
-	w.linef("var %s _s_sync.WaitGroup", wg)
-	w.f.needPkg("sync")
-	limit := "_s_runtime.GOMAXPROCS(0)"
+	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
+	limit := ""
 	if s.Limit != nil {
 		limit = w.expr(s.Limit)
 	} else {
-		w.f.needPkg("runtime")
+		limit = w.f.std("runtime") + ".GOMAXPROCS(0)"
 	}
 	w.linef("%s := make(chan struct{}, %s)", sem, limit)
 	ctx := w.next("ctx")
 	cancel := w.next("cancel")
 	pe := w.next("pe")
-	w.linef("%s, %s := _s_context.WithCancel(%s)", ctx, cancel, w.currentCtx())
+	w.linef("%s, %s := %s.WithCancel(%s)", ctx, cancel, w.f.std("context"), w.currentCtx())
 	w.linef("_ = %s", ctx)
-	w.f.needPkg("context")
 	w.linef("var %s _s_rt.ParErrors", pe)
 	w.f.needPkg("rt")
 	isMap := s.Range != nil && s.Range.IsMap
@@ -1016,16 +1033,18 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 }
 
 func (w *writer) withinStmt(s *ast.WithinStmt) {
-	w.f.needPkg("context")
 	w.f.needPkg("rt")
 	w.line("{")
 	w.indent++
 	ctx := w.next("ctx")
 	cancel := w.next("cancel")
-	mark := w.next("mark")
-	w.linef("%s, %s := _s_context.WithTimeout(%s, %s)", ctx, cancel, w.currentCtx(), w.expr(s.Duration))
+	mark := ""
+	if !blockTerminates(s.Body) {
+		mark = w.next("mark")
+		w.linef("%s := _s_d.Mark()", mark)
+	}
+	w.linef("%s, %s := %s.WithTimeout(%s, %s)", ctx, cancel, w.f.std("context"), w.currentCtx(), w.expr(s.Duration))
 	w.linef("_ = %s", ctx)
-	w.linef("%s := _s_d.Mark()", mark)
 	w.linef("_s_d.Push(%s)", cancel)
 	old := w.ctx
 	w.ctx = ctx
@@ -1033,7 +1052,9 @@ func (w *writer) withinStmt(s *ast.WithinStmt) {
 		w.genStmts(s.Body.Stmts)
 	}
 	w.ctx = old
-	w.linef("_s_d.RunTo(%s)", mark)
+	if mark != "" {
+		w.linef("_s_d.RunTo(%s)", mark)
+	}
 	w.indent--
 	w.line("}")
 }

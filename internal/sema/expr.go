@@ -1187,6 +1187,10 @@ func (c *checker) goTypeOf(t ast.Type) types.Type {
 	return c.p.goTypeOf(t)
 }
 
+func (p *Program) GoTypeOf(t ast.Type) types.Type {
+	return p.goOf[t]
+}
+
 func (p *Program) goTypeOf(t ast.Type) types.Type {
 	if t == nil {
 		return nil

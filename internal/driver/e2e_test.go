@@ -455,10 +455,13 @@ func TestNewWritesAgentGuide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"ink check --json", "ink run"} {
+	for _, want := range []string{"ink check --json", "ink run", "ink guide"} {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("AGENTS.md missing %q", want)
 		}
+	}
+	if strings.Contains(string(data), "design/SPEC.md") {
+		t.Fatal("AGENTS.md points at design/SPEC.md, which a new project does not have")
 	}
 	cfg, err := os.ReadFile(filepath.Join(dir, "opencode.json"))
 	if err != nil {
