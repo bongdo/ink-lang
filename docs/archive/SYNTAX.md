@@ -1,16 +1,19 @@
-> **Historical.** The current language is [`SPEC.md`](SPEC.md); the agent workflow is [`AGENTS.md`](../AGENTS.md).
+> **Archived.** Frozen design note, kept for history. Not current documentation.
+> Current: [SPEC.md](../SPEC.md), [FEATURES.md](../FEATURES.md), [EDGES.md](../EDGES.md).
+
+> **Historical.** The current language is [`SPEC.md`](../SPEC.md); the agent workflow is [`AGENTS.md`](../../AGENTS.md).
 
 # Ink — syntax v0
 
 - **Статус:** исторический снимок v0 (до 0.2). Не источник истины: актуальная
-  спецификация — [`SPEC.md`](SPEC.md).
+  спецификация — [`SPEC.md`](../SPEC.md).
 - **Backend:** Go 1.26+.
 - **Не зафиксировано на момент снимка:** частично `nil`, константы, модули,
   срезы, tooling.
 
 Это не полная спецификация. Это снимок договорённостей и список того, что ещё
 не решено. Документ не переписывается под новые решения; отказы собраны в
-[`SPEC.md`](SPEC.md) §10.
+[`SPEC.md`](../SPEC.md) §10.
 
 ---
 
@@ -767,7 +770,7 @@ boundary на воркер; у каждого воркера свой `DeferStac
 ### Not planned
 
 Эти пункты обсуждались в v0, но реализованы не будут. Канонический список —
-[`SPEC.md`](SPEC.md) §10.
+[`SPEC.md`](../SPEC.md) §10.
 
 - Generic constraints (`comparable`, numeric).
 - Doc-комментарии, привязанные к объявлению.

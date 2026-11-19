@@ -6,9 +6,9 @@ Printed by `ink guide`; loaded on demand as the `ink` OpenCode skill. One canoni
 
 - `ink guide` — this text, printed by the binary; it wins on disagreement.
 - `ink.toml` — project name and Go module path.
-- In the compiler repository only: `design/SPEC.md` (wins over everything else),
-  `design/GAPS.md`, `examples/tour` (valid), `examples/problems` (invalid on
-  purpose). A project created by `ink new` has no `design/` or `examples/`.
+- In the compiler repository only: `docs/SPEC.md` (wins over everything else),
+  `docs/EDGES.md`, `examples/tour` (valid), `examples/problems` (invalid on
+  purpose). A project created by `ink new` has no `docs/` or `examples/`.
 
 ## Loop
 
@@ -89,8 +89,8 @@ within 30s { ... };
 
 - `par` runs top-level statements as workers; nested blocks are sequential.
 - Maps: no range in `par for`, no writes in `par`. Collect keys, write locally.
-- G10: hidden context stops at package and function-value boundaries.
-- G11: checks are static (aliases, escapes, literals); `ink run -race` and
+- Hidden context stops at package and function-value boundaries.
+- Checks are static (aliases, escapes, literals); `ink run -race` and
   `ink test -race` are the dynamic oracle.
 
 ## Common diagnostics

@@ -32,7 +32,7 @@ panic: unreachable
 
 The same shape is accepted for `fn f() i32 { };` and for an `if` without
 `else`. The reported line is past the end of the 7-line source, so even the
-runtime message is not actionable. `design/GAPS.md` G32 covers the `go vet`
+runtime message is not actionable. `docs/archive/GAPS.md` G32 covers the `go vet`
 noise, but not the fact that `check` calls this program clean.
 
 ## Smallest change
@@ -78,6 +78,6 @@ generated fall-through is `return nil` by design.
 - An `if/else` whose branches terminate syntactically but fall through
   semantically stays a false negative; the Go typecheck still cannot see it.
   That is acceptable for the first patch and should be written down in
-  `design/GAPS.md` next to G32.
+  `docs/archive/GAPS.md` next to G32.
 - The check is syntactic, not flow-sensitive; `for ()` with a conditional
   `break` becomes a false positive unless the helper ignores any `break`.

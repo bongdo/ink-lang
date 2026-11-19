@@ -2,7 +2,7 @@
 
 **Статус:** концепция для 1.0. Описывает целевую границу, а не только 0.2.
 **Связано:** [ONE_WAY.md](ONE_WAY.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
-[GAPS.md](GAPS.md), [decisions.md](../docs/decisions.md).
+[EDGES.md](EDGES.md), [decisions.md](decisions.md).
 
 ## 1. Позиция
 
@@ -527,7 +527,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
 | Имена JSON-полей | нет struct tags; `encoding/json` берёт имена Go-полей, а поле с маленькой буквы в Ink неэкспортировано | `map[str, any]` для ответа или DTO с тегами в binding |
 | Шаблоны и статика в бинаре | нет `//go:embed`: attributes вне языка | `os.DirFS` и файлы рядом с бинарём, либо binding с `embed.FS` |
 | SIGTERM и graceful shutdown | нет `chan`; `signal.Notify` требует канал | binding: Go-пакет слушает сигнал и вызывает `srv.Shutdown` |
-| Дедлайн через границу пакета | скрытый ctx сбрасывается в `Background()` на публичной обёртке (G10) | держать `within` в одном пакете или принять сброс |
+| Дедлайн через границу пакета | скрытый ctx сбрасывается в `Background()` на публичной обёртке | держать `within` в одном пакете или принять сброс |
 | Регистрация драйвера БД, `pprof`, `tzdata` | нужен blank-импорт | `use "path" as _;` — blank import |
 
 Практическое следствие: зрелый сервис на Ink — это app-код плюс один

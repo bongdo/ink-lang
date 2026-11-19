@@ -1,8 +1,9 @@
-# Type-checking generated Go (G26)
+# Type-checking generated Go
 
 Status: works for `ink check` and LSP diagnostics. `ink check` also
-type-checks generated test packages (`test` blocks). Sema remains synchronous in
-the LSP; the generated-Go typecheck is debounced.
+type-checks generated test packages (`test` blocks). In the LSP, parse and sema
+run on an analysis worker with a latest-version queue; the generated-Go
+typecheck runs after them and is debounced.
 
 ## What runs
 
@@ -16,9 +17,10 @@ with `golang.org/x/tools/go/packages`. Nothing is written to the source tree:
 - the embedded runtime is overlaid at `<module>/.ink/runtime/runtime.go`;
 - the packages are loaded from the real module root, so `go.mod`, `go.sum`
   and the module cache resolve imports normally;
-- `//line /abs/path/file.ink:line:col` directives emitted by codegen make the
-  Go compiler report positions in `.ink` files, including the column;
-  `typecheck` parses those positions and returns `Error{Path, Pos, Msg}`.
+- `//line path:line:col` directives emitted by codegen make the Go compiler
+  report positions in `.ink` files, including the column; paths are relative to
+  the generated file. `typecheck` parses those positions and returns
+  `Error{Path, Pos, Msg}`.
 
 The load mode is `LoadImports | NeedExportFile`, not `LoadTypes`: requesting
 `go/types` objects makes `go/packages` fall back to source-typing every
@@ -57,16 +59,18 @@ the LSP after editing one.
 source `ink` and a stable `code` from `internal/diag`:
 
 - `initialize`, `didOpen`, `didSave` and `didClose` run it immediately;
-- `didChange` runs parse + sema immediately and schedules the typecheck after
-  150 ms; a newer edit stops the timer and stale results are dropped, so type
-  diagnostics are briefly absent while typing;
+- `didChange` snapshots the documents, submits parse + sema to the analysis
+  worker (latest generation wins) and schedules the typecheck after 150 ms; a
+  newer edit stops the timer and stale results are dropped, so type diagnostics
+  are briefly absent while typing;
 - `Tests: true` is used, so `test` blocks are type-checked and mapped back to
   `.ink` files;
 - if parsing or sema has a non-warning error, type-checking is skipped;
 - projects without `go.mod` are skipped, because packages cannot be resolved
   reliably.
 
-Sema still blocks the message loop on every change; the generated-Go typecheck
+The analysis worker runs the latest generation only; a running pass is not
+cancelled mid-flight, so a newer edit waits for it. The generated-Go typecheck
 runs in a timed worker and publishes only for the current generation. Measured
 on this machine, type-checking adds about 1-2 s to a small project; a warm
 in-process cache makes repeated opens and saves free.
@@ -75,7 +79,7 @@ in-process cache makes repeated opens and saves free.
 
 - Start columns are exact from `//line path:line:col`; generated paths are
   relative to the generated file and mapped back to source files. End columns
-  are one-character fallbacks for sema and typecheck diagnostics (G34).
+  are one-character fallbacks for sema and typecheck diagnostics.
 - Errors are only as good as Go's position mapping: an error in generated
   code that is not covered by a `//line` directive becomes a project-level
   error. If the package also has a `.ink` parse/sema error, that unmapped
@@ -85,15 +89,13 @@ in-process cache makes repeated opens and saves free.
 - The cache key does not include dependency sources, hand-written `.go` files
   in the project, or `GOOS`/`GOARCH`. Restart the LSP after editing one of
   those (there is a `shortcut:` in `typecheck.go`).
-- The LSP still does the whole-project sema pass on every keystroke (G43);
-  only the generated-Go typecheck is debounced and generation-checked.
 
 ## Next steps
 
-1. Move sema to a worker with a latest-version queue and cancellation (G43).
-2. Cache per package instead of per project, so editing one package does not
+1. Cache per package instead of per project, so editing one package does not
    reload unrelated ones.
-3. Add exact end positions for sema and typecheck diagnostics (G34).
+2. Add exact end positions for sema and typecheck diagnostics.
+3. Cancel a running analysis when a newer generation arrives.
 
 ## Verification
 

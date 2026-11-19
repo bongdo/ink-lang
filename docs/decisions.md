@@ -266,3 +266,24 @@ literals.
 общую проверку присваиваемости только ради этого кейса.
 **Цена:** циклы через свободные функции по-прежнему ловит только полный Go
 typecheck; `--fast` их не видит.
+
+## 2026-11-19 — Documentation is organized by question, not by work item
+
+**Контекст:** the project had two competing documentation trees (`design/` and
+`docs/`) and eleven design files of five different kinds. The 0.2 gap list
+mixed status, roadmap, invariants, non-goals and decisions; `G49` was a
+deliberate non-goal, not a gap. Sources drifted: `TYPECHECK.md` still said sema
+ran synchronously after the analysis worker shipped, `SPEC.md` pointed at the
+gap list as its status, and `README.md` duplicated both.
+**Решение:** one live tree in `docs/`: `SPEC.md`, `PAR.md`, `FFI.md` and
+`ONE_WAY.md` are normative; `FEATURES.md` is the only status table; `EDGES.md`
+is the only list of deviations, marked open or accepted; `impl/` holds compiler
+contracts; `archive/` holds frozen history; `decisions.md` stays append-only.
+No gap or roadmap numbers.
+**Почему:** a reader has one place to ask "does it work", "will it surprise
+me" and "what is the rule". Work comes from open `EDGES.md` entries and vault
+features, not from a numbered backlog maintained in prose.
+**Что отвергли:** keeping `GAPS.md` and layering new files on top; a status
+file per area; rewriting archived notes into the new format.
+**Цена:** old `G*`/`A*` ids are gone and archived notes still mention them;
+links to `design/` break once, with no redirect layer.

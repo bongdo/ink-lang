@@ -5,8 +5,8 @@ reference, canonical forms, diagnostic codes and concurrency limits are in
 `ink guide`; in OpenCode load the `ink` skill instead.
 
 `ink guide` is the only reference: it is printed by the binary and this file is
-its short form. `design/` exists only in the compiler repository; a project
-created by `ink new` has no `design/` or `examples/`, so do not look there.
+its short form. `docs/` exists only in the compiler repository; a project
+created by `ink new` has no `docs/` or `examples/`, so do not look there.
 
 ## Loop
 

@@ -1,3 +1,6 @@
+> **Archived.** Frozen design note, kept for history. Not current documentation.
+> Current: [SPEC.md](../SPEC.md), [FEATURES.md](../FEATURES.md), [EDGES.md](../EDGES.md).
+
 # Ink — agent readiness roadmap
 
 **Status:** implemented for the 0.2 preview; A2 and A7 are partial.
@@ -36,7 +39,7 @@ These are prerequisites. Nothing in P1–P3 starts before P0 is usable.
 | ID | Deliverable | Status | Evidence |
 |---|---|---|---|
 | A9 | Race path | done | `ink run -race`, `ink test -race` and `ink check --race` pass through to Go; `check --race` sets `packages.Config.BuildFlags` to `-race`. Documented in README, getting started and `ink guide`. |
-| A10 | Boundary docs | done | `ink guide` names G10 and G11; [`examples/limits/README.md`](../examples/limits/README.md) has annotated G10/G11 snippets; `examples/tour` and `examples/problems` are named as the valid/invalid oracles. |
+| A10 | Boundary docs | done | `ink guide` names G10 and G11; [`examples/limits/README.md`](../../examples/limits/README.md) has annotated G10/G11 snippets; `examples/tour` and `examples/problems` are named as the valid/invalid oracles. |
 
 ## P3 — 1.0 polish
 

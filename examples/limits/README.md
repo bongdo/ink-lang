@@ -1,11 +1,11 @@
-# Concurrency limits: G10 and G11
+# Concurrency limits
 
 These two programs compile and pass `ink check`. They show why the static
 checks are not the whole story. `ink check` is the source of truth for
 compile-time diagnostics; `ink run -race` and `ink test -race` are the
 runtime oracle for data races.
 
-## G10 — hidden context stops at package and function-value boundaries
+## Hidden context stops at package and function-value boundaries
 
 `lib/lib.ink`:
 
@@ -39,7 +39,7 @@ The same loss happens through a function value, interface dispatch and
 package-level initializers. Inside one package, direct calls and methods keep
 the hidden context.
 
-## G11 — static `par` checks cannot see every write
+## Static `par` checks cannot see every write
 
 ```hare
 fn store(p: *i32, v: i32) void {
@@ -68,6 +68,5 @@ ink test -race
 ```
 
 `ink check --race` type-checks with `-race`, but it does not execute the
-program. See `ink guide` §Concurrency,
-[`design/SPEC.md`](../../design/SPEC.md) §8 and
-[`design/GAPS.md`](../../design/GAPS.md) G10/G11.
+program. See `ink guide` §Concurrency, [`docs/SPEC.md`](../../docs/SPEC.md) §8 and
+[`docs/EDGES.md`](../../docs/EDGES.md).

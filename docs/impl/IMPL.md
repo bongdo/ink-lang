@@ -148,8 +148,7 @@ Generated files are formatted with `go/format`.
 Every declaration, statement and expression gets a
 `//line <path>:<line>:<col>` directive where practical (at least decls,
 statements, and call expressions). The path is relative to the generated file.
-One-character fallback ends for sema/typecheck diagnostics are a known limit
-(G34).
+One-character fallback ends for sema/typecheck diagnostics are a known limit.
 
 ### `internal/typecheck`
 

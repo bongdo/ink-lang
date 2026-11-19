@@ -1,4 +1,7 @@
-> **Historical.** The current language is [`SPEC.md`](SPEC.md); the agent workflow is [`AGENTS.md`](../AGENTS.md).
+> **Archived.** Frozen design note, kept for history. Not current documentation.
+> Current: [SPEC.md](../SPEC.md), [FEATURES.md](../FEATURES.md), [EDGES.md](../EDGES.md).
+
+> **Historical.** The current language is [`SPEC.md`](../SPEC.md); the agent workflow is [`AGENTS.md`](../../AGENTS.md).
 
 # nil: аудит двух форм и варианты упрощения
 

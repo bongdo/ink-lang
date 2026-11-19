@@ -323,6 +323,7 @@ footer.site-footer a { color: var(--teal); }
 </style>
 </head>
 <body>
+<div style="position:relative;z-index:9999;padding:10px 16px;font:13px/1.5 system-ui,sans-serif;border-bottom:1px solid rgba(128,128,128,.35);background:rgba(128,128,128,.08);color:inherit">Снимок превью 0.2. Актуальный статус — <a href="../../docs/FEATURES.md">docs/FEATURES.md</a>, известные края — <a href="../../docs/EDGES.md">docs/EDGES.md</a>. Номера G* ниже относятся к архивному списку <a href="../../docs/archive/GAPS.md">docs/archive/GAPS.md</a>.</div>
 <a class="skip" href="#main">К содержанию</a>
 <header class="hero" id="top">
   <div class="wrap">
@@ -639,7 +640,7 @@ rule: callee.NeedsCtx =&gt; caller.NeedsCtx</code></pre>
 
       <h3 id="typecheck"><code>internal/typecheck</code></h3>
       <p>После чистого parse/sema <code>ink check</code> и LSP вызывают <code>typecheck.Check</code>: он генерирует Go в памяти тем же <code>internal/gen</code>, подкладывает каждый <code>zz_ink.go</code> и встроенный runtime через <code>packages.Config.Overlay</code> и загружает пакеты из реального module root. Режим — <code>LoadImports | NeedExportFile</code>, а не <code>LoadTypes</code>: так <code>go list</code> отдаёт export data и не типизирует все зависимости из исходников. Диагностика Go возвращается через <code>//line</code> как <code>Error{Path, Pos, Msg}</code>.</p>
-      <p>Результат кешируется в памяти по SHA-256 сгенерированных файлов, <code>go.mod</code>, <code>go.sum</code> и runtime; последние 16 результатов. <code>didOpen</code>/<code>didSave</code> запускают проверку, <code>didChange</code> — нет, поэтому ошибки типов очищаются до следующего сохранения. <code>build/run/test</code> не платят за второй typecheck и по-прежнему используют <code>go build</code>/<code>go test</code>. Контракт и пределы — <a href="../../design/TYPECHECK.md"><code>design/TYPECHECK.md</code></a>.</p>
+      <p>Результат кешируется в памяти по SHA-256 сгенерированных файлов, <code>go.mod</code>, <code>go.sum</code> и runtime; последние 16 результатов. <code>didOpen</code>/<code>didSave</code> запускают проверку сразу, <code>didChange</code> — с задержкой 150 мс; устаревший результат отбрасывается, поэтому во время набора ошибки типов могут быть не видны. <code>build/run/test</code> не платят за второй typecheck и по-прежнему используют <code>go build</code>/<code>go test</code>. Контракт и пределы — <a href="../../docs/impl/TYPECHECK.md"><code>docs/impl/TYPECHECK.md</code></a>.</p>
     </section>
 
     <section id="gen">
@@ -973,7 +974,7 @@ var cmd: tea.Cmd = nil;</code></pre>
 
     <section id="limits">
       <h2><span class="num">10</span>Границы: что работает и чего нет</h2>
-      <p>Ink — это 0.2 preview. Страница отделяет подтверждённое кодом от текущих пределов и осознанных отказов. Оставшиеся пробелы — в <a href="../../design/GAPS.md">design/GAPS.md</a>; канонический список отказов — в <a href="../../design/SPEC.md">design/SPEC.md</a> §10.</p>
+      <p>Ink — это 0.2 preview. Страница отделяет подтверждённое кодом от текущих пределов и осознанных отказов. Оставшиеся пробелы — в <a href="../../docs/EDGES.md">docs/EDGES.md</a>; канонический список отказов — в <a href="../../docs/SPEC.md">docs/SPEC.md</a> §10.</p>
 
       <div class="grid-2">
         <div class="card">
@@ -1007,9 +1008,9 @@ var cmd: tea.Cmd = nil;</code></pre>
 
       <h3>Что читать дальше</h3>
       <ul>
-        <li><a href="../../design/IMPL.md">design/IMPL.md</a> — контракты пакетов и правила кодогена.</li>
-        <li><a href="../../design/SPEC.md">design/SPEC.md</a> — язык как он задуман в 0.2 preview.</li>
-        <li><a href="../../design/GAPS.md">design/GAPS.md</a> — честный список пробелов и порядок работ.</li>
+        <li><a href="../../docs/impl/IMPL.md">docs/impl/IMPL.md</a> — контракты пакетов и правила кодогена.</li>
+        <li><a href="../../docs/SPEC.md">docs/SPEC.md</a> — язык как он задуман в 0.2 preview.</li>
+        <li><a href="../../docs/EDGES.md">docs/EDGES.md</a> — честный список пробелов и порядок работ.</li>
         <li><a href="../../docs/decisions.md">docs/decisions.md</a> — почему компилятор устроен именно так.</li>
       </ul>
     </section>
@@ -1018,7 +1019,7 @@ var cmd: tea.Cmd = nil;</code></pre>
 
 <footer class="site-footer">
   <div class="wrap">
-    <p>Страница собрана по <code>design/IMPL.md</code>, <code>design/SPEC.md</code>, <code>design/GAPS.md</code>, <code>design/TYPECHECK.md</code> и исходникам <code>internal/lexer</code>, <code>internal/parser</code>, <code>internal/ast</code>, <code>internal/sema</code>, <code>internal/gen</code>, <code>internal/typecheck</code>, <code>internal/driver</code>, <code>internal/lsp</code> и <code>runtime/</code>. Октябрь 2026.</p>
+    <p>Страница собрана по <code>docs/impl/IMPL.md</code>, <code>docs/SPEC.md</code>, <code>docs/EDGES.md</code>, <code>docs/impl/TYPECHECK.md</code> и исходникам <code>internal/lexer</code>, <code>internal/parser</code>, <code>internal/ast</code>, <code>internal/sema</code>, <code>internal/gen</code>, <code>internal/typecheck</code>, <code>internal/driver</code>, <code>internal/lsp</code> и <code>runtime/</code>. Октябрь 2026.</p>
     <p>Если код и страница разойдутся, верьте коду. На момент сборки <code>bin/check</code> зелёный.</p>
     <p><a href="index.html">← К презентации</a> · <a href="cheatsheet.html">Шпаргалка</a> · <a href="#top">Наверх</a></p>
   </div>

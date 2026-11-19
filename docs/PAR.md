@@ -1,8 +1,8 @@
 # Ink 0.2 — `par`, `par for`, `within`
 
-Normative for 0.2. Where SPEC.md is silent or looser, this file wins. The
-gaps G1–G9 in GAPS.md are the implementation work; §8 maps each rule to the
-test that pins it. Errors quoted here are the substrings the tests assert.
+Normative for 0.2. Where SPEC.md is silent or looser, this file wins. §8 maps
+each rule to the test that pins it. Errors quoted here are the substrings the
+tests assert.
 
 ## 1. Terms
 
@@ -212,24 +212,24 @@ non-slot write to `c` is rejected. A method call on a captured value struct
   iteration variable. `sync`/`atomic` are an explicit trust boundary outside
   this static analysis: the checker does not model their happens-before. Use
   `go build -race` for that path.
-- No dynamic checks in the compiler. `go build -race` (G11) stays the runtime
+- No dynamic checks in the compiler. `go build -race` stays the runtime
   oracle.
 - Hidden context is not coloured across package boundaries or function values
-  (G10), so a `within` deadline does not cross them.
+  so a `within` deadline does not cross them.
 
 ## 8. Test map
 
-| Gap | Pinned by |
+| Rule | Pinned by |
 | --- | --- |
-| G1 | `internal/gen/par_gaps_test.go` `TestParPanicBecomesError`, `TestParPanicCancelsPlainPar`, `TestParPanicVoidMain` |
-| G2 | `internal/sema/par_gaps_test.go` `TestParAllowsWithin`, `TestParAllowsDefer`; `internal/gen/par_gaps_test.go` `TestParWithinInside`, `TestParWithinCancels`; `tests/cases/par_within` |
-| G3 | `internal/gen/par_gaps_test.go` `TestParDeferInside`; `tests/cases/par_defer` |
-| G4 | `internal/sema/par_gaps_test.go` `TestParAllowsOrPanic`; `internal/gen/par_gaps_test.go` `TestParOrPanic` |
-| G5 | `internal/sema/par_gaps_test.go` `TestParMapWriteRejected`; `internal/sema/par_hardening_test.go` `TestParForMapRejected`, `TestForUnboundedInsideParRejected` |
-| G6 | `internal/sema/par_gaps_test.go` `TestParPointerWriteRejected`, `TestParAliasWriteRejected`, `TestParMethodWriteRejected` |
-| G7 | `internal/sema/par_gaps_test.go` `TestParReadWriteRejected`, `TestParWriteSetsAllowed` |
-| G8 | `internal/sema/par_gaps_test.go` `TestParForCstyleIterVar`; `internal/gen/par_gaps_test.go` `TestParForCstyleCapture`; `tests/cases/par_capture` |
-| G9 | `runtime/par_test.go`; `internal/gen/par_gaps_test.go` `TestParMapError` |
+| panic becomes an error | `internal/gen/par_gaps_test.go` `TestParPanicBecomesError`, `TestParPanicCancelsPlainPar`, `TestParPanicVoidMain` |
+| `within` inside `par` | `internal/sema/par_gaps_test.go` `TestParAllowsWithin`, `TestParAllowsDefer`; `internal/gen/par_gaps_test.go` `TestParWithinInside`, `TestParWithinCancels`; `tests/cases/par_within` |
+| `defer` inside `par` | `internal/gen/par_gaps_test.go` `TestParDeferInside`; `tests/cases/par_defer` |
+| `or panic` inside `par` | `internal/sema/par_gaps_test.go` `TestParAllowsOrPanic`; `internal/gen/par_gaps_test.go` `TestParOrPanic` |
+| map writes and ranges | `internal/sema/par_gaps_test.go` `TestParMapWriteRejected`; `internal/sema/par_hardening_test.go` `TestParForMapRejected`, `TestForUnboundedInsideParRejected` |
+| pointer and alias writes | `internal/sema/par_gaps_test.go` `TestParPointerWriteRejected`, `TestParAliasWriteRejected`, `TestParMethodWriteRejected` |
+| plain `par` read/write sets | `internal/sema/par_gaps_test.go` `TestParReadWriteRejected`, `TestParWriteSetsAllowed` |
+| C-style `par for` capture | `internal/sema/par_gaps_test.go` `TestParForCstyleIterVar`; `internal/gen/par_gaps_test.go` `TestParForCstyleCapture`; `tests/cases/par_capture` |
+| map error order | `runtime/par_test.go`; `internal/gen/par_gaps_test.go` `TestParMapError` |
 
 Messages the tests assert: `writing to map`, `captured from outside par`,
 `read by another par statement`, `writing to self inside par`,

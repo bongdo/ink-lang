@@ -1,3 +1,6 @@
+> **Archived.** Frozen design note, kept for history. Not current documentation.
+> Current: [SPEC.md](../SPEC.md), [FEATURES.md](../FEATURES.md), [EDGES.md](../EDGES.md).
+
 # Ink — gap list (0.2 preview)
 
 This is the honest list of what is missing or only partially implemented.
@@ -21,7 +24,7 @@ boundary (G10) and the static-analysis limit covered by the race detector
 Effort: **S** — hours, **M** — days, **L** — a week or more.
 
 Gap IDs are stable. Numbers missing from this list were dropped as won't-do;
-[`SPEC.md`](SPEC.md) §10 is the canonical list of deliberate absences.
+[`SPEC.md`](../SPEC.md) §10 is the canonical list of deliberate absences.
 
 ## What works today
 
@@ -59,7 +62,7 @@ Gap IDs are stable. Numbers missing from this list were dropped as won't-do;
 
 ## A. Concurrency (`par`, `par for`, `within`) — core closed
 
-G1–G9 are fixed in 0.2; [`PAR.md`](PAR.md) is the normative description of the
+G1–G9 are fixed in 0.2; [`PAR.md`](../PAR.md) is the normative description of the
 implemented semantics. The remaining items are G10 (the Go boundary remainder)
 and G11: the checks are static, and the Go race detector stays the dynamic
 oracle.
@@ -136,7 +139,7 @@ context-colored: a call through them uses the public wrapper with
 boundary or a function value. Timers and IO are executed by `tea.Program`, not
 by Ink.
 **Документация:** `ink guide` §Concurrency and
-[`examples/limits/README.md`](../examples/limits/README.md).
+[`examples/limits/README.md`](../../examples/limits/README.md).
 
 ### G11. `par` checks are static only
 **Статус:** documented and covered by the race path; the static limit remains.
@@ -148,7 +151,7 @@ alias, escape and function-literal analysis.
 **Почему:** the Ink compiler has no runtime instrumentation.
 **Фикс:** none for the race path; Go's detector stays the dynamic oracle.
 **Документация:** `ink guide` §Concurrency and
-[`examples/limits/README.md`](../examples/limits/README.md).
+[`examples/limits/README.md`](../../examples/limits/README.md).
 **Оценка:** S.
 
 ## B. Language surface
@@ -221,7 +224,7 @@ publishes diagnostics with source `ink`.
 LSP type-check includes `test` blocks and reports real start columns through
 `//line`, but sema and typecheck end spans are one-character fallbacks (G34).
 Sema still runs synchronously on every change (G43).
-[`TYPECHECK.md`](TYPECHECK.md) is the detailed contract.
+[`TYPECHECK.md`](../impl/TYPECHECK.md) is the detailed contract.
 **Остаток:** per-package cache and exact end spans.
 
 ### G27. Interface conformance — fixed in 0.2
@@ -321,7 +324,7 @@ file import set; fail with an Ink error if a type cannot be named.
 
 ### G36. `or` in multiple RHS / a `for` post is rejected
 **Статус:** by design. `or` stays statement-level; these positions give a clear
-error. The restriction is listed in [`SPEC.md`](SPEC.md) §10.
+error. The restriction is listed in [`SPEC.md`](../SPEC.md) §10.
 
 ### G37. Generation always rewrites whole files — fixed
 **Сейчас:** `zz_ink.go` and `zz_ink_test.go` are written only when their bytes
@@ -421,7 +424,7 @@ G47–G50 are language or contract decisions, not bugs; see section F.
 
 Четыре вопроса, которые сервис поднимает сразу и которые нельзя закрыть
 кодом без решения владельца языка. У каждого есть рабочая форма сегодня;
-решение нужно, только чтобы убрать цену. Подробности — [`FFI.md`](FFI.md) §10.
+решение нужно, только чтобы убрать цену. Подробности — [`FFI.md`](../FFI.md) §10.
 
 ### G47. Имена JSON-полей
 **Статус:** open.

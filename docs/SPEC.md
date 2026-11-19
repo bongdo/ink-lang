@@ -1,8 +1,9 @@
 # Ink — language specification (0.2 preview)
 
-This document freezes every question left open in [`SYNTAX.md`](SYNTAX.md).
-Where this preview and the older v0 notes disagree, this document wins.
-This is not a 1.0 promise: the gap list is in [`GAPS.md`](GAPS.md).
+This document freezes every question left open in
+[`archive/SYNTAX.md`](archive/SYNTAX.md). Where this preview and the older v0
+notes disagree, this document wins. This is not a 1.0 promise: feature status is
+in [`FEATURES.md`](FEATURES.md).
 
 ## 1. Source files and packages
 
@@ -431,8 +432,8 @@ within 30s {
   `context.Context` receive it automatically.
 - On a Go interface boundary, codegen emits a public method with the exact Go
   signature and an internal context version. The user writes one method; the
-  wrapper lives in `zz_ink.go` (G10).
-- Checks are static. `go build -race` stays the dynamic oracle (G11): writes
+  wrapper lives in `zz_ink.go`.
+- Checks are static. `go build -race` stays the dynamic oracle: writes
   through a pointer/interface passed to a free or Go function, writes inside
   function literals, and aliases other than `var q = p` are not tracked as
   writes. A method call on a captured interface value is conservatively a
@@ -499,37 +500,8 @@ These are not planned, not merely missing:
 code, method declarations outside a type, UFCS, `switch`, labeled control flow,
 operator overloading, exceptions.
 
-## 11. Known limits (0.2 preview)
+## 11. Limits
 
-- `or` is statement-level only. It is not allowed in package-level initializers.
-- Multi-result calls cannot be nested in other expressions; `or` handles any
-  number of non-error results.
-- `void` is only a function result. A `void` value in a variable, field,
-  parameter, argument, return with a value or composite element is rejected.
-- Hidden context is not propagated across package boundaries or through
-  function values; the public wrapper starts a fresh context there.
-- `par` checks are static. There is no dynamic race detection in the compiler;
-  `go build -race` is the oracle (G11). The analysis has no interprocedural
-  alias or escape analysis: aliases from field/index reads and call results are
-  not tracked; writes inside function literals are not analysed. A method call
-  on a captured interface value is conservatively a write; a pointer or
-  interface passed to a free/Go function is not tracked as a write.
-  Map writes are rejected even for disjoint keys; a map range in `par for` is
-  rejected, so collect keys into a slice first. `for ()` in a `par` body is
-  rejected.
-- A panic raised in a callee carries its message; `PanicError` keeps the value
-  and a stack for diagnostics.
-- A Ink function that needs a hidden context is exposed through the
-  public wrapper; a Go caller does not pass a context, and an outer Ink
-  deadline does not cross that boundary.
-- Go functions returning `(T, bool)` must be handled with two-variable
-  declarations, not `or`.
-- `match` on `any` requires `else`; type patterns are limited to `case T` and
-  `case T as name`.
-- Duplicate variant names in one package are rejected; variants still share
-  names with their generated Go types `<Enum><Variant>`.
-- Interface conformance is checked for Ink and Go interfaces, but signatures
-  that cannot be named (generics, enum variants, arrays, function values and
-  variadic methods) are left to `go build`; an explicit Go `context.Context`
-  parameter is compared as an ordinary parameter. Multi-result assignments and
-  returns are skipped.
+Behavior that follows from §1–10 but can surprise a user is listed in
+[`EDGES.md`](EDGES.md), with the workaround and whether the limit is open or
+accepted. Deliberate non-goals are in §10.

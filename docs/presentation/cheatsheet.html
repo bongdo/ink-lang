@@ -509,6 +509,7 @@
 </style>
 </head>
 <body>
+<div style="position:relative;z-index:9999;padding:10px 16px;font:13px/1.5 system-ui,sans-serif;border-bottom:1px solid rgba(128,128,128,.35);background:rgba(128,128,128,.08);color:inherit">Снимок превью 0.2. Актуальный статус — <a href="../../docs/FEATURES.md">docs/FEATURES.md</a>, известные края — <a href="../../docs/EDGES.md">docs/EDGES.md</a>. Номера G* ниже относятся к архивному списку <a href="../../docs/archive/GAPS.md">docs/archive/GAPS.md</a>.</div>
 <div class="sheet">
 
   <header class="masthead">
@@ -923,14 +924,14 @@ fn main() void or error {
         <li>Method sets проверяются для Ink/Go интерфейсов; generics, enum-варианты, массивы, function values и variadic остаются на <code>go build</code> (G27).</li>
         <li>Ink-функция или метод со скрытым ctx получает публичный wrapper на Go-границе; дедлайн не переносится через function value или пакет.</li>
       </ul>
-      <p class="muted">0.2 — preview, не 1.0. Оставшиеся пробелы: <a href="../../design/GAPS.md"><code>design/GAPS.md</code></a>; отказы: <a href="../../design/SPEC.md"><code>design/SPEC.md</code></a> §10.</p>
+      <p class="muted">0.2 — preview, не 1.0. Известные края: <a href="../../docs/EDGES.md"><code>docs/EDGES.md</code></a>; отказы: <a href="../../docs/SPEC.md"><code>docs/SPEC.md</code></a> §10.</p>
     </section>
 
   </main>
 
   <footer class="foot">
     <span>Ink 0.2 · printable cheat sheet</span>
-    <span><a href="index.html">index.html</a> · <a href="internals.html">internals.html</a> · <a href="../../design/SPEC.md">SPEC.md</a></span>
+    <span><a href="index.html">index.html</a> · <a href="internals.html">internals.html</a> · <a href="../../docs/SPEC.md">SPEC.md</a></span>
   </footer>
 
 </div>

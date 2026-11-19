@@ -59,12 +59,16 @@ there.
 The 0.2 preview compiler, formatter and language server work end to end for the
 implemented surface. The conformance suite in `tests/cases` covers structs,
 enums, generics, errors, multiple results, type patterns, `defer`, `match`,
-local packages, Go interop, hidden context wrappers and the `par` core (G1–G9:
-panic recovery, per-worker `defer`/`within`, map/pointer/alias write rules,
-C-style capture). `bin/check` runs it with the unit and LSP tests.
+local packages, Go interop, hidden context wrappers and the `par` core.
+`bin/check` runs it with the unit and LSP tests.
 
-App code has one canonical way per intent. Ink does not add a second spelling
-for the same thing, and Go stays an external library at the FFI boundary.
+What works, what is partial and what is deliberately absent is in
+[`docs/FEATURES.md`](docs/FEATURES.md). Places where the language can surprise
+you, with the workaround for each, are in [`docs/EDGES.md`](docs/EDGES.md).
+
+App code has one canonical way per intent
+([`docs/ONE_WAY.md`](docs/ONE_WAY.md)). Ink does not add a second spelling for
+the same thing, and Go stays an external library at the FFI boundary.
 
 `ink check` type-checks the generated Go through `internal/typecheck` and
 reports errors at `.ink` positions for the whole project, including `test`
@@ -76,17 +80,10 @@ character after the start. The LSP publishes the same diagnostics on change
 with a debounced typecheck; it is a convenience, not the source of truth. Sema
 also checks interface conformance (method sets) for Ink and Go interfaces.
 
-Priority 1 is agent readiness, not 1.0: the roadmap is in
-[`design/AGENT.md`](design/AGENT.md), the short workflow is
-[`AGENTS.md`](AGENTS.md), and the full reference is `ink guide`. Known limits are in
-[`design/GAPS.md`](design/GAPS.md): statement-level `or`; static `par` checks
-with `ink run -race` / `ink test -race` as the dynamic oracle (G11); lost
-context across package and function-value boundaries (G10); and LSP references
-and rename cover project declarations only, with no rename conflict check.
-G10/G11 have annotated snippets in [`examples/limits`](examples/limits/README.md).
-Deliberate non-goals (local named functions, generic constraints and enums,
-guards, expression-level `or`, user variadics, doc comments) are in
-[`design/SPEC.md`](design/SPEC.md) §10. This is a 0.2 preview, not 1.0.
+Priority 1 is agent readiness, not 1.0: the short workflow is
+[`AGENTS.md`](AGENTS.md), and the full reference is `ink guide`. The limits of
+the current `par` analysis have annotated snippets in
+[`examples/limits`](examples/limits/README.md). This is a 0.2 preview, not 1.0.
 
 ## Commands
 
@@ -168,9 +165,12 @@ is copied to `.ink/runtime`.
 
 ## Language
 
-The full specification is in [`design/SPEC.md`](design/SPEC.md). The historical
-design snapshot and open questions from v0 are in [`design/SYNTAX.md`](design/SYNTAX.md).
-Compiler internals are in [`design/IMPL.md`](design/IMPL.md).
+The full specification is in [`docs/SPEC.md`](docs/SPEC.md). Concurrency rules
+are in [`docs/PAR.md`](docs/PAR.md); the Go boundary is in
+[`docs/FFI.md`](docs/FFI.md). Feature status is in
+[`docs/FEATURES.md`](docs/FEATURES.md), and the surprises with workarounds are in
+[`docs/EDGES.md`](docs/EDGES.md). Compiler internals are in
+[`docs/impl/IMPL.md`](docs/impl/IMPL.md).
 
 Highlights:
 
@@ -203,6 +203,9 @@ Highlights:
 
 `docs/presentation/index.html` — обзор языка, синтаксиса, Bubble Tea и внутренней
 кухни. Рядом: `internals.html` (компилятор) и `cheatsheet.html` (шпаргалка).
+Это снимок превью 0.2: актуальный статус — в
+[`docs/FEATURES.md`](docs/FEATURES.md), известные края — в
+[`docs/EDGES.md`](docs/EDGES.md).
 
 ## Editor support (LSP)
 
