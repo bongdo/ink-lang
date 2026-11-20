@@ -1,5 +1,5 @@
 use fmt;
-use "./shape";
+use ./shape;
 
 fn area(s: shape.Shape) f64 {
     return match (s) {
@@ -8,9 +8,11 @@ fn area(s: shape.Shape) f64 {
     };
 };
 
-fn main() void or error {
-    var s = shape.Shape.Circle { Radius = 2.0 };
-    fmt.Println(area(s)) or return;
+fn main() void! {
+    var s = shape.Shape.Circle { Radius: 2.0 };
+    fmt.Println(area(s))
+        or fail;
     var e = shape.Shape.Empty;
-    fmt.Println(area(e)) or return;
+    fmt.Println(area(e))
+        or fail;
 };

@@ -720,7 +720,7 @@ func New(dir string) error {
 	if err := os.WriteFile(filepath.Join(abs, "AGENTS.md"), []byte(agent.ShortGuide), 0o644); err != nil {
 		return err
 	}
-	main := fmt.Sprintf("use fmt;\n\nfn main() void or error {\n    fmt.Println(%q) or return;\n};\n", "hello from "+name)
+	main := fmt.Sprintf("use fmt;\n\nfn main() void! {\n    fmt.Println(%q) or fail;\n};\n", "hello from "+name)
 	if err := os.WriteFile(filepath.Join(abs, "main.ink"), []byte(main), 0o644); err != nil {
 		return err
 	}
@@ -769,7 +769,7 @@ func Init(dir string) error {
 	}
 	main := filepath.Join(abs, "main.ink")
 	if _, err := os.Stat(main); os.IsNotExist(err) {
-		src := "use fmt;\n\nfn main() void or error {\n    fmt.Println(\"hello\") or return;\n};\n"
+		src := "use fmt;\n\nfn main() void! {\n    fmt.Println(\"hello\") or fail;\n};\n"
 		return os.WriteFile(main, []byte(src), 0o644)
 	}
 	return nil

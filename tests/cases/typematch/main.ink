@@ -25,10 +25,10 @@ fn kind(e: error) str {
 
 fn main() void {
     fmt.Println(describe(i32(42)));
-    fmt.Println(describe(Point { x = 1 }));
-    fmt.Println(describe(&Point { x = 2 }));
+    fmt.Println(describe(Point { x: 1 }));
+    fmt.Println(describe(&Point { x: 2 }));
     fmt.Println(describe("s"));
     fmt.Println(describe(true));
     fmt.Println(kind(errors.New("boom")));
-    fmt.Println(kind(&os.PathError { Op = "open", Path = "x", Err = errors.New("no") }));
+    fmt.Println(kind(&os.PathError { Op: "open", Path: "x", Err: errors.New("no") }));
 };

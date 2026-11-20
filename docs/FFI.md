@@ -85,7 +85,7 @@ use sort;
 ### 2.2. Когда нужен Go-binding, а не Ink-facade
 
 Ink-facade достаточно, если маппинг — это тонкая обёртка: вызвать
-функцию, переложить поля, вернуть `or error`. Go-binding нужен, когда:
+функцию, переложить поля, вернуть `T!`. Go-binding нужен, когда:
 
 - библиотека держит callbacks и вызывает их из своих goroutine;
 - нужен `context.Context`, который нельзя провести через Ink-сигнатуру;
@@ -119,7 +119,7 @@ Binding — обычный Go-пакет с маленьким API, спроек
 Opaque handle выглядит так:
 
 ```hare
-use "example.com/app/bindings/httpc" as httpc;
+use example.com/app/bindings/httpc as httpc;
 
 type Response struct {
     Status: i32,
@@ -129,19 +129,19 @@ type Response struct {
 type Client struct {
     h: *httpc.Client,
 
-    fn Get(url: str) Response or error {
-        var r = h.Get(url) or return;
-        return Response { Status = r.Status, Body = r.Body };
+    fn Get(url: str) Response! {
+        var r = h.Get(url) or fail;
+        return Response { Status: r.Status, Body: r.Body };
     };
 
-    fn Close() void or error {
+    fn Close() void! {
         return h.Close();
     };
 };
 
-fn NewClient(base: str) Client or error {
-    var h = httpc.New(base) or return;
-    return Client { h = h };
+fn NewClient(base: str) Client! {
+    var h = httpc.New(base) or fail;
+    return Client { h: h };
 };
 ```
 
@@ -151,7 +151,7 @@ App-код видит `Client`, `Response`, `NewClient`, `Get`, `Close`. Он н
 
 ### 3.2. Lifecycle
 
-- Конструктор возвращает `T or error`; zero value handle невалиден, если
+- Конструктор возвращает `T!`; zero value handle невалиден, если
   не сказано обратное.
 - `Close` идемпотентен; повторный вызов не паникует.
 - `Close` отменяет внутренние goroutine и снимает callbacks; после `Close`
@@ -163,8 +163,8 @@ App-код видит `Client`, `Response`, `NewClient`, `Get`, `Close`. Он н
 
 ### 3.3. Ошибки
 
-- Go `error` → Ink `error`; facade возвращает `T or error` или
-  `void or error`.
+- Go `error` → Ink `error`; facade возвращает `T!` или
+  `void!`.
 - `errors.Is`/`errors.As` остаются в адаптере. App-код не должен знать
   Go-типы ошибок; если нужна классификация, facade отдаёт Ink-enum:
 
@@ -260,8 +260,8 @@ fn Kind(err: error) ErrorKind { ... };
 | pointers | `*T` | deref и поля можно; арифметики нет; в публичном API — opaque handle |
 | simple interfaces | `interface` | method set из поддержанных сигнатур |
 | function values | `fn(...)` | явные типы; без hidden ctx |
-| `error`, `(T, error)` | `T or error` | любое число не-error результатов |
-| `(T, bool)` | `var v, ok = ...` | не `or` |
+| `error`, `(T, error)` | `T!` | любое число не-error результатов |
+| `(T, bool)` | `var v, ok: ...` | не `or` |
 | multiple results | `fn() A, B` | для Go-сигнатур; app API лучше struct |
 
 ### 5.2. Не обещается
@@ -280,11 +280,11 @@ fn Kind(err: error) ErrorKind { ... };
 
 ### 5.3. Ошибки и несколько результатов
 
-- `(T, error)` → `T or error`.
-- `error` → `void or error`.
-- `(T, bool)` → `var v, ok = f();`, не `or`: bool — не error.
-- `(A, B, error)` — Go-форма. App-код может писать `A, B or error` и
-  `var a, b = f() or return;`; для публичного API facade лучше struct, чтобы
+- `(T, error)` → `T!`.
+- `error` → `void!`.
+- `(T, bool)` → `var v, ok: f();`, не `or`: bool — не error.
+- `(A, B, error)` — Go-форма. App-код может писать `(A, B)!` и
+  `var a, b: f() or fail;`; для публичного API facade лучше struct, чтобы
   не плодить multi-result сигнатуры. Ограничение — на app API, не на
   грамматику.
 - Ошибка из Go не становится panic; panic не маппится в обычный error. На
@@ -412,9 +412,9 @@ Go-специфику.
 Подходит для библиотеки без callbacks и lifecycle:
 
 ```hare
-use "example.com/app/bindings/markdown" as md;
+use example.com/app/bindings/markdown as md;
 
-fn Render(src: str) str or error {
+fn Render(src: str) str! {
     return md.Render(src);
 };
 ```
@@ -477,7 +477,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
 
 ## 8. Антипаттерны
 
-- **Go-пакет в домене.** `use "github.com/x/y"` в `domain/*.ink` — граница
+- **Go-пакет в домене.** `use github.com/x/y` в `domain/*.ink` — граница
   уже протекла.
 - **`context.Context` в публичной сигнатуре.** Даже если это удобно
   адаптеру, app-код не должен его видеть.
@@ -528,7 +528,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
 | Шаблоны и статика в бинаре | нет `//go:embed`: attributes вне языка | `os.DirFS` и файлы рядом с бинарём, либо binding с `embed.FS` |
 | SIGTERM и graceful shutdown | нет `chan`; `signal.Notify` требует канал | binding: Go-пакет слушает сигнал и вызывает `srv.Shutdown` |
 | Дедлайн через границу пакета | скрытый ctx сбрасывается в `Background()` на публичной обёртке | держать `within` в одном пакете или принять сброс |
-| Регистрация драйвера БД, `pprof`, `tzdata` | нужен blank-импорт | `use "path" as _;` — blank import |
+| Регистрация драйвера БД, `pprof`, `tzdata` | нужен blank-импорт | `use path as _;` — blank import |
 
 Практическое следствие: зрелый сервис на Ink — это app-код плюс один
 binding-пакет на каждую стену, которую он задевает. Пока стен четыре, это

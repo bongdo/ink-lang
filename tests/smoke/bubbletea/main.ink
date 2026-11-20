@@ -1,5 +1,5 @@
 use fmt;
-use "charm.land/bubbletea/v2" as tea;
+use charm.land/bubbletea/v2 as tea;
 
 type Model struct {
     cursor: int,
@@ -28,8 +28,9 @@ type Model struct {
     };
 };
 
-fn main() void or error {
+fn main() void! {
     var m = Model {};
     var p = tea.NewProgram(&m);
-    p.Run() or return;
+    p.Run()
+        or fail;
 };

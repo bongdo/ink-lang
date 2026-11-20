@@ -5,18 +5,18 @@ import "testing"
 func TestOrMultiResult(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use errors;
 
-fn pair(n: i32) i32, bool or error {
+fn pair(n: i32) i32, bool! {
     if (n < 0) {
         return 0, false, errors.New("neg");
     };
     return n, true;
 };
 
-fn pass(n: i32) i32, bool or error {
-    return pair(n) or return;
+fn pass(n: i32) i32, bool! {
+    return pair(n) or fail;
 };
 
-fn handle(n: i32) i32, bool or error {
+fn handle(n: i32) i32, bool! {
     return pair(n) or err {
         return 0, false;
     };
@@ -26,18 +26,18 @@ fn must(n: i32) i32, bool {
     return pair(n) or panic("bad");
 };
 
-fn main() void or error {
-    var a, b = pair(1) or return;
-    a, b = pair(2) or return;
-    pair(3) or return;
+fn main() void! {
+    var a, b = pair(1) or fail;
+    a, b = pair(2) or fail;
+    pair(3) or fail;
     var c, d = pair(4) or err {
         return;
     };
     var e, f = pair(5) or panic("bad");
     var g, h, err = pair(6);
     assert(err == nil);
-    var i, j = pass(7) or return;
-    var k, l = handle(8) or return;
+    var i, j = pass(7) or fail;
+    var k, l = handle(8) or fail;
     var m, n = must(9);
     _ = a + c + e + g + i + k + m;
     _ = b;
@@ -55,19 +55,19 @@ fn main() void or error {
 func TestOrMultiArity(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use errors;
 
-fn pair() i32, bool or error {
+fn pair() i32, bool! {
     return 1, true, errors.New("x");
 };
 
-fn one() i32 or error {
-    return pair() or return;
+fn one() i32! {
+    return pair() or fail;
 };
 
-fn main() void or error {
-    var a = pair() or return;
-    var b, c, d = pair() or return;
+fn main() void! {
+    var a = pair() or fail;
+    var b, c, d = pair() or fail;
     var x, y, z = 0, 0, 0;
-    x, y, z = pair() or return;
+    x, y, z = pair() or fail;
 };
 `})
 	for _, want := range []string{
@@ -86,7 +86,7 @@ func TestOrMultiRejects(t *testing.T) {
     return 1;
 };
 
-fn pair() i32, bool or error {
+fn pair() i32, bool! {
     return 1, true, nil[error];
 };
 
@@ -104,9 +104,9 @@ fn main() void {
 }
 
 func TestOrMultiNonCall(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn main() void or error {
+	p := checkSrc(t, map[string]string{".": `fn main() void! {
     var x = 1;
-    var a = x or return;
+    var a = x or fail;
 };
 `})
 	if !hasError(p, "or expects a call") {

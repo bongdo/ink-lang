@@ -186,11 +186,11 @@ fn main() void {
 		},
 		{
 			name: "error only",
-			src: `fn f() void or error {
+			src: `fn f() void! {
 };
 
-fn main() void or error {
-    f() or return;
+fn main() void! {
+    f() or fail;
 };
 `,
 			want: false,

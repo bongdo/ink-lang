@@ -41,8 +41,8 @@ hello/
   lib/             optional local package
 ```
 
-One directory is one package; no package clause. Local: `use "./lib" as lib;`.
-Go: `use fmt;`; versioned paths need an alias: `use "charm.land/bubbletea/v2" as tea;`.
+One directory is one package; no package clause. Local: `use ./lib as lib;`.
+Go: `use fmt;`; versioned paths need an alias: `use charm.land/bubbletea/v2 as tea;`.
 Generated, never edit: `zz_ink.go`, `zz_ink_test.go`, `.ink/`.
 
 ## Canonical syntax
@@ -56,23 +56,28 @@ type User struct {
 };
 
 type Shape enum { Circle { radius: f64 }, Empty, };
-type Writer interface { Write(p: u8[]) int or error; };
+type Writer interface { Write(p: u8[]) int!; };
 type ID = u64;
 const Max = 100;
 
-fn load(name: str) User or error { return User { Name = name }; };
+fn load(name: str) User! { return User { Name: name }; };
+fn split(n: i32) (i32, bool)! { return n, true; };
 fn pair() i32, bool { return 1, true; };
 ```
 
 - `type X struct/enum/interface` has no `=`; aliases keep `=`. Methods live in
-  the type body; `self` is implicit; struct literals use `field = value`.
+  the type body; `self` is implicit; struct literals use `field: value`.
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - `var x = value;`; `var p: *T = nil;`; no `:=`.
 - `const` is package-level and untyped; a local `const` is an error, use `var`.
-- `use fmt;` for simple Go imports; quoted paths for Go imports with `/` and
-  local `./` packages; a versioned path (`/v2`) requires an alias.
-- `T or error` plus `or return;`, `or err { ... };`, `or panic("msg");`.
-  Manual `if err != nil { return err; }` propagation is rejected.
+- Import paths are bare: `use fmt;`, `use encoding/json;`, `use ./lib as lib;`.
+  A versioned path (`/v2`) requires an alias. No quotes.
+- `T!` marks a fallible result. `void!` may fail with no value. Multi-result:
+  `(A, B)!`.
+- Handlers: `or fail;`, `or fail("context");`, `or err { ... };`,
+  `or panic("msg");`. `or` always starts a new line, indented once.
+- The handler name is always `err`. Inside it, `fail(err, "context");` wraps and
+  returns. Manual `if err != nil { return err; }` propagation is rejected.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.
@@ -86,7 +91,10 @@ fn pair() i32, bool { return 1, true; };
 ## Concurrency
 
 ```hare
-par { a = loadA() or return; };
+par {
+    a = loadA()
+        or fail;
+};
 par for (var i = 0; i < len(xs); i += 1) limit 8 { ... };
 within 30s { ... };
 ```
@@ -106,7 +114,7 @@ within 30s { ... };
 | `iface-fn` | remove `fn` from an interface method signature |
 | `import-simple` | write `use fmt;` without quotes |
 | `import-alias` | add `as name` to a versioned import (`/v2`, `/v3`) |
-| `err-manual` | replace manual propagation with `or return` |
+| `err-manual` | replace manual propagation with `or fail` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `par-map-write` | write to a local slice, merge after the `par` |
 | `par-map-range` | collect keys into a slice, then `par for` the slice |

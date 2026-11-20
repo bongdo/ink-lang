@@ -285,7 +285,7 @@ fn main() void {};
 		{
 			name: "iface-fn",
 			src: `type Writer interface {
-    fn Write(p: u8[]) int or error;
+    fn Write(p: u8[]) int!;
 };
 
 fn main() void {};
@@ -308,20 +308,20 @@ fn main() void {
 		},
 		{
 			name: "import-alias",
-			src: `use "example.com/bubbletea/v2";
+			src: `use example.com/bubbletea/v2;
 
 fn main() void {};
 `,
 			code: "import-alias",
-			want: `use "example.com/bubbletea/v2" as bubbletea;`,
+			want: `use example.com/bubbletea/v2 as bubbletea;`,
 		},
 		{
 			name: "err-manual",
-			src: `fn f() i32 or error {
+			src: `fn f() i32! {
     return 1;
 };
 
-fn main() i32 or error {
+fn main() i32! {
     var v, err = f();
     if (err != nil) {
         return err;
@@ -330,7 +330,7 @@ fn main() i32 or error {
 };
 `,
 			code:    "err-manual",
-			want:    "var v = f() or return;",
+			want:    "var v = f() or fail;",
 			notWant: "if (err != nil)",
 		},
 	}
@@ -405,11 +405,11 @@ func TestNilUntypedHasNoUnsafeFix(t *testing.T) {
 }
 
 func TestErrManualWithElseHasNoFix(t *testing.T) {
-	src := `fn f() i32 or error {
+	src := `fn f() i32! {
     return 1;
 };
 
-fn main() i32 or error {
+fn main() i32! {
     var v, err = f();
     if (err != nil) {
         return err;
@@ -584,7 +584,7 @@ func TestDidCloseClearsBufferDiagnostics(t *testing.T) {
 }
 
 func TestLocalImportReferences(t *testing.T) {
-	mainSrc := `use "./lib" as lib;
+	mainSrc := `use ./lib as lib;
 
 fn main() void {
     var t: lib.Thing = lib.Make();

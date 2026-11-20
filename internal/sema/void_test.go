@@ -34,7 +34,7 @@ fn main() void {
 `,
 		"return value": `fn note() void {};
 
-fn run() void or error {
+fn run() void! {
     return note();
 };
 
@@ -109,17 +109,17 @@ func TestVoidAllowedAsResultOnly(t *testing.T) {
     return;
 };
 
-fn fail() void or error {
+fn stop() void! {
     return;
 };
 
-fn wrap() void or error {
-    return fail();
+fn wrap() void! {
+    return stop();
 };
 
-fn main() void or error {
+fn main() void! {
     note();
-    fail() or return;
+    stop() or fail;
 };
 `})
 	noErrors(t, p)

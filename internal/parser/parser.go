@@ -289,30 +289,28 @@ func (p *parser) parseUse() *ast.Use {
 	start := p.tok().Pos
 	p.next()
 	u := &ast.Use{}
-	quoted := false
 	pathPos := start
 	switch p.kind() {
+	case token.Path:
+		u.Path = p.next().Lit
 	case token.Ident:
 		u.Path = p.next().Lit
 	case token.String, token.RawString:
 		t := p.next()
-		quoted = true
 		pathPos = t.Pos
 		u.Path = p.stringLit(t)
-		u.Local = strings.HasPrefix(u.Path, "./") || strings.HasPrefix(u.Path, "../")
-		if !u.Local && !strings.ContainsAny(u.Path, "/.") {
-			p.errorf(t.Pos, "simple import must be bare: use %s;", u.Path)
-		}
+		p.errorf(t.Pos, "import paths are written without quotes: use %s;", u.Path)
 	default:
 		p.errorf(p.tok().Pos, "expected import path, found %s", describe(p.tok()))
 	}
+	u.Local = strings.HasPrefix(u.Path, "./") || strings.HasPrefix(u.Path, "../")
 	if p.at(token.As) {
 		p.next()
 		if t, ok := p.expectIdent(); ok {
 			u.Alias = t.Lit
 		}
 	}
-	if quoted && !u.Local && u.Alias == "" && versionSegment(u.Path) {
+	if !u.Local && u.Alias == "" && versionSegment(u.Path) {
 		p.errorf(pathPos, "versioned import path %q requires an alias: use %q as <name>;", u.Path, u.Path)
 	}
 	p.consumeSemi()
@@ -350,11 +348,7 @@ func (p *parser) parseFuncDecl(owner *ast.TypeDecl) *ast.FuncDecl {
 	}
 	fd.Params = p.parseParams()
 	fd.Results = p.parseResults(true)
-	if p.at(token.Or) {
-		p.next()
-		p.parseErrorName()
-		fd.Err = true
-	}
+	fd.Err = p.parseErrSuffix()
 	if p.at(token.Assign) {
 		p.errorf(p.tok().Pos, "function bodies are declared without '='")
 		p.next()
@@ -367,6 +361,21 @@ func (p *parser) parseFuncDecl(owner *ast.TypeDecl) *ast.FuncDecl {
 	p.consumeSemi()
 	fd.Span = p.fin(start)
 	return fd
+}
+
+func (p *parser) parseErrSuffix() bool {
+	if p.at(token.Bang) {
+		p.next()
+		return true
+	}
+	if p.at(token.Or) {
+		pos := p.tok().Pos
+		p.next()
+		p.parseErrorName()
+		p.errorf(pos, "fallible results are marked with '!': write T! instead of T or error")
+		return true
+	}
+	return false
 }
 
 func (p *parser) parseErrorName() {
@@ -648,11 +657,7 @@ func (p *parser) parseIFaceMethod() *ast.IFaceMethod {
 	}
 	m.Params = p.parseParams()
 	m.Results = p.parseResults(true)
-	if p.at(token.Or) {
-		p.next()
-		p.parseErrorName()
-		m.Err = true
-	}
+	m.Err = p.parseErrSuffix()
 	p.consumeSemi()
 	m.Span = p.fin(start)
 	return m
@@ -752,6 +757,8 @@ func (p *parser) parseStmt() ast.Stmt {
 		return &ast.ContinueStmt{Span: p.fin(start)}
 	case token.Defer:
 		return p.parseDeferStmt()
+	case token.Fail:
+		return p.parseFailStmt()
 	case token.Semi:
 		t := p.next()
 		return &ast.EmptyStmt{Span: spanOf(t)}
@@ -763,6 +770,25 @@ func (p *parser) parseStmt() ast.Stmt {
 		}
 		return p.parseSimpleStmt(true)
 	}
+}
+
+func (p *parser) parseFailStmt() ast.Stmt {
+	start := p.next().Pos
+	s := &ast.FailStmt{}
+	if p.at(token.LParen) {
+		p.next()
+		if !p.at(token.RParen) {
+			s.Err = p.parseExprNoOr()
+			if p.at(token.Comma) {
+				p.next()
+				s.Msg = p.parseExprNoOr()
+			}
+		}
+		p.expect(token.RParen)
+	}
+	p.consumeSemi()
+	s.Span = p.fin(start)
+	return s
 }
 
 func (p *parser) parseIfStmt() ast.Stmt {
@@ -1080,8 +1106,26 @@ func (p *parser) parseOr(x ast.Expr) ast.Expr {
 	start := x.Pos()
 	switch p.kind() {
 	case token.Return:
+		pos := p.tok().Pos
 		p.next()
-		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrReturn}
+		p.errorf(pos, "use 'or fail' instead of 'or return'")
+		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail}
+	case token.Fail:
+		p.next()
+		var arg ast.Expr
+		if p.at(token.LParen) {
+			p.next()
+			if !p.at(token.RParen) {
+				arg = p.parseExprNoOr()
+				if p.at(token.Comma) {
+					p.errorf(p.tok().Pos, "fail takes at most one message")
+					p.next()
+					p.parseExprNoOr()
+				}
+			}
+			p.expect(token.RParen)
+		}
+		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail, FailArg: arg}
 	case token.Ident:
 		name := p.next()
 		if name.Lit == "panic" {
@@ -1097,15 +1141,18 @@ func (p *parser) parseOr(x ast.Expr) ast.Expr {
 			}
 			return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrPanic, PanicArg: arg}
 		}
+		if name.Lit != "err" {
+			p.errorf(name.Pos, "the error in an or block is always named err")
+		}
 		var block *ast.Block
 		if p.at(token.LBrace) {
 			block = p.parseBlock()
 		} else {
 			p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
 		}
-		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrHandle, Name: name.Lit, Block: block}
+		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrHandle, Name: "err", Block: block}
 	default:
-		p.errorf(p.tok().Pos, "expected 'return', 'panic' or an error name after 'or'")
+		p.errorf(p.tok().Pos, "expected 'return', 'fail', 'panic' or 'err {' after 'or'")
 		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrReturn}
 	}
 }
@@ -1413,7 +1460,7 @@ func (p *parser) parseCompositeLit(typ ast.Type) ast.Expr {
 		entryStart := p.tok().Pos
 		var key string
 		var keyExpr, value ast.Expr
-		if !isMap && p.at(token.Ident) && p.peek(1) == token.Assign {
+		if !isMap && p.at(token.Ident) && p.peek(1) == token.Colon {
 			key = p.next().Lit
 			p.next()
 			value = p.parseExprNoOr()
@@ -1422,9 +1469,21 @@ func (p *parser) parseCompositeLit(typ ast.Type) ast.Expr {
 			if first == nil {
 				break
 			}
-			if p.at(token.Assign) {
+			if p.at(token.Colon) {
 				p.next()
 				keyExpr = first
+				value = p.parseExprNoOr()
+			} else if p.at(token.Assign) {
+				p.next()
+				if !isMap {
+					if id, ok := first.(*ast.Ident); ok {
+						key = id.Name
+					} else {
+						keyExpr = first
+					}
+				} else {
+					keyExpr = first
+				}
 				value = p.parseExprNoOr()
 			} else {
 				value = first
@@ -1466,11 +1525,7 @@ func (p *parser) parseFuncLit() ast.Expr {
 	fl := &ast.FuncLit{}
 	fl.Params = p.parseParams()
 	fl.Results = p.parseResults(true)
-	if p.at(token.Or) {
-		p.next()
-		p.parseErrorName()
-		fl.Err = true
-	}
+	fl.Err = p.parseErrSuffix()
 	switch {
 	case p.at(token.Arrow):
 		p.next()
@@ -1786,11 +1841,7 @@ func (p *parser) parseFuncType() ast.Type {
 	}
 	ft := &ast.FuncType{Params: params}
 	ft.Results = p.parseResults(false)
-	if p.at(token.Or) {
-		p.next()
-		p.parseErrorName()
-		ft.Err = true
-	}
+	ft.Err = p.parseErrSuffix()
 	ft.Span = p.fin(start)
 	return ft
 }

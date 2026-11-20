@@ -194,6 +194,29 @@ func inkTypeName(t ast.Type) string {
 	return n.Name
 }
 
+func (c *checker) checkFailStmt(s *ast.FailStmt) {
+	if c.fn == nil {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
+		return
+	}
+	if !c.fn.err {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail in a function that cannot fail; add ! to the result")
+	}
+	errT := &ast.NamedType{Name: "error", GoName: "error"}
+	if s.Err == nil {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail needs an error")
+	} else {
+		c.resolveExpr(s.Err, false)
+		c.checkVoidValue(s.Err)
+		c.checkAssign(errT, s.Err)
+	}
+	if s.Msg != nil {
+		c.resolveExpr(s.Msg, false)
+		c.checkVoidValue(s.Msg)
+		c.checkAssign(&ast.NamedType{Name: "str", GoName: "string"}, s.Msg)
+	}
+}
+
 func terminatesBlock(b *ast.Block) bool {
 	if b == nil || len(b.Stmts) == 0 {
 		return false
@@ -204,6 +227,8 @@ func terminatesBlock(b *ast.Block) bool {
 func terminatesStmt(s ast.Stmt) bool {
 	switch s := s.(type) {
 	case *ast.ReturnStmt:
+		return true
+	case *ast.FailStmt:
 		return true
 	case *ast.Block:
 		return terminatesBlock(s)
@@ -410,6 +435,8 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 	case *ast.ForStmt:
 		c.checkFor(s)
+	case *ast.FailStmt:
+		c.checkFailStmt(s)
 	case *ast.ReturnStmt:
 		if c.fn == nil {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return outside a function")
@@ -470,7 +497,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 		if c.inPar {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or return")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or fail")
 		}
 	case *ast.BreakStmt:
 		if c.loopDepth == 0 {
@@ -512,7 +539,7 @@ func (c *checker) checkErrGuard(s *ast.IfStmt) {
 	}
 	for _, r := range ret.Results {
 		if id, ok := unparen(r).(*ast.Ident); ok && sameIdent(err, id) {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "use or return instead of if err != nil { return err }")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "use or fail instead of if err != nil { return err }")
 			return
 		}
 	}
@@ -1223,6 +1250,9 @@ func (w *parWalker) stmt(s ast.Stmt) {
 		for _, e := range s.Results {
 			w.expr(e)
 		}
+	case *ast.FailStmt:
+		w.expr(s.Err)
+		w.expr(s.Msg)
 	case *ast.DeferStmt:
 		w.expr(s.Call)
 	}

@@ -14,14 +14,15 @@ fn area(s: Shape) f64 {
     };
 };
 
-fn main() void or error {
+fn main() void! {
     var shapes = Shape[] {
-        Shape.Circle { radius = 2.0 },
-        Shape.Rect { w = 2.0, h = 3.0 },
+        Shape.Circle { radius: 2.0 },
+        Shape.Rect { w: 2.0, h: 3.0 },
         Shape.Empty,
     };
     for (var s in shapes) {
-        fmt.Println(area(s)) or return;
+        fmt.Println(area(s))
+            or fail;
     };
     var last = 0.0;
     match (shapes[0]) {
@@ -35,11 +36,13 @@ fn main() void or error {
             last = 0.0;
         };
     };
-    fmt.Println(last) or return;
+    fmt.Println(last)
+        or fail;
     var desc = match (shapes[0]) {
         case Circle { radius } => "circle";
         case Rect { w, h } => "rect";
         case Empty => "empty";
     };
-    fmt.Println(desc) or return;
+    fmt.Println(desc)
+        or fail;
 };

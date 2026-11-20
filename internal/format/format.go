@@ -135,9 +135,6 @@ func (p *printer) use(u *ast.Use) {
 }
 
 func quotePath(u *ast.Use) string {
-	if u.Local || strings.Contains(u.Path, "/") || strings.Contains(u.Path, ".") {
-		return strconv.Quote(u.Path)
-	}
 	return u.Path
 }
 
@@ -198,10 +195,10 @@ func (p *printer) funcDecl(f *ast.FuncDecl) {
 	if len(f.Results) == 0 {
 		p.write(" void")
 	} else {
-		p.results(f.Results, false)
+		p.results(f.Results, f.Err)
 	}
 	if f.Err {
-		p.write(" or error")
+		p.write("!")
 	}
 	p.write(" ")
 	p.block(f.Body)
@@ -354,10 +351,10 @@ func (p *printer) ifaceMethod(m *ast.IFaceMethod) {
 	if len(m.Results) == 0 {
 		p.write(" void")
 	} else {
-		p.results(m.Results, false)
+		p.results(m.Results, m.Err)
 	}
 	if m.Err {
-		p.write(" or error")
+		p.write("!")
 	}
 	p.write(";")
 }
@@ -441,6 +438,9 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.write(";")
 	case *ast.ForStmt:
 		p.forStmt(s)
+	case *ast.FailStmt:
+		p.failStmt(s)
+		p.write(";")
 	case *ast.ReturnStmt:
 		p.write("return")
 		if len(s.Results) > 0 {
@@ -679,9 +679,9 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 	case *ast.FuncLit:
 		p.write("fn")
 		p.params(e.Params)
-		p.results(e.Results, false)
+		p.results(e.Results, e.Err)
 		if e.Err {
-			p.write(" or error")
+			p.write("!")
 		}
 		if e.Arrow != nil {
 			p.write(" => ")
@@ -701,7 +701,10 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 		p.match(e)
 	case *ast.OrExpr:
 		p.exprPrec(e.X, precPostfix)
-		p.write(" or ")
+		p.line()
+		p.indent++
+		p.ind()
+		p.write("or ")
 		switch e.Mode {
 		case ast.OrReturn:
 			p.write("return")
@@ -711,23 +714,44 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 				p.expr(e.PanicArg)
 			}
 			p.write(")")
+		case ast.OrFail:
+			p.write("fail")
+			if e.FailArg != nil {
+				p.write("(")
+				p.expr(e.FailArg)
+				p.write(")")
+			}
 		case ast.OrHandle:
 			p.write(e.Name)
 			p.write(" ")
 			p.block(e.Block)
 		}
+		p.indent--
 	default:
 		p.write("?")
+	}
+}
+
+func (p *printer) failStmt(s *ast.FailStmt) {
+	p.write("fail")
+	if s.Err != nil {
+		p.write("(")
+		p.expr(s.Err)
+		if s.Msg != nil {
+			p.write(", ")
+			p.expr(s.Msg)
+		}
+		p.write(")")
 	}
 }
 
 func (p *printer) compositeEntry(en *ast.CompositeEntry) {
 	if en.Key != "" {
 		p.write(en.Key)
-		p.write(" = ")
+		p.write(": ")
 	} else if en.KeyExpr != nil {
 		p.expr(en.KeyExpr)
-		p.write(" = ")
+		p.write(": ")
 	}
 	p.expr(en.Value)
 }
@@ -890,7 +914,7 @@ func (p *printer) typPrec(t ast.Type, parent int) {
 		p.write(")")
 		p.results(t.Results, true)
 		if t.Err {
-			p.write(" or error")
+			p.write("!")
 		}
 		p.parenTypeClose(t, parent, precUnary)
 	case *ast.InterfaceType:

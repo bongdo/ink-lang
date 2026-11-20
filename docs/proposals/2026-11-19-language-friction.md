@@ -1,3 +1,6 @@
+> **Historical.** Written before the 0.3 error surface (`T!`, `fail`, bare
+> imports, `:` literals). It uses the 0.2 syntax on purpose.
+
 # Ink 0.2 — language friction, as one program
 
 One runnable file: `ink check` is clean and `ink run` prints the output.

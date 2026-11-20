@@ -28,6 +28,10 @@ not re-file.
 
 | Symptom | Why it stays |
 |---|---|
+| `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
+| `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
+| The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
+| Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |
 | `s[i]` is a `byte`, not a rune. | Matches Go; `runes(s)` is the documented form for code points. |
 | Map writes are rejected in `par` even for disjoint keys, and `par for` cannot range over a map. | A map has no ordinal and no provable disjointness; collect keys, then iterate a slice. |
 | Two writes to different fields of one captured struct are rejected. | One root, one writer: without alias analysis the compiler cannot prove they are disjoint. |
@@ -35,10 +39,10 @@ not re-file.
 | A pointer passed to a free or Go function, or an alias from a field/index read or a call result, is not tracked as a write. | No interprocedural alias or escape analysis. `ink run -race` and `ink test -race` are the dynamic oracle. |
 | `for ()` is rejected inside `par`. | A worker without a guaranteed exit can hang the block. |
 | A C-style `par for (i = 0; ...)` makes the body read a per-iteration copy of `i`; after the loop `i` holds the post value. | Deterministic capture without a closure per iteration. |
-| `or` is statement-level only: no `f(g() or return)`, no `or` in multi-RHS or a `for` post. | No expression-level control flow; split the call into two statements. |
+| `or` is statement-level only: no `f(g() or fail)`, no `or` in multi-RHS or a `for` post. | No expression-level control flow; split the call into two statements. |
 | A Go function returning `(T, bool)` needs two variables, not `or`. | `or` is for `error`; `ok` is a normal result. |
 | A local `const` is an error. | `const` is a package-level compile-time name; use `var` locally. |
-| Manual `if err != nil { return err; }` is rejected. | `or return` is the one canonical propagation form. |
+| Manual `if err != nil { return err; }` is rejected. | `or fail` is the one canonical propagation form. |
 | `match` on `any` requires `else`. | Open types have no exhaustiveness; `else` makes the default explicit. |
 | Enum variants cannot share a name in one package, and an enum's zero value is not constructible. | Bare `case` patterns stay unambiguous; construction is explicit. |
 | `nil` needs an expected type or `nil[T]`. | `nil` is untyped; typed `var` covers most positions. |

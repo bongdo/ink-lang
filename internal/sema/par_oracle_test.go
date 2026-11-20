@@ -474,20 +474,20 @@ fn main() void {
     };
 };
 `,
-		"with within and or return": `fn note() void {
+		"with within and or fail": `fn note() void {
 };
 
-fn load() i32 or error {
+fn load() i32! {
     return 1;
 };
 
-fn main() void or error {
+fn main() void! {
     var a = 0;
     par {
         defer note();
         within 5s {
             defer note();
-            a = load() or return;
+            a = load() or fail;
         };
     };
     a += 1;
@@ -503,7 +503,7 @@ fn main() void or error {
 
 func TestParAllowsOrPanic(t *testing.T) {
 	cases := map[string]string{
-		"message": `fn load() i32 or error {
+		"message": `fn load() i32! {
     return 1;
 };
 
@@ -514,7 +514,7 @@ fn main() void {
     };
 };
 `,
-		"error value": `fn load() i32 or error {
+		"error value": `fn load() i32! {
     return 1;
 };
 
@@ -525,7 +525,7 @@ fn main() void {
     };
 };
 `,
-		"par for": `fn load() i32 or error {
+		"par for": `fn load() i32! {
     return 1;
 };
 

@@ -4,7 +4,7 @@ fn work(n: i32) i32 {
     return n * 10;
 };
 
-fn main() void or error {
+fn main() void! {
     var a = i32(0);
     var b = i32(0);
     par {
@@ -16,5 +16,6 @@ fn main() void or error {
             b = work(2);
         };
     };
-    fmt.Println(a, b) or return;
+    fmt.Println(a, b)
+        or fail;
 };

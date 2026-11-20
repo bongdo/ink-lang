@@ -34,8 +34,9 @@ go = "1.27"
 ```hare
 use fmt;
 
-fn main() void or error {
-    fmt.Println("hello from hello") or return;
+fn main() void! {
+    fmt.Println("hello from hello")
+        or fail;
 };
 ```
 
@@ -87,10 +88,11 @@ fn Square(x: i32) i32 {
 
 ```hare
 use fmt;
-use "./lib";
+use ./lib;
 
-fn main() void or error {
-    fmt.Println(lib.Square(7)) or return;
+fn main() void! {
+    fmt.Println(lib.Square(7))
+        or fail;
 };
 ```
 
@@ -111,7 +113,7 @@ type Shape enum {
 };
 
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type UserId = u64;
@@ -131,16 +133,19 @@ rejected; `ink fmt` formats canonical input.
 ```hare
 use os;
 
-fn exists(path: str) bool or error {
-    var f = os.Open(path) or return;
+fn exists(path: str) bool! {
+    var f = os.Open(path)
+        or fail;
     defer f.Close();
     return true;
 };
 ```
 
-- `call() or return;` propagates.
-- `call() or err { ... };` handles the error here.
+- `call() or fail;` propagates.
+- `call() or fail("context");` wraps and propagates.
+- `call() or err { ... };` handles the error here; the name is always `err`.
 - `call() or panic("message");` aborts.
+- The handler always starts on a new line, indented once.
 
 ## Tests
 
@@ -157,14 +162,16 @@ passed through, so `ink test -race` runs the suite under Go's race detector.
 ## Concurrency
 
 ```hare
-fn load(id: i32) i32 or error { ... };
+fn load(id: i32) i32! { ... };
 
-fn main() void or error {
+fn main() void! {
     var users = 0;
     var orders = 0;
     par {
-        users = load(1) or return;
-        orders = load(2) or return;
+        users = load(1)
+            or fail;
+        orders = load(2)
+            or fail;
     };
 
     var xs = i32[] {1, 2, 3};
@@ -174,7 +181,8 @@ fn main() void or error {
     };
 
     within 30s {
-        out[0] = load(3) or return;
+        out[0] = load(3)
+            or fail;
     };
 };
 ```
@@ -183,8 +191,8 @@ Captured state may be read concurrently. Writes must go to a slot indexed by
 the iteration variable or be the only writer of that variable inside `par`.
 `par`/`within` errors cancel the remaining work. The checks are static;
 `ink run -race` and `ink test -race` are the dynamic oracle. Hidden
-context stops at package and function-value boundaries (G10), and aliases or
-escapes the static pass cannot see are covered only by `-race` (G11); see
+context stops at package and function-value boundaries, and aliases or
+escapes the static pass cannot see are covered only by `-race`; see
 [`examples/limits`](../examples/limits/README.md).
 
 ## Formatting

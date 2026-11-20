@@ -287,3 +287,20 @@ features, not from a numbered backlog maintained in prose.
 file per area; rewriting archived notes into the new format.
 **Цена:** old `G*`/`A*` ids are gone and archived notes still mention them;
 links to `design/` break once, with no redirect layer.
+
+## 2026-11-20 — Error surface: `T!`, `fail`, bare imports, `:` literals
+
+**Контекст:** 0.2 used `T or error`, `or return`, quoted paths for multi-segment
+imports, `field = value` literals, and an arbitrary name in `or <name> { }`.
+The same word `or` appeared in types and handlers; `return` hid the error;
+imports had two lexical forms; literals looked like assignments.
+**Решение:** fallible results are `T!`, `(A, B)!` or `void!`. Handlers are
+`or fail;`, `or fail("context");`, `or err { ... }` and `or panic(...)`, always
+starting on a new line. The handler name is always `err`. `fail(err, "context")`
+wraps and returns. Import paths are bare. Struct, enum and map literals use `:`.
+**Почему:** one meaning per word and one lexical form. The error is always named
+or returned, never bound invisibly.
+**Что отвергли:** `Config?` (reads as nil), `Result[Config]` (heavier error
+model), keeping `or return` as an alias, quoting every import.
+**Цена:** every `or error`, `or return`, quoted import and `=` literal had to be
+migrated once; `fail` is reserved; the formatter rewrites all handlers.

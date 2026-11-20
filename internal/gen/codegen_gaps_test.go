@@ -122,14 +122,14 @@ func TestStdImportAliasReused(t *testing.T) {
 		"main.ink": `use fmt;
 use context;
 
-fn main() void or error {
+fn main() void! {
     var ctx, cancel = context.WithCancel();
     defer cancel();
     if (ctx != nil[context.Context]) {
-        fmt.Println("hello") or return;
+        fmt.Println("hello") or fail;
     };
     within 1s {
-        fmt.Println("within") or return;
+        fmt.Println("within") or fail;
     };
 };
 `,
@@ -158,8 +158,8 @@ func TestStdImportAliasFollowsUser(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt as f;
 
-fn main() void or error {
-    f.Println("hi") or return;
+fn main() void! {
+    f.Println("hi") or fail;
 };
 `,
 	})
@@ -182,8 +182,8 @@ fn main() void or error {
 func TestGoTypeImportsRequiredPackage(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use "crypto/hmac";
-use "crypto/sha256";
+use crypto/hmac;
+use crypto/sha256;
 
 fn main() void {
     var key = bytes("k");

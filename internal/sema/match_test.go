@@ -56,11 +56,11 @@ fn f(n: i32) void {
 func TestMatchBlockArmsInOrHandlerAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use errors;
 
-fn load() str or error {
+fn load() str! {
     return errors.New("x");
 };
 
-fn f() str or error {
+fn f() str! {
     var s = load() or err {
         match (1) {
         case 1 => { return "one"; };

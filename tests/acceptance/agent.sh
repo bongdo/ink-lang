@@ -38,7 +38,7 @@ type Counter struct {
     };
 };
 
-fn twice(n: i32) i32 or error {
+fn twice(n: i32) i32! {
     if (n < 0) {
         return errors.New("negative");
     };
@@ -46,16 +46,16 @@ fn twice(n: i32) i32 or error {
 };
 
 test "counter" {
-    var c = Counter { n = 1 };
+    var c = Counter { n: 1 };
     c.Add(2);
     assert_eq(c.Value(), 3);
 };
 
-fn main() void or error {
-    var c = Counter { n = 1 };
+fn main() void! {
+    var c = Counter { n: 1 };
     c.Add(Answer - 39);
-    var v = twice(c.Value()) or return;
-    fmt.Println("value", v) or return;
+    var v = twice(c.Value()) or fail;
+    fmt.Println("value", v) or fail;
     return;
 };
 EOF
@@ -93,7 +93,7 @@ for n in "$line" "$col" "$end_line" "$end_col"; do
   [ "$n" -gt 0 ] || die "const-local: position field is zero"
 done
 write_program
-awk '{ if ($0 == "    var v = twice(c.Value()) or return;") { print "    var v, err = twice(c.Value());"; print "    if (err != nil) {"; print "        return err;"; print "    };"; next } print }' main.ink > main.tmp
+awk '{ if ($0 == "    var v = twice(c.Value()) or fail;") { print "    var v, err = twice(c.Value());"; print "    if (err != nil) {"; print "        return err;"; print "    };"; next } print }' main.ink > main.tmp
 mv main.tmp main.ink
 if "$ink" check --json >diag.json 2>diag.err; then
   die "check exited 0 for manual error propagation"
@@ -109,7 +109,7 @@ obj=$(sed -n '/"code":"err-manual"/{p;q;}' objects.txt)
 hint=$(json_field "$obj" hint)
 [ -n "$hint" ] || die "manual propagation: hint is empty"
 write_program
-sed 's/    var c = Counter { n = 1 };/    var  c = Counter { n = 1 };/' main.ink > main.tmp
+sed 's/    var c = Counter { n: 1 };/    var  c = Counter { n = 1 };/' main.ink > main.tmp
 mv main.tmp main.ink
 listed=$("$ink" fmt -l --json) || die "fmt -l --json failed"
 [ "$listed" = '["main.ink"]' ] || die "fmt -l --json: want [\"main.ink\"], got '$listed'"

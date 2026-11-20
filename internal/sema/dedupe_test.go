@@ -6,7 +6,7 @@ import (
 )
 
 func TestDuplicateUnknownTypeIsReportedOnce(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn main() void or error {
+	p := checkSrc(t, map[string]string{".": `fn main() void! {
     var p: *Missing = nil;
     return;
 };

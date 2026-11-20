@@ -1179,7 +1179,10 @@ func resultText(results []ast.Type, hasError bool) string {
 		}
 	}
 	if hasError {
-		text += " or error"
+		if strings.Contains(text, ", ") {
+			text = "(" + text + ")"
+		}
+		text += "!"
 	}
 	return text
 }
@@ -1187,7 +1190,7 @@ func resultText(results []ast.Type, hasError bool) string {
 func funcTypeResultText(results []ast.Type, hasError bool) string {
 	if len(results) == 0 {
 		if hasError {
-			return " or error"
+			return " void!"
 		}
 		return ""
 	}
@@ -1195,13 +1198,17 @@ func funcTypeResultText(results []ast.Type, hasError bool) string {
 	for _, r := range results {
 		parts = append(parts, formatType(r))
 	}
-	if len(parts) == 1 && !hasError {
+	if len(parts) == 1 {
+		if hasError {
+			return " " + parts[0] + "!"
+		}
 		return " " + parts[0]
 	}
+	text := " (" + strings.Join(parts, ", ") + ")"
 	if hasError {
-		parts = append(parts, "error")
+		text += "!"
 	}
-	return " (" + strings.Join(parts, ", ") + ")"
+	return text
 }
 
 func typeDeclText(d *ast.TypeDecl) string {

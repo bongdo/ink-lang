@@ -1,5 +1,6 @@
 use fmt;
 
-fn main() void or error {
-    fmt.Println("hello") or return;
+fn main() void! {
+    fmt.Println("hello")
+        or fail;
 };

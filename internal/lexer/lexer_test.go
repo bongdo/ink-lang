@@ -58,13 +58,13 @@ func TestOperators(t *testing.T) {
 }
 
 func TestKeywords(t *testing.T) {
-	src := "use as fn type struct enum interface var const return if else for in match case par within limit defer break continue or test true false nil map"
+	src := "as fn type struct enum interface var const return if else for in match case par within limit defer break continue or test true false nil map use"
 	want := []token.Kind{
-		token.Use, token.As, token.Fn, token.Type, token.Struct, token.Enum,
+		token.As, token.Fn, token.Type, token.Struct, token.Enum,
 		token.Interface, token.Var, token.Const, token.Return, token.If, token.Else,
 		token.For, token.In, token.Match, token.Case, token.Par, token.Within,
 		token.Limit, token.Defer, token.Break, token.Continue, token.Or, token.Test,
-		token.True, token.False, token.Nil, token.Map, token.EOF,
+		token.True, token.False, token.Nil, token.Map, token.Use, token.EOF,
 	}
 	toks, _, errs := mustLex(t, src)
 	if len(errs) != 0 {
@@ -482,7 +482,7 @@ type Node = struct {
 fn load(xs: Node[]) void or error = {
 	within 30s {
 		par for (var i = 0; i < len(xs); i += 1) limit 64 {
-			sizes[i] = fetchSize(i) or return;
+			sizes[i] = fetchSize(i) or fail;
 		};
 	};
 	var p = nil[*Node];
@@ -492,7 +492,7 @@ fn load(xs: Node[]) void or error = {
 };
 `
 	want := []token.Kind{
-		token.Use, token.Ident, token.Semi,
+		token.Use, token.Path, token.Semi,
 		token.Type, token.Ident, token.Assign, token.Struct, token.LBrace,
 		token.Ident, token.Colon, token.Ident, token.LBracket, token.Int,
 		token.RBracket, token.LBracket, token.RBracket, token.Comma,
@@ -508,7 +508,7 @@ fn load(xs: Node[]) void or error = {
 		token.Limit, token.Int, token.LBrace,
 		token.Ident, token.LBracket, token.Ident, token.RBracket,
 		token.Assign, token.Ident, token.LParen, token.Ident, token.RParen,
-		token.Or, token.Return, token.Semi,
+		token.Or, token.Fail, token.Semi,
 		token.RBrace, token.Semi,
 		token.RBrace, token.Semi,
 		token.Var, token.Ident, token.Assign, token.Nil,

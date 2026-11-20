@@ -218,6 +218,8 @@ func stmtTerminates(s ast.Stmt) bool {
 	switch s := s.(type) {
 	case *ast.ReturnStmt:
 		return true
+	case *ast.FailStmt:
+		return true
 	case *ast.Block:
 		return blockTerminates(s)
 	case *ast.IfStmt:

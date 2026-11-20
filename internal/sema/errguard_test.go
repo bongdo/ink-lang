@@ -3,20 +3,20 @@ package sema
 import "testing"
 
 func TestManualErrReturnRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn wrap(err: error) void or error {
+	p := checkSrc(t, map[string]string{".": `fn wrap(err: error) void! {
     if (err != nil) {
         return err;
     };
 };
 
-fn wrapZero(err: error) i32 or error {
+fn wrapZero(err: error) i32! {
     if (err != nil) {
         return 0, err;
     };
     return 0;
 };
 
-fn wrapReversed(err: error) void or error {
+fn wrapReversed(err: error) void! {
     if (nil != err) {
         return err;
     };
@@ -26,7 +26,7 @@ fn main() void {};
 `})
 	got := 0
 	for _, e := range p.Errors {
-		if contains(e.Msg, "use or return instead of if err != nil { return err }") {
+		if contains(e.Msg, "use or fail instead of if err != nil { return err }") {
 			got++
 		}
 	}
@@ -39,21 +39,21 @@ func TestErrGuardAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 use errors;
 
-fn success(err: error) void or error {
+fn success(err: error) void! {
     if (err == nil) {
         return;
     };
     return err;
 };
 
-fn inspect(err: error) void or error {
+fn inspect(err: error) void! {
     if (err != nil) {
-        fmt.Println("caught:", err) or return;
+        fmt.Println("caught:", err) or fail;
         return err;
     };
 };
 
-fn other(err: error, other: error) void or error {
+fn other(err: error, other: error) void! {
     if (err != nil) {
         return other;
     };
@@ -66,7 +66,7 @@ fn notNil(p: *i32) *i32 {
     return nil;
 };
 
-fn isCheck(err: error) void or error {
+fn isCheck(err: error) void! {
     if (errors.Is(err, err)) {
         return nil;
     };

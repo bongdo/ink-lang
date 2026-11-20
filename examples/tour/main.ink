@@ -5,7 +5,7 @@ use fmt;
 use strings;
 use slices;
 use errors;
-use "./lib";
+use ./lib;
 
 // Constants are compile-time values; `const` can size an array.
 const Answer = 42;
@@ -55,19 +55,19 @@ fn area(s: Shape) f64 {
 
 // Interfaces are structural; methods are signatures, without `fn`.
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Buffer struct {
     data: u8[],
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         data = append(data, p...);
         return len(p);
     };
 };
 
-fn emit(w: Writer, text: str) int or error {
+fn emit(w: Writer, text: str) int! {
     return w.Write(bytes(text));
 };
 
@@ -99,27 +99,29 @@ fn pair() i32, bool {
     return 1, true;
 };
 
-fn mayFail(ok: bool) i32 or error {
+fn mayFail(ok: bool) i32! {
     if (!ok) {
         return errors.New("requested failure");
     };
     return 7;
 };
 
-fn split(n: i32) i32, bool or error {
+fn split(n: i32) (i32, bool)! {
     if (n < 0) {
         return 0, false, errors.New("negative");
     };
     return n, true;
 };
 
-fn propagate(ok: bool) i32 or error {
-    var v = mayFail(ok) or return;
+fn propagate(ok: bool) i32! {
+    var v = mayFail(ok)
+        or fail;
     return v + 1;
 };
 
-fn passthrough(n: i32) i32, bool or error {
-    return split(n) or return;
+fn passthrough(n: i32) (i32, bool)! {
+    return split(n)
+        or fail;
 };
 
 fn applyPair(f: PairFn, n: i32) str, bool {
@@ -140,15 +142,17 @@ fn deferDemo() void {
 };
 
 fn handleDemo() i32 {
-    var v = mayFail(false) or err {
-        fmt.Println("or err: handled", err);
-        return -1;
-    };
+    var v = mayFail(false)
+        or err {
+            fmt.Println("or err: handled", err);
+            return -1;
+        };
     return v;
 };
 
 fn panicDemo() i32 {
-    var v = mayFail(true) or panic("unreachable");
+    var v = mayFail(true)
+        or panic("unreachable");
     return v;
 };
 
@@ -190,88 +194,111 @@ test "min and max" {
     assert_eq(max(1, 2), 2);
 };
 
-fn main() void or error {
+fn main() void! {
     // Constants, variables, aliases, conversions.
     var answer = Answer;
     var user = UserId(7);
     var name = strings.ToUpper(Name);
-    fmt.Println(answer, user, name, packageVar) or return;
+    fmt.Println(answer, user, name, packageVar)
+        or fail;
 
     // Struct literal, methods, implicit self.
-    var p = Point { x = 1, y = 2 };
+    var p = Point { x: 1, y: 2 };
     p.Move(3, 4);
-    fmt.Println(p.Sum()) or return;
+    fmt.Println(p.Sum())
+        or fail;
 
     // Pointers: `&`, `*`, auto-deref, write through pointer.
     var pp = &p;
     pp.x = 10;
     var snapshot = *pp;
-    *pp = Point { x = 20, y = 30 };
-    fmt.Println(p.x, snapshot.x) or return;
+    *pp = Point { x: 20, y: 30 };
+    fmt.Println(p.x, snapshot.x)
+        or fail;
 
     // Enum construction and exhaustive match expression.
     var shapes = Shape[] {
-        Shape.Circle { radius = 2.0 },
-        Shape.Rect { w = 2.0, h = 3.0 },
+        Shape.Circle { radius: 2.0 },
+        Shape.Rect { w: 2.0, h: 3.0 },
         Shape.Empty,
     };
     var areas = f64[] {};
     for (var s in shapes) {
         areas = append(areas, area(s));
     };
-    fmt.Println(areas) or return;
+    fmt.Println(areas)
+        or fail;
 
     // Match statement with block arms.
     match (shapes[0]) {
         case Circle { radius } => {
-            fmt.Println("circle", radius) or return;
+            fmt.Println("circle", radius)
+                or fail;
         };
         case Rect { w, h } => {
-            fmt.Println("rect", w, h) or return;
+            fmt.Println("rect", w, h)
+                or fail;
         };
         case Empty => {
-            fmt.Println("empty") or return;
+            fmt.Println("empty")
+                or fail;
         };
     };
 
     // Interface and structural implementation.
     var b = Buffer {};
-    var n = emit(&b, "hello") or return;
-    fmt.Println(n, str(b.data)) or return;
+    var n = emit(&b, "hello")
+        or fail;
+    fmt.Println(n, str(b.data))
+        or fail;
 
     // Generics: inference and explicit type arguments.
     var stack = Stack[i32] {};
     stack.Push(1);
     stack.Push(2);
-    fmt.Println(stack.Pop(), stack.Pop()) or return;
+    fmt.Println(stack.Pop(), stack.Pop())
+        or fail;
     var doubled = Map[i32, i32](i32[] { 1, 2, 3 }, fn(x: i32) i32 => x * 2);
-    fmt.Println(doubled) or return;
+    fmt.Println(doubled)
+        or fail;
 
     // Multiple results, fallible multiple results, `or` forms.
     var a, ok = pair();
-    fmt.Println(a, ok) or return;
+    fmt.Println(a, ok)
+        or fail;
 
-    var x, y = split(7) or return;
-    fmt.Println(x, y) or return;
+    var x, y = split(7)
+        or fail;
+    fmt.Println(x, y)
+        or fail;
 
-    var x2, y2 = passthrough(8) or return;
-    fmt.Println(x2, y2) or return;
+    var x2, y2 = passthrough(8)
+        or fail;
+    fmt.Println(x2, y2)
+        or fail;
 
-    var v = propagate(true) or return;
-    fmt.Println(v) or return;
+    var v = propagate(true)
+        or fail;
+    fmt.Println(v)
+        or fail;
 
     var handled = handleDemo();
-    fmt.Println(handled) or return;
+    fmt.Println(handled)
+        or fail;
 
     var panicked = panicDemo();
-    fmt.Println(panicked) or return;
+    fmt.Println(panicked)
+        or fail;
 
     // `or err` handles the error here and keeps the previous value.
     var fallback = i32(0);
-    fallback = mayFail(false) or err {
-        fmt.Println("fallback", err) or return;
-    };
-    fmt.Println(fallback) or return;
+    fallback = mayFail(false)
+        or err {
+            fmt.Println("fallback", err)
+                or fail;
+        };
+    fmt.Println(fallback)
+        or fail;
 
     // Block-scoped defer.
     deferDemo();
@@ -287,21 +314,23 @@ fn main() void or error {
         };
         total += i32(i);
     };
-    fmt.Println(total) or return;
+    fmt.Println(total)
+        or fail;
 
     // Range over slice with index, map with key/value, string with rune.
     var xs = i32[] { 10, 20, 30 };
     for (var i, x in xs) {
         total += i32(i) + x;
     };
-    var m = map[str, i32] { "a" = 1, "bb" = 2 };
+    var m = map[str, i32] { "a": 1, "bb": 2 };
     for (var k, v in m) {
         total += v + i32(len(k));
     };
     for (var r in "ab") {
         total += i32(r);
     };
-    fmt.Println(total) or return;
+    fmt.Println(total)
+        or fail;
 
     // Infinite loop with a local break.
     var loops = 0;
@@ -311,7 +340,8 @@ fn main() void or error {
             break;
         };
     };
-    fmt.Println(loops) or return;
+    fmt.Println(loops)
+        or fail;
 
     // Slices, arrays, local import constant, map builtins.
     var arr = Point[N] {};
@@ -322,15 +352,18 @@ fn main() void or error {
     var capValue = cap(xs);
     var present = has(m, "a");
     delete(m, "a");
-    fmt.Println(len(arr), len(imported), len(slice), copied, capValue, present) or return;
-    fmt.Println(lib.Double(21)) or return;
+    fmt.Println(len(arr), len(imported), len(slice), copied, capValue, present)
+        or fail;
+    fmt.Println(lib.Double(21))
+        or fail;
 
     // Conversions and builtins.
     var text = str(runes("hé"));
     var raw = bytes("hi");
     var low = min(3, 5);
     var high = max(3, 5);
-    fmt.Println(text, len(raw), low, high) or return;
+    fmt.Println(text, len(raw), low, high)
+        or fail;
 
     // Typed vars give bare nil a type. Without an expected type, use nil[T]
     // (see maybe(nil[*Point]) below).
@@ -339,51 +372,64 @@ fn main() void or error {
     var nm: map[str, i32] = nil;
     var nf: fn(i32) i32 = nil;
     var ne: error = nil;
-    fmt.Println(np == nil, ns == nil, nm == nil, nf == nil, ne == nil) or return;
+    fmt.Println(np == nil, ns == nil, nm == nil, nf == nil, ne == nil)
+        or fail;
 
     // Function values and type aliases.
     var h = fn(x: i32) i32 => x + 1;
     var apply = fn(f: Handler, v: i32) i32 => f(v);
-    fmt.Println(apply(h, 41)) or return;
+    fmt.Println(apply(h, 41))
+        or fail;
 
     var pf = fn(n: i32) str, bool {
         return "pair", n > 0;
     };
     var ps, pok = applyPair(pf, 1);
-    fmt.Println(ps, pok) or return;
+    fmt.Println(ps, pok)
+        or fail;
 
     // Type patterns on `any`.
-    fmt.Println(describe(i32(1)), describe("s"), describe(&p), describe(true)) or return;
+    fmt.Println(describe(i32(1)), describe("s"), describe(&p), describe(true))
+        or fail;
 
     // Negative and nil patterns.
-    fmt.Println(sign(-1), sign(0), sign(1)) or return;
-    fmt.Println(maybe(nil[*Point]), maybe(&p)) or return;
+    fmt.Println(sign(-1), sign(0), sign(1))
+        or fail;
+    fmt.Println(maybe(nil[*Point]), maybe(&p))
+        or fail;
 
     // Go interop with a generic stdlib callback.
     var nums = i32[] { 3, 1, 2 };
     slices.SortFunc(nums, fn(a: i32, b: i32) int => int(a - b));
-    fmt.Println(nums) or return;
+    fmt.Println(nums)
+        or fail;
 
     // par: each top-level statement is a worker.
     var left = i32(0);
     var right = i32(0);
     par {
-        left = mayFail(true) or return;
-        right = mayFail(true) or return;
+        left = mayFail(true)
+            or fail;
+        right = mayFail(true)
+            or fail;
     };
-    fmt.Println(left, right) or return;
+    fmt.Println(left, right)
+        or fail;
 
     // par for: disjoint slots, explicit limit.
     var out = i32[4] {};
     par for (var i, x in i32[] { 1, 2, 3, 4 }) limit 2 {
         out[i] = x * 2;
     };
-    fmt.Println(out) or return;
+    fmt.Println(out)
+        or fail;
 
     // within: deadline around a block.
     within 10ms {
-        var w = mayFail(true) or return;
-        fmt.Println("within", w) or return;
+        var w = mayFail(true)
+            or fail;
+        fmt.Println("within", w)
+            or fail;
     };
 
     return;

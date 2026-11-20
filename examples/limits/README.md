@@ -22,12 +22,13 @@ fn Work() i32 {
 
 ```hare
 use fmt;
-use "./lib";
+use ./lib;
 
-fn main() void or error {
+fn main() void! {
     within 1ms {
         var n = lib.Work();
-        fmt.Println(n) or return;
+        fmt.Println(n)
+            or fail;
     };
 };
 ```

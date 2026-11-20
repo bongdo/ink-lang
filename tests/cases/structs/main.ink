@@ -13,12 +13,15 @@ type User struct {
     };
 };
 
-fn main() void or error {
-    var u = User { Name = "Alice", age = 30 };
+fn main() void! {
+    var u = User { Name: "Alice", age: 30 };
     u.Birthday();
-    fmt.Println(u.Greet()) or return;
-    fmt.Println(u.age) or return;
+    fmt.Println(u.Greet())
+        or fail;
+    fmt.Println(u.age)
+        or fail;
     var p = &u;
     p.Name = "Bob";
-    fmt.Println(u.Greet()) or return;
+    fmt.Println(u.Greet())
+        or fail;
 };

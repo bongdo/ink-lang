@@ -154,7 +154,7 @@ fn main() void {
 
 func TestArrayImportedConstLength(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 type Foo struct {
     x: i32,
@@ -185,7 +185,7 @@ fn main() void {
 
 func TestArrayImportedVarNotConstant(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 type Foo struct {
     x: i32,

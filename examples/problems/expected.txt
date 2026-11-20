@@ -3,7 +3,7 @@
 38:13:generic-args:generic type Stack requires type arguments
 45:12:match-block-value:match with block arms cannot be used as an expression
 56:13:nil-untyped:cannot infer type of nil
-64:5:err-manual:use or return instead of if err != nil { return err }
+64:5:err-manual:use or fail instead of if err != nil { return err }
 75:9:par-map-write:writing to map m inside par
 83:14:par-map-range:map iteration is not allowed in par for
 94:9:par-capture-write:writing to p captured from outside par

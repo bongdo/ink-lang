@@ -34,25 +34,25 @@ func wantError(t *testing.T, p *Program, sub string) *Error {
 
 func TestIfaceConformanceOK(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Buffer struct {
     data: u8[],
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         return len(p);
     };
 };
 
 type AliasWriter = Writer;
 
-fn emit(w: Writer, text: str) int or error {
-    return w.Write(bytes(text)) or return;
+fn emit(w: Writer, text: str) int! {
+    return w.Write(bytes(text)) or fail;
 };
 
-fn forward(w: AliasWriter, text: str) int or error {
-    return emit(w, text) or return;
+fn forward(w: AliasWriter, text: str) int! {
+    return emit(w, text) or fail;
 };
 
 fn make() Writer {
@@ -60,10 +60,10 @@ fn make() Writer {
     return &b;
 };
 
-fn main() void or error {
+fn main() void! {
     var b = Buffer {};
-    var n = emit(&b, "x") or return;
-    var n2 = forward(&b, "y") or return;
+    var n = emit(&b, "x") or fail;
+    var n2 = forward(&b, "y") or fail;
     var w = Writer(&b);
     var m = make();
     _ = n;
@@ -77,7 +77,7 @@ fn main() void or error {
 
 func TestIfaceMissingMethod(t *testing.T) {
 	src := `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Empty struct {
@@ -86,7 +86,7 @@ type Empty struct {
     };
 };
 
-fn emit(w: Writer) int or error {
+fn emit(w: Writer) int! {
     return 0;
 };
 
@@ -107,16 +107,16 @@ fn main() void {
 
 func TestIfaceWrongParam(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Bad struct {
-    fn Write(p: str) int or error {
+    fn Write(p: str) int! {
         return len(p);
     };
 };
 
-fn emit(w: Writer) int or error {
+fn emit(w: Writer) int! {
     return 0;
 };
 
@@ -130,7 +130,7 @@ fn main() void {
 
 func TestIfaceWrongResult(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Bad struct {
@@ -139,7 +139,7 @@ type Bad struct {
     };
 };
 
-fn emit(w: Writer) int or error {
+fn emit(w: Writer) int! {
     return 0;
 };
 
@@ -153,7 +153,7 @@ fn main() void {
 
 func TestIfaceMissingErrorResult(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Bad struct {
@@ -162,7 +162,7 @@ type Bad struct {
     };
 };
 
-fn emit(w: Writer) int or error {
+fn emit(w: Writer) int! {
     return 0;
 };
 
@@ -176,18 +176,18 @@ fn main() void {
 
 func TestIfaceValueReceiver(t *testing.T) {
 	src := `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Buffer struct {
     data: u8[],
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         return len(p);
     };
 };
 
-fn emit(w: Writer) int or error {
+fn emit(w: Writer) int! {
     return 0;
 };
 
@@ -216,13 +216,13 @@ fn main() void {
 
 func TestIfaceReturnPosition(t *testing.T) {
 	src := `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Buffer struct {
     data: u8[],
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         return len(p);
     };
 };
@@ -245,23 +245,23 @@ fn main() void {
 
 func TestIfaceHiddenCtx(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Good struct {
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         par { };
         return len(p);
     };
 };
 
-fn emit(w: Writer) int or error {
-    return w.Write(bytes("x")) or return;
+fn emit(w: Writer) int! {
+    return w.Write(bytes("x")) or fail;
 };
 
-fn main() void or error {
+fn main() void! {
     var g = Good {};
-    var n = emit(&g) or return;
+    var n = emit(&g) or fail;
     _ = n;
 };
 `})
@@ -273,13 +273,13 @@ fn main() void or error {
 
 func TestIfaceCompositeAndAssignment(t *testing.T) {
 	src := `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Buffer struct {
     data: u8[],
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         return len(p);
     };
 };
@@ -316,7 +316,7 @@ fn main() void {
 
 func TestIfaceUnexportedMethod(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 type Impl struct {
     fn write() void {
@@ -349,10 +349,10 @@ fn Run(h: Hidden) void {
 
 func TestIfaceCrossPackage(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 type Impl struct {
-    fn Push(m: lib.Msg) int or error {
+    fn Push(m: lib.Msg) int! {
         return 0;
     };
 };
@@ -367,7 +367,7 @@ fn main() void {
 };
 
 type Sink interface {
-    Push(m: Msg) int or error;
+    Push(m: Msg) int!;
 };
 
 fn Use(s: Sink) void {
@@ -381,7 +381,7 @@ func TestIfaceGoReader(t *testing.T) {
 	good := `use io;
 
 type Source struct {
-    fn Read(p: u8[]) int or error {
+    fn Read(p: u8[]) int! {
         return len(p);
     };
 };

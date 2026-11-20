@@ -1,5 +1,5 @@
 use fmt;
-use "./lib";
+use ./lib;
 
 type Point struct {
     x: i32,
@@ -18,28 +18,34 @@ type Stack[Item] struct {
 
 const N = 3;
 
-fn main() void or error {
+fn main() void! {
     var points = Point[N] {};
-    points[0] = Point { x = 1, y = 2 };
-    points[1] = Point { x = 3, y = 4 };
-    points[2] = Point { x = 5, y = 6 };
-    fmt.Println(len(points)) or return;
-    fmt.Println(points[1].x + points[2].y) or return;
+    points[0] = Point { x: 1, y: 2 };
+    points[1] = Point { x: 3, y: 4 };
+    points[2] = Point { x: 5, y: 6 };
+    fmt.Println(len(points))
+        or fail;
+    fmt.Println(points[1].x + points[2].y)
+        or fail;
 
     var imported = Point[lib.N] {};
-    imported[2] = Point { x = 12, y = 13 };
-    fmt.Println(len(imported), imported[2].y) or return;
+    imported[2] = Point { x: 12, y: 13 };
+    fmt.Println(len(imported), imported[2].y)
+        or fail;
 
     var bytes = Byte[N] {};
     bytes[0] = 7;
     bytes[2] = 9;
-    fmt.Println(len(bytes), bytes[0], bytes[2]) or return;
+    fmt.Println(len(bytes), bytes[0], bytes[2])
+        or fail;
 
     var fixed = Point[2] {};
-    fixed[1] = Point { x = 8, y = 9 };
-    fmt.Println(fixed[1].x) or return;
+    fixed[1] = Point { x: 8, y: 9 };
+    fmt.Println(fixed[1].x)
+        or fail;
 
     var stack = Stack[i32] {};
     stack.Push(11);
-    fmt.Println(len(stack.data)) or return;
+    fmt.Println(len(stack.data))
+        or fail;
 };

@@ -392,7 +392,7 @@ func TestDidChangeLatestAnalysisWins(t *testing.T) {
 }
 
 func TestDuplicateSemanticDiagnostics(t *testing.T) {
-	src := `fn main() void or error {
+	src := `fn main() void! {
     var p: *Missing = nil;
     return;
 };
@@ -428,7 +428,7 @@ func TestTypeDiagnostics(t *testing.T) {
 		"ink.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
 		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
 	}
-	src := "use fmt;\n\nfn main() void or error {\n    var n = 1 + \"x\";\n    fmt.Println(n) or return;\n};\n"
+	src := "use fmt;\n\nfn main() void! {\n    var n = 1 + \"x\";\n    fmt.Println(n) or fail;\n};\n"
 	for name, text := range files {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {
 			t.Fatal(err)
@@ -737,7 +737,7 @@ func TestParseErrorFormatting(t *testing.T) {
 }
 
 func TestLocalImport(t *testing.T) {
-	mainSrc := `use "./lib" as lib;
+	mainSrc := `use ./lib as lib;
 
 fn main() void {
     var s = lib.Hello();

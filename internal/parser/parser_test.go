@@ -150,7 +150,7 @@ func countNodes(f *ast.File) map[string]int {
 }
 
 const realisticSrc = `use fmt;
-use "./ed" as ed;
+use ./ed as ed;
 
 const Max = 100;
 
@@ -174,12 +174,12 @@ type Shape enum {
 };
 
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
     Flush() void;
 };
 
 type Id = u64;
-type Handler = fn(Request) Response or error;
+type Handler = fn(Request) Response!;
 
 type Stack[Item] struct {
     data: Item[],
@@ -200,8 +200,8 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] {
 var global = User { Name = "Alice", age = 30 };
 var mapping = map[str, User] {};
 
-fn main() void or error {
-    fmt.Println(global.Name) or return;
+fn main() void! {
+    fmt.Println(global.Name) or fail;
 };
 
 test "append grows the slice" {
@@ -352,9 +352,9 @@ func TestUseCanonical(t *testing.T) {
 	for _, src := range []string{
 		"use fmt;",
 		"use fmt as f;",
-		`use "net/http" as http;`,
-		`use "./lib" as lib;`,
-		`use "../x";`,
+		`use net/http as http;`,
+		`use ./lib as lib;`,
+		`use ../x;`,
 	} {
 		f, errs := Parse("use.ink", []byte(src))
 		if len(errs) != 0 {
@@ -366,9 +366,8 @@ func TestUseCanonical(t *testing.T) {
 	}
 
 	for _, c := range []struct{ src, hint string }{
-		{`use "fmt";`, "use fmt;"},
-		{`use "fmt" as f;`, "use fmt;"},
-		{"use `os`;", "use os;"},
+		{`use "fmt";`, "without quotes"},
+		{"use `os`;", "without quotes"},
 	} {
 		_, errs := Parse("use.ink", []byte(c.src))
 		if len(errs) != 1 || !strings.Contains(errs[0].Msg, c.hint) {
@@ -378,7 +377,7 @@ func TestUseCanonical(t *testing.T) {
 }
 
 func TestVersionedImportRequiresAlias(t *testing.T) {
-	f, errs := Parse("use.ink", []byte(`use "charm.land/bubbletea/v2" as tea;`))
+	f, errs := Parse("use.ink", []byte(`use charm.land/bubbletea/v2 as tea;`))
 	if len(errs) != 0 {
 		t.Fatalf("aliased import: %v", errs)
 	}
@@ -387,9 +386,9 @@ func TestVersionedImportRequiresAlias(t *testing.T) {
 	}
 
 	for _, src := range []string{
-		`use "charm.land/bubbletea/v2";`,
-		`use "github.com/x/y/v3";`,
-		`use "example.com/v10";`,
+		`use charm.land/bubbletea/v2;`,
+		`use github.com/x/y/v3;`,
+		`use example.com/v10;`,
 	} {
 		_, errs := Parse("use.ink", []byte(src))
 		if len(errs) != 1 || !strings.Contains(errs[0].Msg, "requires an alias") {
@@ -398,9 +397,9 @@ func TestVersionedImportRequiresAlias(t *testing.T) {
 	}
 
 	for _, src := range []string{
-		`use "./v2";`,
-		`use "net/http";`,
-		`use "example.com/v2x";`,
+		`use ./v2;`,
+		`use net/http;`,
+		`use example.com/v2x;`,
 	} {
 		_, errs := Parse("use.ink", []byte(src))
 		if len(errs) != 0 {
@@ -419,7 +418,7 @@ type Shape enum {
 };
 
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type UserId = u64;
@@ -496,7 +495,7 @@ func TestFuncBodyRejectsAssign(t *testing.T) {
 	cases := []string{
 		"fn f() void = {\n    return;\n};\n",
 		"fn f() int = {\n    return 1;\n};\n",
-		"fn f() int or error = {\n    return 1;\n};\n",
+		"fn f() int! = {\n    return 1;\n};\n",
 	}
 	for _, src := range cases {
 		f, errs := Parse("oldfn.ink", []byte(src))
@@ -699,7 +698,7 @@ func TestStatements(t *testing.T) {
 	}
 }
 
-const expressionsSrc = "fn e() void or error {\n" +
+const expressionsSrc = "fn e() void! {\n" +
 	"    var p = 1 + 2 * 3 - 4;\n" +
 	"    var q = a || b && c == d + e * f;\n" +
 	"    var c1 = f(1, 2);\n" +
@@ -720,11 +719,11 @@ const expressionsSrc = "fn e() void or error {\n" +
 	"    var fl1 = fn(i, j) => i < j;\n" +
 	"    var fl2 = fn(i: int, j: int) bool { return i < j; };\n" +
 	"    var np = nil[*Node];\n" +
-	"    var o1 = os.Open(\"x\") or return;\n" +
+	"    var o1 = os.Open(\"x\") or fail;\n" +
 	"    var o2 = os.Open(\"x\") or err { return err; };\n" +
 	"    var o3 = os.Open(\"x\") or panic(\"bad\");\n" +
 	"    var o4 = os.Open(\"x\") or panic();\n" +
-	"    var orAny = a or return;\n" +
+	"    var orAny = a or fail;\n" +
 	"    var u = -a + !b + ^c + ~d + &e + *p;\n" +
 	"    var up = +a;\n" +
 	"    var sel = a.b.c;\n" +
@@ -894,10 +893,10 @@ func TestExpressions(t *testing.T) {
 		}
 		return true
 	})
-	if modes[ast.OrReturn] != 2 || modes[ast.OrHandle] != 1 || modes[ast.OrPanic] != 2 {
+	if modes[ast.OrFail] != 2 || modes[ast.OrHandle] != 1 || modes[ast.OrPanic] != 2 {
 		t.Errorf("or modes = %+v", modes)
 	}
-	if any := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr); any.Mode != ast.OrReturn {
+	if any := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr); any.Mode != ast.OrFail {
 		t.Errorf("orAny = %+v", any)
 	}
 	if _, ok := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr).X.(*ast.Ident); !ok {
@@ -995,7 +994,7 @@ type C = u8[][];
 type D = u8[16][];
 type E = map[str, User];
 type F = *Node;
-type G = fn(A, B) C or error;
+type G = fn(A, B) C!;
 type H = (u8[])[];
 type I = Stack[i32];
 type J = pkg.Type;
@@ -1140,15 +1139,15 @@ fn area(s: Shape) f64 {
     };
 };
 
-fn read(path: str) u8[] or error {
-    var f = os.Open(path) or return;
+fn read(path: str) u8[]! {
+    var f = os.Open(path) or fail;
     defer f.Close();
     var buf = u8[4096] {};
-    var n = f.Read(buf[:]) or return;
+    var n = f.Read(buf[:]) or fail;
     return buf[:n];
 };
 
-fn main() void or error {
+fn main() void! {
     var users = User[] {
         User { Name = "Alice", age = 30 },
         User { Name = "Bob", age = 25 },
@@ -1157,15 +1156,15 @@ fn main() void or error {
     sort.Slice(users, fn(i, j) => users[i].age < users[j].age);
 
     for (var u in users) {
-        fmt.Println(u.Greet()) or return;
+        fmt.Println(u.Greet()) or fail;
     };
 
     var data = read("users.txt") or err {
-        fmt.Println("read failed:", err) or return;
+        fmt.Println("read failed:", err) or fail;
         return err;
     };
 
-    fmt.Println(len(data)) or return;
+    fmt.Println(len(data)) or fail;
 };
 `
 
@@ -1259,7 +1258,7 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 		"type X enum { A { ; } };",
 		"fn f() void { return 1 2; };",
 		"type M = map[str; };",
-		"fn f() void { or return; };",
+		"fn f() void { or fail; };",
 		"fn f() void { match (a) { case Circle { radius } => ; }; };",
 		"type X struct { a: };",
 		"fn f() void { case 1 => 2; };",
@@ -1317,7 +1316,7 @@ fn fine() void {
 }
 
 func TestInterfaceMethodRejectsFn(t *testing.T) {
-	src := "type Writer interface {\n    fn Write(p: u8[]) int or error;\n};\n"
+	src := "type Writer interface {\n    fn Write(p: u8[]) int!;\n};\n"
 	f, errs := Parse("iface.ink", []byte(src))
 	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "without 'fn'") {
 		t.Fatalf("errors = %v", errs)

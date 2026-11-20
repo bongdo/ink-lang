@@ -12,6 +12,7 @@ const (
 	RawString
 	Rune
 	Duration
+	Path
 
 	Semi
 	Comma
@@ -84,6 +85,7 @@ const (
 	Break
 	Continue
 	Or
+	Fail
 	Test
 	True
 	False
@@ -99,6 +101,7 @@ var names = map[Kind]string{
 	Float:         "float",
 	String:        "string",
 	RawString:     "raw string",
+	Path:          "import path",
 	Rune:          "rune",
 	Duration:      "duration",
 	Semi:          ";",
@@ -145,6 +148,7 @@ var names = map[Kind]string{
 	Ellipsis:      "...",
 	Arrow:         "=>",
 	Use:           "use",
+	Fail:          "fail",
 	As:            "as",
 	Fn:            "fn",
 	Type:          "type",

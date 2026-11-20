@@ -6,7 +6,7 @@ import (
 )
 
 func TestBlankImport(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use "net/http/pprof" as _;
+	p := checkSrc(t, map[string]string{".": `use net/http/pprof as _;
 
 fn main() void {
 };
@@ -16,7 +16,7 @@ fn main() void {
 
 func TestBlankImportLocal(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as _;
+		".": `use ./lib as _;
 
 fn main() void {
 };

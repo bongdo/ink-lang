@@ -29,6 +29,7 @@ type lexer struct {
 	tokens   []token.Token
 	comments []Comment
 	errors   []Error
+	afterUse bool
 }
 
 func Lex(src []byte) ([]token.Token, []Comment, []Error) {
@@ -40,6 +41,15 @@ func Lex(src []byte) ([]token.Token, []Comment, []Error) {
 func (l *lexer) run() {
 	for l.i < len(l.src) {
 		c := l.src[l.i]
+		if l.afterUse {
+			if pathStart(c) {
+				l.path()
+				continue
+			}
+			if !isSpace(c) && !(c == '/' && (l.peek(1) == '/' || l.peek(1) == '*')) {
+				l.afterUse = false
+			}
+		}
 		switch {
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f':
 			l.advance()
@@ -172,6 +182,9 @@ func (l *lexer) ident() {
 	lit := string(l.src[off:l.i])
 	if kind := token.Lookup(lit); kind != token.Ident {
 		l.emitKind(kind, start)
+		if kind == token.Use {
+			l.afterUse = true
+		}
 		return
 	}
 	l.emit(token.Ident, start, off)
@@ -507,6 +520,39 @@ func isLetter(c byte) bool {
 
 func isDigit(c byte) bool {
 	return c >= '0' && c <= '9'
+}
+
+func isSpace(c byte) bool {
+	switch c {
+	case ' ', '\t', '\n', '\r', '\v', '\f':
+		return true
+	}
+	return false
+}
+
+func pathStart(c byte) bool {
+	return isLetter(c) || isDigit(c) || c == '.' || c == '_' || c == '~'
+}
+
+func pathChar(c byte) bool {
+	return pathStart(c) || c == '-' || c == '/'
+}
+
+func (l *lexer) path() {
+	start, off := l.pos(), l.i
+	for l.i < len(l.src) && pathChar(l.src[l.i]) {
+		if l.src[l.i] == '/' && (l.peek(1) == '/' || l.peek(1) == '*') {
+			break
+		}
+		l.advance()
+	}
+	l.tokens = append(l.tokens, token.Token{
+		Kind: token.Path,
+		Lit:  string(l.src[off:l.i]),
+		Pos:  start,
+		End:  l.pos(),
+	})
+	l.afterUse = false
 }
 
 func digitInBase(c byte, base int) bool {

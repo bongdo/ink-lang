@@ -425,6 +425,7 @@ const (
 	OrReturn OrMode = iota
 	OrPanic
 	OrHandle
+	OrFail
 )
 
 type OrExpr struct {
@@ -434,6 +435,7 @@ type OrExpr struct {
 	Name     string
 	Block    *Block
 	PanicArg Expr
+	FailArg  Expr
 }
 
 func (*OrExpr) exprNode() {}
@@ -477,6 +479,14 @@ type EmptyStmt struct {
 }
 
 func (*EmptyStmt) stmtNode() {}
+
+type FailStmt struct {
+	Span
+	Err Expr
+	Msg Expr
+}
+
+func (*FailStmt) stmtNode() {}
 
 type DeclStmt struct {
 	Span

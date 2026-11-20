@@ -20,17 +20,14 @@ module = "example.com/hello"
 - `module` is the Go module path used for generated code. If absent,
   `example.com/<name>` is used.
 - The root package must be `package main` and contain `fn main`.
-- Local imports use a path: `use "./internal/ed" as ed;`.
-- Go imports use a Go import path: `use fmt;`,
-  `use "charm.land/bubbletea/v2" as tea;`.
-  A bare name without `/` is always a Go import. A quoted simple path
-  (`use "fmt";`) is rejected; the simple form is canonical.
-- A quoted non-local Go import path whose last segment is a version (`/v2`,
-  `/v3`, ...) requires an alias: `use "charm.land/bubbletea/v2" as tea;`. The
-  default alias would be `v2`, which names the version, not the package.
+- Import paths are bare, never quoted: `use fmt;`, `use encoding/json;`,
+  `use ./internal/ed as ed;`. The path is read until whitespace or `;`.
+- A non-local Go import path whose last segment is a version (`/v2`, `/v3`,
+  ...) requires an alias: `use charm.land/bubbletea/v2 as tea;`. The default
+  alias would be `v2`, which names the version, not the package.
 - `as _` is a blank import: the package is linked for its side effects and
   binds no name, so it is never reported as unused. It is allowed only for Go
-  import paths; a local `use "./lib" as _;` is an error.
+  import paths; a local `use ./lib as _;` is an error.
 - Generated Go lives next to the sources as `zz_ink.go` and
   `zz_ink_test.go`. `.ink/` holds generated support files.
 
@@ -42,6 +39,7 @@ module = "example.com/hello"
   `_`. Names beginning with `_s_` are reserved for codegen.
 - Visibility is by the first letter, exactly as in Go: `User` is public,
   `user` is private.
+- `fail` is a statement keyword and cannot be an identifier.
 - Go keywords (`func`, `range`, `package`, `import`, `go`, `chan`, `select`,
   `switch`, `goto`, `fallthrough`) are rejected as Ink identifiers.
 - String escapes follow Go. Raw strings use backticks.
@@ -85,7 +83,7 @@ cannot have type `void`.
 | `*T` | pointer |
 | `fn(A, B) R` | function value |
 | `fn(A, B) (R, S)` | function value with several results |
-| `fn(A, B) R or error` | fallible function value |
+| `fn(A, B) R!` | fallible function value |
 | `pkg.Type` | imported type |
 | `(T)` | grouping |
 
@@ -99,7 +97,7 @@ type Buffer struct {
     data: u8[],
     name: str,
 
-    fn Write(p: u8[]) int or error {
+    fn Write(p: u8[]) int! {
         data = append(data, p...);
         return len(p);
     };
@@ -123,7 +121,7 @@ type Shape enum {
 ```
 
 - A variant without fields is written `Empty,`.
-- Variants are constructed as `Shape.Circle { radius = 2.0 }`.
+- Variants are constructed as `Shape.Circle { radius: 2.0 }`.
 - Variant names must be unique within a package so that bare `case` patterns
   are unambiguous; a qualified pattern `case pkg.Circle { ... }` is allowed.
 - An enum is a sealed sum type. Its zero value is not constructible.
@@ -135,7 +133,7 @@ Interfaces exist for Go interop and for explicitly declared contracts:
 
 ```hare
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 ```
 
@@ -167,7 +165,7 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] { ... };
 
 ```hare
 type UserId = u64;
-type Handler = fn(Request) Response or error;
+type Handler = fn(Request) Response!;
 ```
 
 An alias does not create a new Go type.
@@ -178,7 +176,7 @@ An alias does not create a new Go type.
 var x = 1;
 var xs = u8[] {1, 2, 3};
 var a = u8[3] {1, 2, 3};
-var u = User { Name = "Alice", age = 30 };
+var u = User { Name: "Alice", age: 30 };
 var m = map[str, User] {};
 var p: *Point = nil;
 var e: error = nil;
@@ -194,15 +192,15 @@ const Greeting = "hello";
   `const` is a compile-time name, not immutable runtime storage: it can size
   arrays and appear in `case` patterns. It cannot have a type.
 - Composite literals always carry a type.
-- Struct fields are named `field = value`; omitted fields get zero values.
-- Map literals use `key = value`.
+- Struct fields are named `field: value`; omitted fields get zero values.
+- Map literals use `key: value`.
 - Bare `nil` takes its type from the declared or expected type:
   `var p: *Point = nil;`, `var e: error = nil;`, `return nil;`, `f(nil)`.
 - `nil[T]` is an explicit escape hatch for contexts where the type is `any` or
   an interface, not the default spelling. `nil` is valid only for pointers,
   slices, maps, functions and interfaces.
 - `_` is the only blank/discard construct. It is a result placeholder in
-  multi-result bindings (`var a, _ = f();`) and an explicit discard assignment
+  multi-result bindings (`var a, _: f();`) and an explicit discard assignment
   (`_ = a;`). There is no `discard` builtin.
 - `has(m, key)` reports key presence.
 - `*p` reads a pointer and `*p = v` writes through it.
@@ -241,9 +239,9 @@ Conversions use the type as a function: `i32(x)`, `u64(x)`, `f64(x)`,
 Multiple names are allowed for multi-result calls:
 
 ```hare
-var value, ok = m["key"];
-var n, err = f();
-var n, _ = f();
+var value, ok: m["key"];
+var n, err: f();
+var n, _: f();
 _ = n;
 ```
 
@@ -258,9 +256,9 @@ fn pair() i32, bool {
     return 1, true;
 };
 
-fn load() User, Order or error { ... };
+fn load() (User, Order)! { ... };
 
-fn main() void or error { ... };
+fn main() void! { ... };
 ```
 
 - A function declaration has no `=` before its body. The older form with `=`
@@ -271,12 +269,12 @@ fn main() void or error { ... };
   a function result; it cannot be used as a value type.
 - Several results are a comma-separated list. This is not a tuple value:
   no tuple type, indexing or argument nesting. Allowed positions are `return`,
-  `var a, b = f();` and `a, b = f();`.
+  `var a, b: f();` and `a, b: f();`.
 - In a function type, several results are grouped: `fn(i32) (str, bool)`.
-- The fallible form is `T or error`, `A, B or error` or `void or error`.
+- The fallible form is `T!`, `(A, B)!` or `void!`.
   `or` propagates the error and yields every non-error result:
-  `var a, b = f() or return;`.
-- `main` may be `void` or `void or error`. An error prints to stderr and exits 1.
+  `var a, b: f() or fail;`.
+- `main` may be `void` or `void!`. An error prints to stderr and exits 1.
 - Function literals are closures and the only local callable form; local named
   functions are deliberately absent.
 
@@ -291,32 +289,41 @@ fn(i: int, j: int) bool { return i < j; }
 
 ## 6. Errors
 
-`or` is a statement-level postfix operator on a call that returns `T or error`.
+`or` is a statement-level postfix operator on a call that returns `T!`.
 
 ```hare
-var f = os.Open(path) or return;
-var f = os.Open(path) or err { ... };
-os.Remove(path) or panic("cannot remove");
+var f = os.Open(path)
+    or fail;
+
+var f = os.Open(path)
+    or err { ... };
+
+os.Remove(path)
+    or panic("cannot remove");
 ```
 
 Forms:
 
-- `call() or return;` — propagate to the caller.
-- `call() or err { ... };` — handle here; `err` is the error value.
+- `call() or fail;` — propagate to the caller.
+- `call() or fail("context");` — wrap the error with context and propagate.
+- `call() or err { ... };` — handle here; the name is always `err`.
+  Inside the block, `fail(err, "context");` wraps and returns.
 - `call() or panic("message");` — panic with the message.
 - `call() or panic();` — panic with the error value.
+
+The handler always starts on a new line, indented once; `ink fmt` enforces it.
 
 `or` may appear only as the entire initializer of a `var`, the entire right
 side of an assignment, an expression statement, or a `return` operand. It may
 not be nested inside another expression.
 
 `if (err != nil) { return err; }` (and the multi-result form) is rejected:
-propagation has one canonical spelling, `or return`. `if err != nil` remains
+propagation has one canonical spelling, `or fail`. `if err != nil` remains
 valid for inspection, logging, retry and `errors.Is`; only the pure manual
 propagation pattern is an error.
 
 `defer` is block-scoped. Deferred calls run when the enclosing block exits,
-including through `return`, `break`, `continue`, `or return` and panic.
+including through `return`, `break`, `continue`, `or fail` and panic.
 
 ## 7. Control flow
 
@@ -368,17 +375,21 @@ else => ...;
 
 ```hare
 par {
-    users = loadUsers(id) or return;
-    orders = loadOrders(id) or return;
+    users = loadUsers(id)
+        or fail;
+    orders = loadOrders(id)
+        or fail;
 };
 
 par for (var i = 0; i < len(urls); i += 1) limit 64 {
-    sizes[i] = fetchSize(urls[i]) or return;
+    sizes[i] = fetchSize(urls[i])
+        or fail;
 };
 
 within 30s {
     par for (var i = 0; i < len(urls); i += 1) {
-        sizes[i] = fetchSize(urls[i]) or return;
+        sizes[i] = fetchSize(urls[i])
+            or fail;
     };
 };
 ```
@@ -400,7 +411,7 @@ within 30s {
   from the current worker's context.
 - One `ParErrors` per statement. Indexed workers report their ordinal; the
   lowest ordinal wins.
-- `or return` in a worker adds the error at its ordinal, cancels the siblings,
+- `or fail` in a worker adds the error at its ordinal, cancels the siblings,
   runs the worker's deferred calls and returns from the worker. After `Wait`
   the statement returns the winning error, or re-panics it in a `void`
   function. Inside a worker, `or panic` is an error with the same delivery, not
@@ -413,7 +424,7 @@ within 30s {
   worker: wrap it in a block when the cleanup belongs to the sibling
   statements.
 - `return`, `break` and `continue` may not cross a `par`/`par for` boundary.
-  `or return` and `or panic` are the only ways out of a worker.
+  `or fail` and `or panic` are the only ways out of a worker.
 - Plain `par`: a captured root may be written by at most one top-level
   statement, and no other statement may read it. Writes through a captured
   pointer, to a captured map slot, to a global, or to `self` are rejected.

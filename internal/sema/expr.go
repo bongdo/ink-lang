@@ -588,9 +588,20 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 	switch or.Mode {
 	case ast.OrReturn:
 		if c.fn == nil {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or return outside a function")
+			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail outside a function")
 		} else if !c.fn.err {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or return in a function that does not return an error")
+			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail in a function that cannot fail; add ! to the result")
+		}
+	case ast.OrFail:
+		if c.fn == nil {
+			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail outside a function")
+		} else if !c.fn.err {
+			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail in a function that cannot fail; add ! to the result")
+		}
+		if or.FailArg != nil {
+			c.resolveExpr(or.FailArg, false)
+			c.checkVoidValue(or.FailArg)
+			c.checkAssign(&ast.NamedType{Name: "str", GoName: "string"}, or.FailArg)
 		}
 	case ast.OrPanic:
 		c.resolveExpr(or.PanicArg, false)

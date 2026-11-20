@@ -19,7 +19,7 @@
 
 Работает обратное: если формы различаются только синтаксическим вкусом и
 означают одно и то же, вторая форма запрещена. Примеры настоящих дублей:
-`use fmt;` и `use "fmt";`, named и positional struct literal, `or return` и
+`use fmt;` и `use fmt;`, named и positional struct literal, `or fail` и
 `if err != nil { return err; }`.
 
 ### 1.1. Как решать
@@ -54,9 +54,9 @@
 use fmt;
 use os;
 use strings;
-use "charm.land/bubbletea/v2" as tea;
-use "./lib" as lib;
-use "../shared/config" as config;
+use charm.land/bubbletea/v2 as tea;
+use ./lib as lib;
+use ../shared/config as config;
 ```
 
 - Bare identifier — только простой Go-пакет: путь является одним
@@ -64,18 +64,18 @@ use "../shared/config" as config;
   не local path. `use fmt;`, `use os;`.
 - Кавычки — если путь содержит `/` или `.`, либо это local path (`./`, `../`),
   либо путь не является одним идентификатором. Это механическое правило, а
-  не выбор: `use "fmt";` — тот же импорт, но неканонический; форматтер
+  не выбор: `use fmt;` — тот же импорт, но неканонический; форматтер
   переписывает его в `use fmt;`.
 - Alias — только когда default alias не то имя, которое нужно в коде, или
   default alias невалиден как идентификатор. Default alias — последний
   сегмент пути, `-` заменяется на `_`. Для пути, оканчивающегося на `/v2`,
   default alias равен `v2`; это версия, а не имя пакета, поэтому alias
-  обязателен: `use "charm.land/bubbletea/v2" as tea;`. Лишний alias
+  обязателен: `use charm.land/bubbletea/v2 as tea;`. Лишний alias
   (`use fmt as fmt;`) форматтер убирает.
 - Local import — всегда путь в кавычках и всегда с alias, если имя директории
-  не совпадает с желаемым именем в коде. `use "./lib";` без alias допустим
+  не совпадает с желаемым именем в коде. `use ./lib;` без alias допустим
   только когда пакет называется `lib`.
-- Blank import — `use "modernc.org/sqlite" as _;` подключает Go-пакет ради
+- Blank import — `use modernc.org/sqlite as _;` подключает Go-пакет ради
   побочных эффектов (драйверы, `pprof`, `time/tzdata`) и ничего не связывает;
   local import blank-ом быть не может.
 
@@ -83,28 +83,28 @@ use "../shared/config" as config;
 становиться стилистическим выбором. Частый случай (stdlib) должен быть
 коротким, редкий (third-party path) — явным.
 
-**0.2:** `use "fmt";` уже ошибка парсера; канон — `use fmt;`. Alias для
+**0.2:** `use fmt;` уже ошибка парсера; канон — `use fmt;`. Alias для
 Go-пути, оканчивающегося на версию (`/v2`, `/v3`, ...), обязателен: это
 проверяет парсер. Local path (`./v2`) этим правилом не задет.
 
 ### 2.2. Struct literals
 
 ```hare
-var u = User { Name = "Alice", age = 30 };
+var u = User { Name: "Alice", age: 30 };
 var empty = User {};
-var p = &User { Name = "Alice" };
+var p = &User { Name: "Alice" };
 var xs = User[] {
-    User { Name = "A" },
-    User { Name = "B" },
+    User { Name: "A" },
+    User { Name: "B" },
 };
 ```
 
-- Только named fields: `field = value`. Positional `User { "Alice", 30 }`
+- Только named fields: `field: value`. Positional `User { "Alice", 30 }`
   запрещён на уровне sema, а не только соглашения.
 - Omitted fields получают zero value. Пустой literal `User {}` — канон для
   «все поля zero»; это не ошибка и не требует писать каждое поле.
 - Вложенные struct literals тоже named на каждом уровне.
-- Map literal — `key = value`; slice/array literal — значения без ключей.
+- Map literal — `key: value`; slice/array literal — значения без ключей.
   Смешивать нельзя.
 - Go-структуры с unexported полями не собираются literal-ом в app-коде;
   для них есть конструктор в адаптере.
@@ -113,13 +113,13 @@ var xs = User[] {
 вставке поля и прячет, что именно присвоено. Named literal переживает
 добавление поля и читается без знания объявления.
 
-**0.2:** sema уже требует `field = value` для struct literal. Концепция это
+**0.2:** sema уже требует `field: value` для struct literal. Концепция это
 фиксирует, а не меняет.
 
 ### 2.3. Ошибки
 
 ```hare
-var f = os.Open(path) or return;
+var f = os.Open(path) or fail;
 
 var data = read(path) or err {
     if (isNotFound(err)) {
@@ -133,22 +133,22 @@ os.Remove(path) or panic("cannot remove");
 
 - `or` — единственный канон проброса ошибок в app-коде. Нет `try`, `catch`,
   `?`, нет `if err != nil` как идиомы.
-- `or return` — default: ошибка уходит вызывающему. Это форма для 90% кода.
+- `or fail` — default: ошибка уходит вызывающему. Это форма для 90% кода.
 - `or err { ... }` — только когда здесь есть что сделать: классифицировать,
   повторить, подставить fallback, добавить контекст. Обработчик обязан либо
   вернуть значение/ошибку, либо продолжить в определённом состоянии. Пустой
   обработчик — ошибка ревью, а не «подавить шум».
 - `or panic(...)` — только для нарушенного инварианта или падения на старте.
   Ожидаемая ошибка IO/пользователя — не panic. Внутри `par` это не Go panic,
-  а ошибка воркера; но канон всё равно `or return`.
-- Один fallible call — один statement. `f(g() or return)` запрещён: `or`
+  а ошибка воркера; но канон всё равно `or fail`.
+- Один fallible call — один statement. `f(g() or fail)` запрещён: `or`
   statement-level. Это не временное ограничение, а решение: путь ошибки
   должен быть виден в структуре кода, а не спрятан внутри выражения.
 - `or` поддерживает любое число не-error результатов:
-  `var a, b = f() or return;`, `a, b = f() or return;`,
-  `return f() or return;`, `f() or return;`. Ошибка по-прежнему
+  `var a, b: f() or fail;`, `a, b: f() or fail;`,
+  `return f() or fail;`, `f() or fail;`. Ошибка по-прежнему
   statement-level и видна в структуре кода; arity проверяет sema.
-  Go-форма `var a, b, err = f();` остаётся для адаптеров, app-код пишет `or`.
+  Go-форма `var a, b, err: f();` остаётся для адаптеров, app-код пишет `or`.
 - Ошибку не сравнивают по строке. `errors.Is`/`errors.As` — на границе,
   в адаптере; app-код получает уже осмысленный `error` или свой enum.
   `isNotFound` в примере — helper facade, а не вызов Go-пакета из домена.
@@ -194,17 +194,20 @@ for () {
 
 ```hare
 par {
-    users = loadUsers(id) or return;
-    orders = loadOrders(id) or return;
+    users = loadUsers(id)
+        or fail;
+    orders = loadOrders(id)
+        or fail;
 };
 
 par for (var i, url in urls) limit 64 {
-    sizes[i] = fetchSize(url) or return;
+    sizes[i] = fetchSize(url)
+        or fail;
 };
 
 within 30s {
     par for (var i = 0; i < len(urls); i += 1) {
-        sizes[i] = fetchSize(urls[i]) or return;
+        sizes[i] = fetchSize(urls[i]) or fail;
     };
 };
 ```
@@ -265,7 +268,7 @@ var xs = u8[] {};
 - `nil` допустим только для pointer, slice, map, function, interface. Для
   struct и enum — нет; zero value enum не конструируется.
 - Наличие ключа в map — `has(m, k)`, а не `m[k] != nil` и не sentinel.
-  Если нужны и значение, и наличие — `var v, ok = m[k];`.
+  Если нужны и значение, и наличие — `var v, ok: m[k];`.
 
 **0.2:** typed `var` реализован: `var p: *User = nil;` даёт expected type
 для bare `nil`. `nil[T]` остаётся разрешённым escape hatch для `any` и
@@ -274,7 +277,7 @@ var xs = u8[] {};
 ### 2.7. `_`
 
 ```hare
-var a, _ = f();
+var a, _: f();
 _ = a;
 ```
 
@@ -302,7 +305,7 @@ _ = a;
 | range / C-style `for` | обход коллекции против счётчика | коллекция — range; арифметика индекса — C-style |
 | `par` / `par for` / `within` | разнородные задачи / однородные итерации / deadline | по форме работы, не по «что короче» |
 | `nil` / `T[] {}` | отсутствие против пустой коллекции | по семантике API; не заменять одно другим |
-| `or return` / `or err {}` / `or panic` | проброс / обработка / аварийный выход | по тому, что реально делает код |
+| `or fail` / `or err {}` / `or panic` | проброс / обработка / аварийный выход | по тому, что реально делает код |
 | `T[]` / `T[N]` | slice против array | по владению и размеру; это разные типы |
 
 Отдельно:
@@ -339,7 +342,7 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 - Сложная библиотека (lifecycle, config, callbacks, context, goroutines,
   глобальное состояние, ошибки, которые надо классифицировать) — только
   через facade. App-код импортирует facade, а не Go-пакет.
-- Facade — Ink-модуль с простыми типами и `or error`. Внутри он может
+- Facade — Ink-модуль с простыми типами и `!`. Внутри он может
   делать `use` Go-пакета. Если адаптер должен быть на Go — это отдельный
   binding-модуль; app-код его не импортирует.
 - Один и тот же сложный Go-пакет не должен появляться в нескольких
@@ -454,7 +457,7 @@ flow. См. §10 в [SPEC.md](SPEC.md).
 | Go-типы в публичном API | forbidden | review + FFI; линтер по сигнатурам — позже |
 
 Правила, которые меняют смысл, не нормализуются форматтером. Форматтер
-переписывает только эквивалентное: `use "fmt";` → `use fmt;`, лишний alias,
+переписывает только эквивалентное: `use fmt;` → `use fmt;`, лишний alias,
 старые `=`-перед-телом объявления → канон без `=`, отступы.
 `nil[T]` → `nil` — не autofix: нужно знать expected type, а в `any`-контексте
 форма остаётся нужной. `if err != nil` → `or` — это не autofix: слишком легко
@@ -480,7 +483,7 @@ flow. См. §10 в [SPEC.md](SPEC.md).
 ## 9. Открытые вопросы
 
 - **Multi-result + error.** Решено: `or` поддерживает любое число не-error
-  результатов (`var a, b = f() or return;`). Go-форма с `err` остаётся для
+  результатов (`var a, b: f() or fail;`). Go-форма с `err` остаётся для
   адаптеров.
 - **`nil[T]` при `any`.** Решено: `nil[T]` остаётся escape hatch для
   `any`/interface, где expected type не фиксирует динамический тип.

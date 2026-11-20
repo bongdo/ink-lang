@@ -1,7 +1,7 @@
 use fmt;
 use errors;
 
-fn fail() void or error {
+fn stop() void! {
     return errors.New("boom");
 };
 
@@ -16,31 +16,33 @@ fn withWithin() void {
     };
 };
 
-fn run1() void or error {
+fn run1() void! {
     par {
         withDefer();
     };
 };
 
-fn run2() void or error {
+fn run2() void! {
     par {
         withWithin();
     };
 };
 
-fn run3() void or error {
+fn run3() void! {
     par {
-        fail() or panic("wrapped");
+        stop()
+            or panic("wrapped");
     };
 };
 
-fn run4() void or error {
+fn run4() void! {
     par {
-        fail() or panic();
+        stop()
+            or panic();
     };
 };
 
-fn run5() void or error {
+fn run5() void! {
     par for (var i = 0; i < 1; i += 1) {
         defer fmt.Println("for defer");
         within 5s {
@@ -55,20 +57,25 @@ fn main() void {
     var c3 = false;
     var c4 = false;
     var c5 = false;
-    run1() or err {
-        c1 = true;
-    };
-    run2() or err {
-        c2 = true;
-    };
-    run3() or err {
-        c3 = true;
-    };
-    run4() or err {
-        c4 = true;
-    };
-    run5() or err {
-        c5 = true;
-    };
+    run1()
+        or err {
+            c1 = true;
+        };
+    run2()
+        or err {
+            c2 = true;
+        };
+    run3()
+        or err {
+            c3 = true;
+        };
+    run4()
+        or err {
+            c4 = true;
+        };
+    run5()
+        or err {
+            c5 = true;
+        };
     fmt.Println(c1, c2, c3, c4, c5);
 };

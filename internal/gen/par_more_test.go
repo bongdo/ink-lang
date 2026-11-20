@@ -13,15 +13,15 @@ fn boom() void {
     panic("defer-panic");
 };
 
-fn fail() void or error {
+fn stop() void! {
     return errors.New("original");
 };
 
-fn main() void or error {
+fn main() void! {
     par {
         {
             defer boom();
-            fail() or return;
+            stop() or fail;
         };
     };
 };

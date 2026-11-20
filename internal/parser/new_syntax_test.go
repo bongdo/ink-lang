@@ -8,11 +8,11 @@ import (
 
 func TestResultList(t *testing.T) {
 	f := mustParse(t, `
-fn pair() i32, i32 or error {
+fn pair() (i32, i32)! {
     return 1, 2;
 };
 
-type Handler = fn(i32) (str, bool);
+type Handler = fn(i32) (str, bool)!;
 
 fn main() void {};
 `)
@@ -21,7 +21,7 @@ fn main() void {};
 		t.Fatalf("pair = %+v", fn)
 	}
 	h := declType(t, f, "Handler").Target.(*ast.FuncType)
-	if len(h.Results) != 2 || h.Err {
+	if len(h.Results) != 2 || !h.Err {
 		t.Fatalf("Handler = %+v", h)
 	}
 }

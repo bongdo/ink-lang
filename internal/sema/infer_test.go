@@ -33,7 +33,7 @@ func TestMapCommaOK(t *testing.T) {
 
 func TestMissingImportUsedInType(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 fn main() void {
     var r = lib.Result { value = 1 };

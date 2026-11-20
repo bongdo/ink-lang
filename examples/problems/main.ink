@@ -20,7 +20,7 @@ type E enum {
     B,
 };
 
-fn f() i32 or error {
+fn f() i32! {
     return 1;
 };
 
@@ -57,9 +57,9 @@ fn nilNoType() void {
     _ = p;
 };
 
-// 5. Manual propagation is rejected; use `or return`.
-//    Expected: use or return instead of if err != nil { return err }.
-fn manualPropagation() i32 or error {
+// 5. Manual propagation is rejected; use `or fail`.
+//    Expected: use or fail instead of if err != nil { return err }.
+fn manualPropagation() i32! {
     var v, err = f();
     if (err != nil) {
         return err;
@@ -89,7 +89,7 @@ fn parForMap() void {
 // 8. A write through a captured pointer inside par is rejected (G6).
 //    Expected: writing to p captured from outside par.
 fn pointerParWrite() void {
-    var p = &Foo { x = 1 };
+    var p = &Foo { x: 1 };
     par {
         p.x = 2;
     };
@@ -154,17 +154,17 @@ fn voidValue() void {
 // 15. Interface methods must not use `fn`.
 //     Expected: interface methods are declared without 'fn'.
 // type BadWriter interface {
-//     fn Write(p: u8[]) int or error;
+//     fn Write(p: u8[]) int!;
 // };
 
 // 16. Quoted simple imports are not canonical.
 //     Expected: simple import must be bare: use fmt;.
-// use "fmt";
+// use "fmt";  // quotes are rejected: write use fmt;
 
 // 17. `or` is statement-level only.
 //     Expected: or must be the whole initializer, right side, statement or return value.
-// fn nestedOr() i32 or error {
-//     var x = f() or return + 1;
+// fn nestedOr() i32! {
+//     var x = f() or fail + 1;
 //     return x;
 // };
 

@@ -161,7 +161,7 @@ func TestDuplicateDiagnosticsJSON(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "ink.toml"), []byte("name = \"dup\"\nmodule = \"example.com/dup\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	src := "fn main() void or error {\n    var p: *Missing = nil;\n    return;\n};\n"
+	src := "fn main() void! {\n    var p: *Missing = nil;\n    return;\n};\n"
 	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}

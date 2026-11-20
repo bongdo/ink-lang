@@ -4,8 +4,9 @@ fn add(a: i32, b: i32) i32 {
     return a + b;
 };
 
-fn main() void or error {
-    fmt.Println(add(2, 2)) or return;
+fn main() void! {
+    fmt.Println(add(2, 2))
+        or fail;
 };
 
 test "arithmetic" {

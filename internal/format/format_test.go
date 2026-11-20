@@ -8,7 +8,7 @@ import (
 )
 
 const sample = `use fmt;
-use "./lib" as lib;
+use ./lib as lib;
 
 // user type
 type User struct {
@@ -26,7 +26,7 @@ type Shape enum {
 };
 
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type Id = u64;
@@ -40,36 +40,36 @@ fn area(s: Shape) f64 {
     };
 };
 
-fn read(path: str) u8[] or error {
-    var f = lib.Open(path) or return;
+fn read(path: str) u8[]! {
+    var f = lib.Open(path) or fail;
     defer f.Close();
     var buf = u8[16] {};
-    var n = f.Read(buf[:]) or return;
+    var n = f.Read(buf[:]) or fail;
     return buf[:n];
 };
 
-fn main() void or error {
+fn main() void! {
     var u = User { Name = "a", age = 1 };
     var s = u.Greet();
     if (len(s) > 0) {
-        fmt.Println(s) or return;
+        fmt.Println(s) or fail;
     } else {
-        fmt.Println("empty") or return;
+        fmt.Println("empty") or fail;
     };
     for (var i = 0; i < 10; i += 1) {
         if (i % 2 == 0) { continue; };
     };
     par {
-        fmt.Println("a") or return;
-        fmt.Println("b") or return;
+        fmt.Println("a") or fail;
+        fmt.Println("b") or fail;
     };
     within 10s {
-        fmt.Println("c") or return;
+        fmt.Println("c") or fail;
     };
     var xs = u8[] {1, 2};
     var m = map[str, i32] { "a" = 1 };
     for (var k, v in m) {
-        fmt.Println(k, v) or return;
+        fmt.Println(k, v) or fail;
     };
     var f = fn(x: i32) i32 => x + 1;
     var g = fn(x: i32) i32 { return x + 1; };
@@ -142,7 +142,7 @@ type User struct {
 fn main() void {
     var x = 1; // tail
     if (x > 0) {
-        fmt.Println(x) or return; // print
+        fmt.Println(x) or fail; // print
     }; // block
 };
 `
@@ -155,7 +155,8 @@ type User struct {
 fn main() void {
     var x = 1; // tail
     if (x > 0) {
-        fmt.Println(x) or return; // print
+        fmt.Println(x)
+            or fail; // print
     }; // block
 };
 `
@@ -253,13 +254,13 @@ fn main() void {
 
 func TestInterfaceMethodWithoutFn(t *testing.T) {
 	src := `type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
     Close() void;
     Flush();
 };
 `
 	out := formatSrc(t, src)
-	for _, want := range []string{"Write(p: u8[]) int or error;", "Close() void;", "Flush() void;"} {
+	for _, want := range []string{"Write(p: u8[]) int!;", "Close() void;", "Flush() void;"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q:\n%s", want, out)
 		}
@@ -286,15 +287,15 @@ b = 2,
 `
 	want := `fn main() void {
     var users = User[] {
-        User { Name = "Alice", age = 30 },
-        User { Name = "Bob", age = 25 },
+        User { Name: "Alice", age: 30 },
+        User { Name: "Bob", age: 25 },
     };
-    var one = User { Name = "C", age = 1 };
+    var one = User { Name: "C", age: 1 };
     var nested = Outer {
-        inner = Inner {
-            a = 1,
+        inner: Inner {
+            a: 1,
         },
-        b = 2,
+        b: 2,
     };
 };
 `
@@ -308,7 +309,7 @@ b = 2,
 }
 
 func TestNewSyntax(t *testing.T) {
-	src := `fn pair() i32, i32 or error {
+	src := `fn pair() i32, i32! {
     return 1, 2;
 };
 
@@ -328,7 +329,7 @@ fn main() void {
 		t.Fatalf("parse: %v", errs)
 	}
 	out := string(File(f))
-	for _, want := range []string{"fn pair() i32, i32 or error", "fn(i32) (str, bool)", "var x = nil;", "case tea.KeyPressMsg as k", "else =>"} {
+	for _, want := range []string{"fn pair() (i32, i32)!", "fn(i32) (str, bool)", "var x = nil;", "case tea.KeyPressMsg as k", "else =>"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
@@ -345,7 +346,7 @@ type Shape enum {
 };
 
 type Writer interface {
-    Write(p: u8[]) int or error;
+    Write(p: u8[]) int!;
 };
 
 type UserId = u64;
@@ -354,7 +355,7 @@ fn Greet() str {
     return "hi";
 };
 
-fn main() void or error {
+fn main() void! {
     var g = fn(x: i32) i32 => x;
     _ = g;
     return;
@@ -454,9 +455,9 @@ func TestEmptyForLoop(t *testing.T) {
 
 func TestVersionedImportKeepsAlias(t *testing.T) {
 	for _, want := range []string{
-		"use \"charm.land/bubbletea/v2\" as tea;\n",
-		"use \"charm.land/bubbletea/v2\" as bubbletea;\n",
-		"use \"charm.land/bubbletea/v2\" as v2;\n",
+		"use charm.land/bubbletea/v2 as tea;\n",
+		"use charm.land/bubbletea/v2 as bubbletea;\n",
+		"use charm.land/bubbletea/v2 as v2;\n",
 	} {
 		if out := formatSrc(t, strings.TrimSuffix(want, "\n")); out != want {
 			t.Fatalf("got %q, want %q", out, want)
@@ -466,7 +467,7 @@ func TestVersionedImportKeepsAlias(t *testing.T) {
 
 func TestBlankImportKept(t *testing.T) {
 	for _, want := range []string{
-		"use \"net/http/pprof\" as _;\n",
+		"use net/http/pprof as _;\n",
 		"use fmt as _;\n",
 	} {
 		if out := formatSrc(t, strings.TrimSuffix(want, "\n")); out != want {

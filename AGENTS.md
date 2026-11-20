@@ -25,7 +25,7 @@ errors exit 1. `fmt -l --json` prints an array of paths.
 ## Layout
 
 One directory is one package; no package clause. Local imports:
-`use "./lib";`. Generated and never edited: `zz_ink.go`,
+`use ./lib;`. Generated and never edited: `zz_ink.go`,
 `zz_ink_test.go`, `.ink/`.
 
 OpenCode starts `ink lsp` for `.ink` and formats on edit when configured.

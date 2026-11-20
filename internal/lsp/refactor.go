@@ -491,7 +491,7 @@ func (s *server) codeActionFix(fi *fileInfo, diagnostic Diagnostic, code string)
 	case "import-alias":
 		return "Add import alias", fixImportAlias(fi, diagnostic)
 	case "err-manual":
-		return "Use or return", fixErrManual(fi, diagnostic)
+		return "Use or fail", fixErrManual(fi, diagnostic)
 	case "nil-untyped":
 		return "Add explicit nil type", fixNilUntyped(fi, diagnostic)
 	}
@@ -619,7 +619,7 @@ func fixImportAlias(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
 	if use == nil || use.Local || use.Path == "" {
 		return nil
 	}
-	_, end, ok := quotedRange(fi.src, use)
+	end, ok := pathEnd(fi, use)
 	if !ok {
 		return nil
 	}
@@ -631,6 +631,18 @@ func fixImportAlias(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
 		return nil
 	}
 	return []TextEdit{{Range: Range{Start: PositionAt(fi.src, end), End: PositionAt(fi.src, end)}, NewText: " as " + name}}
+}
+
+func pathEnd(fi *fileInfo, use *ast.Use) (int, bool) {
+	start := use.Pos().Offset + len("use")
+	if start < 0 || start > len(fi.src) || use.EndPos().Offset > len(fi.src) {
+		return 0, false
+	}
+	i := strings.Index(string(fi.src[start:use.EndPos().Offset]), use.Path)
+	if i < 0 {
+		return 0, false
+	}
+	return start + i + len(use.Path), true
 }
 
 func hasAliasWord(src []byte, start, end int) bool {
@@ -793,7 +805,7 @@ func fixErrManual(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
 		b.WriteString(" = ")
 	}
 	b.WriteString(string(fi.src[call.Pos().Offset:call.EndPos().Offset]))
-	b.WriteString(" or return;")
+	b.WriteString(" or fail;")
 	start := prev.Pos().Offset
 	end := ifStmt.EndPos().Offset
 	if start < 0 || end > len(fi.src) || start >= end {

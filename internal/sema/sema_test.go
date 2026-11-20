@@ -51,8 +51,8 @@ func noErrors(t *testing.T, p *Program) {
 func TestHello(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
-fn main() void or error {
-    fmt.Println("hello") or return;
+fn main() void! {
+    fmt.Println("hello") or fail;
 };
 `})
 	noErrors(t, p)
@@ -61,11 +61,11 @@ fn main() void or error {
 func TestUseForms(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use fmt as f;
-use "net/http" as http;
-use "./lib" as lib;
+use net/http as http;
+use ./lib as lib;
 
-fn main() void or error {
-    f.Println("hi") or return;
+fn main() void! {
+    f.Println("hi") or fail;
     var h = http.Header {};
     _ = h;
     _ = lib.Square(2);
@@ -147,22 +147,22 @@ func TestOrAndDefer(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use os;
 use fmt;
 
-fn read(path: str) str or error {
-    var f = os.Open(path) or return;
+fn read(path: str) str! {
+    var f = os.Open(path) or fail;
     defer f.Close();
     var buf = u8[16] {};
-    var n = f.Read(buf[:]) or return;
+    var n = f.Read(buf[:]) or fail;
     _ = n;
-    fmt.Println(path) or return;
+    fmt.Println(path) or fail;
     return path;
 };
 
-fn main() void or error {
+fn main() void! {
     var s = read("x") or err {
         fmt.Println("failed", err) or panic("output");
         return err;
     };
-    fmt.Println(s) or return;
+    fmt.Println(s) or fail;
 };
 `})
 	noErrors(t, p)
@@ -221,16 +221,16 @@ func TestControl(t *testing.T) {
 }
 
 func TestPar(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn load(x: i32) i32 or error {
+	p := checkSrc(t, map[string]string{".": `fn load(x: i32) i32! {
     return x;
 };
 
-fn main() void or error {
+fn main() void! {
     var a = 0;
     var b = 0;
     par {
-        a = load(1) or return;
-        b = load(2) or return;
+        a = load(1) or fail;
+        b = load(2) or fail;
     };
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
@@ -238,7 +238,7 @@ fn main() void or error {
         out[i] = xs[i];
     };
     within 10s {
-        a = load(3) or return;
+        a = load(3) or fail;
     };
 };
 `})
@@ -247,7 +247,7 @@ fn main() void or error {
 
 func TestLocalPackage(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `use "./lib" as lib;
+		".": `use ./lib as lib;
 
 fn main() void {
     var n = lib.Square(3);

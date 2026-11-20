@@ -17,9 +17,10 @@ type User struct {
     };
 };
 
-fn main() void or error {
-    var u = User { Name = "Alice", age = 30 };
-    fmt.Println(u.Greet()) or return;
+fn main() void! {
+    var u = User { Name: "Alice", age: 30 };
+    fmt.Println(u.Greet())
+        or fail;
 };
 ```
 
@@ -149,14 +150,14 @@ hello/
 Local imports use a path:
 
 ```hare
-use "./lib" as lib;
+use ./lib as lib;
 ```
 
 Go imports use a Go import path:
 
 ```hare
 use fmt;
-use "charm.land/bubbletea/v2" as tea;
+use charm.land/bubbletea/v2 as tea;
 ```
 
 The root package is compiled as `package main`. One directory is one package.
@@ -176,15 +177,14 @@ Highlights:
 
 - `var x = value;`, `var p: *Point = nil;`, `const Name = value;`, no `:=`.
   `const` is package-level only and is a compile-time name, not a runtime slot.
-- `use fmt;` for simple Go imports; quoted paths for Go imports with `/`
-  (e.g. `net/http`, `charm.land/...`) and local `./lib`.
-  A versioned Go import path (`/v2`, `/v3`, ...) requires an alias.
+- `use fmt;`, `use net/http;`, `use ./lib as lib;`: import paths are bare,
+  never quoted. A versioned Go import path (`/v2`, `/v3`, ...) requires an alias.
 - comments are `//` only; block comments are rejected.
-- `fn name(a: T) R { ... };`, errors as `T or error`, propagation with `or return`;
+- `fn name(a: T) R { ... };`, errors as `T!`, propagation with `or fail`;
   manual `if err != nil { return err; }` is rejected.
-- struct literals use named fields only.
-- multiple results: `fn f() A, B or error`, `var a, b = f();`,
-  `var a, b = f() or return;`; `_` is a result placeholder and explicit discard.
+- struct literals use named fields only: `User { Name: "A" }`.
+- multiple results: `fn f() (A, B)!`, `var a, b = f();`,
+  `var a, b = f() or fail;`; `_` is a result placeholder and explicit discard.
 - `type Name struct { ... }`, `type Shape enum { ... }`,
   `type Writer interface { ... }`; alias keeps `=` (`type UserId = u64;`).
   Fields and methods live inside the body, with implicit `self`.

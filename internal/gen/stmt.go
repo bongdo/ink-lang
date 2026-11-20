@@ -68,6 +68,8 @@ func (w *writer) stmt(s ast.Stmt) {
 		w.forStmt(s)
 	case *ast.ReturnStmt:
 		w.returnStmt(s)
+	case *ast.FailStmt:
+		w.failStmt(s)
 	case *ast.BreakStmt:
 		w.breakStmt("break")
 	case *ast.ContinueStmt:
@@ -396,6 +398,19 @@ func (w *writer) orError(or *ast.OrExpr, errName string) {
 		w.line("}")
 		w.indent--
 		w.line("}")
+	case ast.OrFail:
+		w.linef("if %s != nil {", errName)
+		w.indent++
+		target := errName
+		if or.FailArg != nil {
+			w.f.needPkg("fmt")
+			name := w.next("e")
+			w.linef("%s := fmt.Errorf(\"%%s: %%w\", %s, %s)", name, w.expr(or.FailArg), errName)
+			target = name
+		}
+		w.propagateParError(target)
+		w.indent--
+		w.line("}")
 	case ast.OrPanic:
 		arg := errName
 		if or.PanicArg != nil {
@@ -436,6 +451,17 @@ func (w *writer) propagateParError(errName string) {
 		return
 	}
 	w.returnErr(errName)
+}
+
+func (w *writer) failStmt(s *ast.FailStmt) {
+	errExpr := w.expr(s.Err)
+	if s.Msg != nil {
+		w.f.needPkg("fmt")
+		name := w.next("e")
+		w.linef("%s := fmt.Errorf(\"%%s: %%w\", %s, %s)", name, w.expr(s.Msg), errExpr)
+		errExpr = name
+	}
+	w.propagateParError(errExpr)
 }
 
 func (w *writer) deferStmt(s *ast.DeferStmt) {
@@ -578,6 +604,8 @@ func matchJump(s ast.Stmt, inMatch bool) bool {
 				return true
 			}
 		}
+	case *ast.FailStmt:
+		return matchJumpExpr(s.Err, inMatch) || matchJumpExpr(s.Msg, inMatch)
 	case *ast.WithinStmt:
 		return matchJump(s.Body, inMatch)
 	}

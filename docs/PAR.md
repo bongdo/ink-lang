@@ -44,16 +44,16 @@ Delivery:
   the enclosing one, even when no worker can fail statically: a panic in a
   callee must still cancel the siblings. When no worker reports an error the
   cancel is called at block exit.
-- `or return` in a worker: run the worker's deferred calls first; if a defer
+- `or fail` in a worker: run the worker's deferred calls first; if a defer
   panics, recovery records that panic and cancels. Otherwise add the error at
   the worker's ord, cancel the shared context and leave the worker.
 - `par`/`par for` with an error-returning enclosing function: after all
   workers finish, the statement is `err := <first>; if err != nil { return
   err }`; the enclosing block's deferred calls run by the normal rules.
-- Enclosing function cannot return an error (`void` or no `or error`): the
+- Enclosing function cannot return an error (`void` or no `!`): the
   winning error is re-panicked at the `par` statement — `panic(err)`.
 - `return`, `break`, `continue` still may not cross a `par` boundary.
-  `or return` / `or panic` are the only ways out of a worker.
+  `or fail` / `or panic` are the only ways out of a worker.
 
 ## 3. Panic
 
@@ -84,7 +84,7 @@ runs before recovery.
   the error as is when the argument is an error, otherwise wraps the value with
   `fmt.Errorf("%v", v)`. For `or panic()` the value is the underlying error.
   `or panic` makes the enclosing `par` fallible even when no worker uses
-  `or return`.
+  `or fail`.
 
 Runtime API (normative; `runtime/source.go`, package `inkrt`):
 
@@ -114,7 +114,7 @@ func (p *ParErrors) First() error
   only a block is one worker.
 - `defer` and `within` inside a worker push onto that stack, marked per block,
   and run LIFO at block exit. The worker stack drains at worker exit and
-  before an error/panic is reported (`or return`, `or panic`, panic).
+  before an error/panic is reported (`or fail`, `or panic`, panic).
 - `within D` derives from the worker's context (the `par` cancel context),
   pushes its cancel and restores nothing outside its block. Each worker has
   its own ctx variable, so one worker's deadline never changes another
@@ -186,7 +186,7 @@ non-slot write to `c` is rejected. A method call on a captured value struct
 - Each worker captures a per-iteration copy before the spawn
   (`_s_iN := i`); body references resolve to that copy. The condition and post
   still use the outer `i`; after the loop `i` holds what the post left.
-- Several simple-ident LHS (`i, j = 0, 0`) behave the same way.
+- Several simple-ident LHS (`i, j: 0, 0`) behave the same way.
 - Any other init (call, field target, index target) is rejected in sema.
   Keep that error local to the `par for` init.
 

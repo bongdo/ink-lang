@@ -217,13 +217,13 @@ High-level operations used by the CLI. The driver owns `ink.toml`,
 | `error` | `error` |
 | `fn(A) R` | `func(A) R` |
 | `void` | no result |
-| `T or error` | `(T, error)` |
+| `T!` | `(T, error)` |
 
 ### Packages and imports
 
 - Generated Go package name = sanitized directory base (`-` → `_`), root is
   `main`.
-- Local import `use "./ed" as ed;` → `<module>/ed` with alias `ed`.
+- Local import `use ./ed as ed;` → `<module>/ed` with alias `ed`.
 - Go import keeps its path, alias from the `use` declaration or the real Go
   package name.
 - Imports are merged per package; conflicting aliases are a sema error.
@@ -232,7 +232,7 @@ High-level operations used by the CLI. The driver owns `ink.toml`,
 
 ### Main wrapper
 
-`fn main() void or error` generates:
+`fn main() void!` generates:
 
 ```go
 func main() {
@@ -281,7 +281,7 @@ defer _s_d.RunTo(0)
 - At normal block exit: `_s_d.RunTo(_s_mark)`.
 - On `return`: `_s_d.RunTo(0)` before the return.
 - On `break`/`continue`: run to the mark of the loop body being left.
-- On `or return` / `or panic`: same as return/panic.
+- On `or fail` / `or panic`: same as return/panic.
 - `within` pushes `cancel` onto the same stack.
 - Each `par`/`par for` worker declares its own `_s_d` inside the goroutine and
   runs `RunTo(0)` at worker exit. It never touches the enclosing function's
@@ -289,9 +289,9 @@ defer _s_d.RunTo(0)
 
 ### Errors (`or`)
 
-- `var x = f() or return;` → `_s_v, _s_err := f(); if _s_err != nil { cleanup; return zero, _s_err }; x := _s_v`
-- For a `void or error` function: `return _s_err`.
-- For `T or error`: zero value `*new(T)`; a nil result uses `(T)(nil)`.
+- `var x = f() or fail;` → `_s_v, _s_err := f(); if _s_err != nil { cleanup; return zero, _s_err }; x := _s_v`
+- For a `void!` function: `return _s_err`.
+- For `T!`: zero value `*new(T)`; a nil result uses `(T)(nil)`.
 - Multiple non-error results: `return a, b, nil`; `return a, b` appends nil;
   `return f()` is a raw pass-through when the arities match.
 - `or err { ... }` → `_s_v, _s_err := f(); if _s_err != nil { err := _s_err; ... }`.
@@ -299,7 +299,7 @@ defer _s_d.RunTo(0)
 - Direct call with no assignment and only an error result:
   `if _s_err := f(); _s_err != nil { ... }`.
 - `CallInfo.Results`, `ResultTypes` and `HasError` drive the shape.
-- `or` supports multiple non-error results: `var a, b = f() or return;`
+- `or` supports multiple non-error results: `var a, b = f() or fail;`
   generates `a, b` from `CallInfo.ResultTypes[:Results]`. A multi-result call
   is still not a tuple value and cannot be nested in another expression.
 
@@ -307,7 +307,7 @@ defer _s_d.RunTo(0)
 
 - `FuncDecl.Results`, `FuncType.Results`, `IFaceMethod.Results`,
   `FuncLit.Results` hold non-error results; `Err` adds the trailing error.
-- Declarations use `fn f() A, B or error`; function types group with
+- Declarations use `fn f() (A, B)!`; function types group with
   `fn(A) (B, C)`.
 - `var a, b = f()` and `a, b = f()` are valid; `CallInfo.ResultTypes` lets sema
   type the names. A multi-result call is not a tuple value.
@@ -324,7 +324,7 @@ type ShapeRect struct{ W, H float64 }
 func (ShapeRect) _s_shape() {}
 ```
 
-- Construction `Shape.Circle { radius = 2.0 }` → `&ShapeCircle{Radius: 2.0}`.
+- Construction `Shape.Circle { radius: 2.0 }` → `&ShapeCircle{Radius: 2.0}`.
 - `match` → type switch over `*ShapeCircle` etc.
 - Variant field bindings become locals in the case clause.
 - Exported variant types use the same case as the variant name.
@@ -377,7 +377,7 @@ _s_cancel()
   exit.
 - Each goroutine has its own `DeferStack` and runs it to zero at worker exit,
   before reporting an error or panic.
-- `or return` / `or panic` drain the worker's `DeferStack` first, then add at
+- `or fail` / `or panic` drain the worker's `DeferStack` first, then add at
   the worker's ord, cancel and return from the goroutine. `or panic` adds an
   error (`AsError`), not a Go panic; a panic in a deferred call wins.
 - A recovered panic is added as `*PanicError`; `Wait` completes, then

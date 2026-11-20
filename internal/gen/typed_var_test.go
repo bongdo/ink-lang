@@ -13,23 +13,23 @@ type Point struct {
 var gp: *Point = nil;
 var ge: error = nil;
 
-fn main() void or error {
+fn main() void! {
     var p: *Point = nil;
     var s: i32[] = nil;
     var m: map[str, i32] = nil;
     var h: fn(i32) i32 = nil;
     var e: error = nil;
     if (p == nil) {
-        fmt.Println("p nil") or return;
+        fmt.Println("p nil") or fail;
     };
     if (e == nil) {
-        fmt.Println("e nil") or return;
+        fmt.Println("e nil") or fail;
     };
     if (gp == nil) {
-        fmt.Println("gp nil") or return;
+        fmt.Println("gp nil") or fail;
     };
     if (ge == nil) {
-        fmt.Println("ge nil") or return;
+        fmt.Println("ge nil") or fail;
     };
     _ = s;
     _ = m;
@@ -63,15 +63,15 @@ func TestTypedVarOr(t *testing.T) {
     X: i32,
 };
 
-fn make(ok: bool) *Point or error {
+fn make(ok: bool) *Point! {
     if (ok) {
         return &Point { X = 1 };
     };
     return nil;
 };
 
-fn main() void or error {
-    var p: *Point = make(true) or return;
+fn main() void! {
+    var p: *Point = make(true) or fail;
     var q: *Point = make(false) or panic("no");
     assert(p != nil);
     assert(q == nil);

@@ -12,8 +12,8 @@ place with status.
 | `.ink` files, UTF-8 | ✅ |
 | one directory = one package, no package clause | ✅ |
 | `ink.toml` with `name` and Go module path | ✅ |
-| local import `use "./lib" as lib;` | ✅ |
-| Go import `use fmt;`, quoted paths, `as` alias | ✅ |
+| local import `use ./lib as lib;` | ✅ |
+| Go import `use fmt;`, bare paths, `as` alias | ✅ |
 | versioned import path requires an alias | ✅ |
 | blank import `as _` | ✅ |
 | generated `zz_ink.go`, `zz_ink_test.go`, `.ink/` | ✅ |
@@ -48,8 +48,8 @@ place with status.
 
 | Feature | Status |
 |---|---|
-| struct literals with named fields, zero values | ✅ |
-| map literals `key = value` | ✅ |
+| struct literals with named fields (`field: value`), zero values | ✅ |
+| map literals `key: value` | ✅ |
 | `&x` for variables, fields, literals; `*p` read/write | ✅ |
 | slicing, shared storage | ✅ |
 | `s[i]` on a string is a `byte`; `runes(s)` for code points | ✅ |
@@ -61,8 +61,9 @@ place with status.
 | `void` as a value | — result only |
 | non-void function that can fall off its end | ✅ `missing-return` |
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
-| `T or error` with `or return`, `or err { }`, `or panic(...)` | ✅ |
-| manual `if err != nil { return err; }` | — rejected; `or return` is the canonical form |
+| `T!` with `or fail`, `or err { }`, `or panic(...)` | ✅ |
+| `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
+| manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |
 | block-scoped `defer` | ✅ |
 | local `const` | — package level only |
