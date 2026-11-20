@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -eu
+root=$(cd "$(dirname "$0")/.." && pwd)
+src=${1:-$root/examples/tour/main.ink}
+span=${2:-20:46}
+out=${3:-$root/docs/screenshots/syntax.png}
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+go run "$root/tools/syntaxshot" "$src" "$span" > "$tmp/syntax.html"
+lines=$(( ${span#*:} - ${span%:*} + 1 ))
+height=$(( 118 + lines * 29 + 48 ))
+if command -v shot >/dev/null 2>&1; then
+  shot "$tmp/syntax.html" "$out" --size "1168x${height}"
+else
+  echo "$tmp/syntax.html"
+fi
