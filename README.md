@@ -97,7 +97,7 @@ the current `par` analysis have annotated snippets in
 | `ink fmt [-l] [-w] [--json] [paths]` | canonical formatter; `-l` lists unformatted files, `--json` prints them as an array |
 | `ink lsp` | language server on stdio |
 | `ink new <dir>` | scaffold a project and install `AGENTS.md` |
-| `ink init [dir]` | add `ink.toml` to an existing directory and install `AGENTS.md` if absent |
+| `ink init [dir]` | add `ink.conf` to an existing directory and install `AGENTS.md` if absent |
 | `ink guide` | print the embedded agent guide |
 | `ink version` | print the version |
 
@@ -138,7 +138,7 @@ changing the config; LSP is disabled by default.
 
 ```
 hello/
-  ink.toml         name and Go module path
+  ink.conf         name and Go module path
   main.ink         package main
   AGENTS.md        short agent contract (ink new / ink init)
   opencode.json    OpenCode LSP + formatter (ink new)
@@ -241,7 +241,7 @@ bin/run help  # run the compiler from source
 ```
 
 Conformance programs live in [`tests/cases`](tests/cases). Each case has a
-`ink.toml`, a `main.ink`, and an `expected.txt`.
+`ink.conf`, a `main.ink`, and an `expected.txt`.
 
 ## License
 

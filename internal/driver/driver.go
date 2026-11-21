@@ -226,7 +226,7 @@ func (p *Project) Check(opt CheckOptions) error {
 		return err
 	}
 	if opt.Typecheck && !opt.Fast && !p.HasErrors() {
-		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race}) {
+		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race, Arena: p.Program != nil && p.Program.UsesArena}) {
 			p.Errors = append(p.Errors, typecheckError(e.Path, e.Pos, e.Msg))
 		}
 	}
@@ -330,10 +330,18 @@ func modulePrefix(path string) string {
 	return strings.Join(parts, "/")
 }
 
+func (p *Project) env() []string {
+	env := append(os.Environ(), "GOFLAGS=-buildvcs=false")
+	if p.Program != nil && p.Program.UsesArena {
+		env = append(env, "GOEXPERIMENT=arenas")
+	}
+	return env
+}
+
 func (p *Project) goCommand(args ...string) (string, error) {
 	cmd := exec.Command("go", args...)
 	cmd.Dir = p.Root
-	cmd.Env = append(os.Environ(), "GOFLAGS=-buildvcs=false")
+	cmd.Env = p.env()
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -485,7 +493,7 @@ func (p *Project) Build(out string, goArgs []string) error {
 	args = append(args, "-o", out, ".")
 	cmd := exec.Command("go", args...)
 	cmd.Dir = p.Root
-	cmd.Env = append(os.Environ(), "GOFLAGS=-buildvcs=false")
+	cmd.Env = p.env()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -538,7 +546,7 @@ func (p *Project) Test(args []string) (int, error) {
 	}
 	cmd := exec.Command("go", append([]string{"test", "-buildvcs=false", "./..."}, args...)...)
 	cmd.Dir = p.Root
-	cmd.Env = append(os.Environ(), "GOFLAGS=-buildvcs=false")
+	cmd.Env = p.env()
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -750,7 +758,7 @@ func Init(dir string) error {
 	if err := os.MkdirAll(abs, 0o755); err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(abs, config.FileName)); err == nil {
+	if config.Exists(abs) {
 		return fmt.Errorf("%s already exists", config.FileName)
 	}
 	name := filepath.Base(abs)

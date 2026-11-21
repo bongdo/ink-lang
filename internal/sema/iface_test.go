@@ -55,7 +55,7 @@ fn forward(w: AliasWriter, text: str) int! {
     return emit(w, text) or fail;
 };
 
-fn make() Writer {
+fn mk() Writer {
     var b = Buffer {};
     return &b;
 };
@@ -65,7 +65,7 @@ fn main() void! {
     var n = emit(&b, "x") or fail;
     var n2 = forward(&b, "y") or fail;
     var w = Writer(&b);
-    var m = make();
+    var m = mk();
     _ = n;
     _ = n2;
     _ = w;
@@ -227,13 +227,13 @@ type Buffer struct {
     };
 };
 
-fn make() Writer {
+fn mk() Writer {
     var b = Buffer {};
     return b;
 };
 
 fn main() void {
-    _ = make();
+    _ = mk();
 };
 `
 	p := checkSrc(t, map[string]string{".": src})

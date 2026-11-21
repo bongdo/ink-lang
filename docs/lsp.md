@@ -1,7 +1,7 @@
 # Editor setup
 
 The server is `ink lsp`. It speaks LSP over stdio and uses the project root
-with `ink.toml` (or the current directory).
+with `ink.conf` (or the current directory).
 
 ## Neovim
 
@@ -16,7 +16,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.lsp.start({
       name = "ink",
       cmd = { "ink", "lsp" },
-      root_dir = vim.fs.root(args.buf, "ink.toml"),
+      root_dir = vim.fs.root(args.buf, "ink.conf"),
     })
   end,
 })
@@ -115,7 +115,7 @@ the generated-Go typecheck waits 150 ms after the last edit and stale results
 are dropped. `didOpen`, `didSave` and `didClose` typecheck immediately.
 `didClose` publishes empty diagnostics for the closed buffer, drops it and
 re-analyzes from disk, so diagnostics for the file on disk can appear again.
-The typecheck runs only when the project has `ink.toml`, a module and
+The typecheck runs only when the project has `ink.conf`, a module and
 `go.mod`, and no parse or sema errors.
 
 ### References and rename limits

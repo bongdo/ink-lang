@@ -2,10 +2,7 @@ module github.com/bongdo/ink
 
 go 1.27
 
-require (
-	github.com/BurntSushi/toml v1.6.0
-	golang.org/x/tools v0.52.0
-)
+require golang.org/x/tools v0.52.0
 
 require (
 	golang.org/x/mod v0.42.0 // indirect

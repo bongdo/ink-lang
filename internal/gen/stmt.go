@@ -70,6 +70,8 @@ func (w *writer) stmt(s ast.Stmt) {
 		w.returnStmt(s)
 	case *ast.FailStmt:
 		w.failStmt(s)
+	case *ast.ArenaStmt:
+		w.arenaStmt(s)
 	case *ast.BreakStmt:
 		w.breakStmt("break")
 	case *ast.ContinueStmt:
@@ -464,6 +466,30 @@ func (w *writer) failStmt(s *ast.FailStmt) {
 	w.propagateParError(errExpr)
 }
 
+func (w *writer) arenaStmt(s *ast.ArenaStmt) {
+	pkg := w.f.std("arena")
+	name := w.next("a")
+	mark := ""
+	if !blockTerminates(s.Body) {
+		mark = w.next("mark")
+		w.linef("%s := _s_d.Mark()", mark)
+	}
+	w.linef("%s := %s.NewArena()", name, pkg)
+	w.linef("_s_d.Push(func() { %s.Free() })", name)
+	w.arenas[s.Name] = name
+	w.writeIndent()
+	w.buf.WriteString("{\n")
+	w.indent++
+	w.bodyContents(s.Body, hasDirectDefer(s.Body.Stmts))
+	w.indent--
+	w.writeIndent()
+	w.buf.WriteString("}\n")
+	if mark != "" {
+		w.linef("_s_d.RunTo(%s)", mark)
+	}
+	delete(w.arenas, s.Name)
+}
+
 func (w *writer) deferStmt(s *ast.DeferStmt) {
 	c := s.Call
 	if c == nil {
@@ -606,6 +632,8 @@ func matchJump(s ast.Stmt, inMatch bool) bool {
 		}
 	case *ast.FailStmt:
 		return matchJumpExpr(s.Err, inMatch) || matchJumpExpr(s.Msg, inMatch)
+	case *ast.ArenaStmt:
+		return matchJump(s.Body, inMatch)
 	case *ast.WithinStmt:
 		return matchJump(s.Body, inMatch)
 	}
@@ -1100,7 +1128,7 @@ func bodyHasDefer(b *ast.Block) bool {
 			return false
 		}
 		switch n.(type) {
-		case *ast.DeferStmt, *ast.WithinStmt:
+		case *ast.DeferStmt, *ast.WithinStmt, *ast.ArenaStmt:
 			found = true
 			return false
 		}

@@ -80,6 +80,7 @@ const (
 	Case
 	Par
 	Within
+	Arena
 	Limit
 	Defer
 	Break
@@ -166,6 +167,7 @@ var names = map[Kind]string{
 	Case:          "case",
 	Par:           "par",
 	Within:        "within",
+	Arena:         "arena",
 	Limit:         "limit",
 	Defer:         "defer",
 	Break:         "break",

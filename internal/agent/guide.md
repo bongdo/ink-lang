@@ -5,14 +5,14 @@ Printed by `ink guide`; loaded on demand as the `ink` OpenCode skill. One canoni
 ## Source of truth
 
 - `ink guide` — this text, printed by the binary; it wins on disagreement.
-- `ink.toml` — project name and Go module path.
+- `ink.conf` — project name and Go module path.
 - In the compiler repository only: `docs/SPEC.md` (wins over everything else),
   `docs/EDGES.md`, `examples/tour` (valid), `examples/problems` (invalid on
   purpose). A project created by `ink new` has no `docs/` or `examples/`.
 
 ## Loop
 
-From the project root (the directory with `ink.toml`):
+From the project root (the directory with `ink.conf`):
 
 1. `ink check --json --fast` — parse, resolve, sema; fastest feedback.
 2. Fix diagnostics to `[]`; run `ink fmt -w .`.
@@ -32,7 +32,7 @@ No prompts. `ink check --json` exits 1 on errors, 0 when clean.
 
 ```text
 hello/
-  ink.toml         name and Go module path
+  ink.conf         name and Go module path
   main.ink         package main; must contain fn main
   lib/             optional local package
 ```
@@ -74,7 +74,7 @@ fn pair() i32, bool { return 1, true; };
   `or panic("msg");`. `or` always starts a new line, indented once.
 - The handler name is always `err`. Inside it, `fail(err, "context");` wraps and
   returns. Manual `if err != nil { return err; }` propagation is rejected.
-- A fresh error is `fail(errors.New("msg"));`. `fail("msg")` is only the
+- A fresh error is `fail(error("msg"));`. `fail("msg")` is only the
   shorthand after `or`; it wraps the call error, it does not create one.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
@@ -84,6 +84,12 @@ fn pair() i32, bool { return 1, true; };
   `json.Unmarshal(data, &u)`, `rows.Scan(&name)`.
 - `xs[i]` indexes; `xs[a:b]`, `xs[:b]`, `xs[a:]`, `xs[:]` slice and share
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
+- `make[i32](n)` or `make[i32](n, cap)` makes a slice; `error("msg")` makes a
+  fresh error.
+- `arena a { ... };` allocates from a Go arena and frees it at block exit.
+  `a.New[T]()` returns `*T`, `a.MakeSlice[T](n)` returns `[]T`. Arena values
+  must not escape the block; `par` inside is rejected. The compiler sets
+  `GOEXPERIMENT=arenas` automatically.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

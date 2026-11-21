@@ -7,7 +7,7 @@ ink new hello
 cd hello
 ```
 
-`ink new` writes `ink.toml`, `main.ink`, a short `AGENTS.md`,
+`ink new` writes `ink.conf`, `main.ink`, a short `AGENTS.md`,
 `opencode.json`, `.opencode/skills/ink/SKILL.md`, `go.mod` and `.gitignore`,
 and prints `created hello`. The short `AGENTS.md` is the ambient agent contract;
 `ink guide` prints the full embedded reference. `opencode.json` starts
@@ -19,11 +19,11 @@ without overwriting an existing `AGENTS.md`:
 ink init .
 ```
 
-`ink init` refuses to run when `ink.toml` already exists.
+`ink init` refuses to run when `ink.conf` already exists.
 
-`ink.toml`:
+`ink.conf`:
 
-```toml
+```text
 name = "hello"
 module = "example.com/hello"
 go = "1.27"

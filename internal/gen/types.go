@@ -62,6 +62,9 @@ func (g *generator) typeStr(f *fileGen, t ast.Type) string {
 		return g.structTypeStr(f, t.Fields)
 	case *ast.GoType:
 		return g.goTypeStr(f, t)
+	case *ast.ArenaType:
+		f.needPkg("arena")
+		return "*" + f.std("arena") + ".Arena"
 	}
 	return "any"
 }

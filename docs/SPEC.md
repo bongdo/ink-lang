@@ -10,12 +10,15 @@ in [`FEATURES.md`](FEATURES.md).
 - Source files end in `.ink`, UTF-8.
 - A package is one directory. Every `.ink` file in it belongs to the same
   package. There is no package clause; the directory name is the package name.
-- The project root is the directory holding `ink.toml`:
+- The project root is the directory holding `ink.conf`:
 
-```toml
+```text
 name = "hello"
 module = "example.com/hello"
 ```
+
+  `ink.conf` is a flat `key = "value"` file. `ink.toml` is still read when
+  present, so old projects keep working.
 
 - `module` is the Go module path used for generated code. If absent,
   `example.com/<name>` is used.
@@ -170,6 +173,26 @@ type Handler = fn(Request) Response!;
 
 An alias does not create a new Go type.
 
+### 3.8. Arenas
+
+```hare
+arena a {
+    var p = a.New[Point]();
+    p.X = 1;
+    var xs = a.MakeSlice[i32](8);
+    xs[0] = 2;
+};
+```
+
+The block allocates from one Go arena and frees it at block exit, including
+`return`, `break`, `continue` and panic. `a.New[T]()` returns `*T`;
+`a.MakeSlice[T](n)` or `(n, cap)` returns `[]T`.
+
+Values allocated in an arena must not escape the block: after it they are
+use-after-free. `par` inside an arena is rejected. The feature uses Go's
+experimental `arena` package; `ink` sets `GOEXPERIMENT=arenas` for build, run,
+test and typecheck when a source uses an arena.
+
 ## 4. Variables, constants, literals
 
 ```hare
@@ -227,6 +250,8 @@ const Greeting = "hello";
 | `runes(s)` | `str` to `rune[]` |
 | `bytes(s)` | `str` to `u8[]` |
 | `str(runes_or_bytes)` | conversion to `str` |
+| `make[T](n)`, `make[T](n, cap)` | `[]T` with length and capacity |
+| `error(msg)` | a fresh `error` with that message |
 | `panic(msg)` | abort |
 | `assert(cond)`, `assert_eq(got, want)` | checks for tests and code |
 
@@ -313,9 +338,9 @@ Forms:
 
 The handler always starts on a new line, indented once; `ink fmt` enforces it.
 
-A fresh error is `fail(errors.New("msg"));` or `fail(fmt.Errorf("...: %w", err));`.
-`fail("msg")` alone is not a fresh error: it is only the shorthand after `or`,
-where the call supplies the error to wrap.
+A fresh error is `fail(error("msg"));`. `fail("msg")` alone is not a fresh
+error: it is only the shorthand after `or`, where the call supplies the error
+to wrap. `errors.New` and `fmt.Errorf` still work through Go interop.
 
 `or` may appear only as the entire initializer of a `var`, the entire right
 side of an assignment, an expression statement, or a `return` operand. It may
@@ -471,7 +496,7 @@ within 30s {
 - `ink new <dir>` — scaffold a project, install the short `AGENTS.md`, an
   `opencode.json` with the Ink LSP and formatter, and the `ink` OpenCode
   skill with the full reference.
-- `ink init [dir]` — add `ink.toml` and `AGENTS.md` to an existing
+- `ink init [dir]` — add `ink.conf` and `AGENTS.md` to an existing
   directory; an existing `AGENTS.md` is not overwritten.
 - `ink guide` — print the embedded agent guide.
 
@@ -511,7 +536,7 @@ These are not planned, not merely missing:
 - doc comments attached to declarations; comments are formatter input only.
 
 `go`, `chan`, `select`, `async`, `await`, `try`, `catch`, `?`, `export`,
-`let`, `:=`, attributes, traits, lifetimes, arenas, `unsafe` in application
+`let`, `:=`, attributes, traits, lifetimes, `unsafe` in application
 code, method declarations outside a type, UFCS, `switch`, labeled control flow,
 operator overloading, exceptions.
 

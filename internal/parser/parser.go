@@ -759,6 +759,8 @@ func (p *parser) parseStmt() ast.Stmt {
 		return p.parseDeferStmt()
 	case token.Fail:
 		return p.parseFailStmt()
+	case token.Arena:
+		return p.parseArenaStmt()
 	case token.Semi:
 		t := p.next()
 		return &ast.EmptyStmt{Span: spanOf(t)}
@@ -785,6 +787,22 @@ func (p *parser) parseFailStmt() ast.Stmt {
 			}
 		}
 		p.expect(token.RParen)
+	}
+	p.consumeSemi()
+	s.Span = p.fin(start)
+	return s
+}
+
+func (p *parser) parseArenaStmt() ast.Stmt {
+	start := p.next().Pos
+	s := &ast.ArenaStmt{}
+	if t, ok := p.expectIdent(); ok {
+		s.Name = t.Lit
+	}
+	if p.at(token.LBrace) {
+		s.Body = p.parseBlock()
+	} else {
+		p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
 	}
 	p.consumeSemi()
 	s.Span = p.fin(start)
@@ -1372,6 +1390,9 @@ func (p *parser) typeArgsAllowed(first token.Token, types []ast.Type) bool {
 		return false
 	}
 	if t, ok := types[0].(*ast.NamedType); ok && t.Package == "" && builtinTypes[t.Name] {
+		return true
+	}
+	if first.Kind == token.Ident && first.Lit == "make" {
 		return true
 	}
 	if first.Kind == token.Ident {

@@ -40,6 +40,7 @@ type checker struct {
 	parFrames   []parFrame
 	parLoopBase []int
 	inPar       bool
+	inArena     int
 	tparams     map[string]bool
 }
 
@@ -115,7 +116,7 @@ func (c *checker) funcType(fn *ast.FuncDecl) ast.Type {
 
 func isBuiltinFunc(name string) bool {
 	switch name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make":
 		return true
 	}
 	return false
@@ -230,6 +231,8 @@ func terminatesStmt(s ast.Stmt) bool {
 		return true
 	case *ast.FailStmt:
 		return true
+	case *ast.ArenaStmt:
+		return terminatesBlock(s.Body)
 	case *ast.Block:
 		return terminatesBlock(s)
 	case *ast.IfStmt:
@@ -519,7 +522,18 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		} else {
 			c.resolveExpr(s.Call, false)
 		}
+	case *ast.ArenaStmt:
+		c.push()
+		c.declare(&symbol{name: s.Name, kind: ast.RefLocal, typ: &ast.ArenaType{}, decl: s})
+		c.inArena++
+		c.checkBlock(s.Body)
+		c.inArena--
+		c.pop()
+		c.p.UsesArena = true
 	case *ast.ParStmt:
+		if c.inArena > 0 {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "par is not allowed inside arena")
+		}
 		c.checkPar(s.Body, nil)
 	case *ast.WithinStmt:
 		c.resolveExpr(s.Duration, false)
@@ -1253,6 +1267,8 @@ func (w *parWalker) stmt(s ast.Stmt) {
 	case *ast.FailStmt:
 		w.expr(s.Err)
 		w.expr(s.Msg)
+	case *ast.ArenaStmt:
+		w.stmt(s.Body)
 	case *ast.DeferStmt:
 		w.expr(s.Call)
 	}

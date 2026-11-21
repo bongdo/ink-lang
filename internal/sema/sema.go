@@ -63,6 +63,7 @@ type Program struct {
 	Main      *Package
 	Errors    []Error
 	GoTypes   map[ast.Expr]types.Type
+	UsesArena bool
 	ExprTypes map[ast.Expr]ast.Type
 	goNamed   map[*ast.NamedType]types.Type
 	goOf      map[ast.Type]types.Type

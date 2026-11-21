@@ -206,7 +206,7 @@ func newProject(t *testing.T, src string) (string, string, string) {
 	t.Helper()
 	root := t.TempDir()
 	config := []byte("name = \"hello\"\nmodule = \"example.com/hello\"\n")
-	if err := os.WriteFile(filepath.Join(root, "ink.toml"), config, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "ink.conf"), config, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(root, "main.ink")
@@ -425,7 +425,7 @@ func TestDuplicateSemanticDiagnostics(t *testing.T) {
 func TestTypeDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"ink.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
+		"ink.conf": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
 		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
 	}
 	src := "use fmt;\n\nfn main() void! {\n    var n = 1 + \"x\";\n    fmt.Println(n) or fail;\n};\n"

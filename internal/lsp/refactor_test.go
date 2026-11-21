@@ -443,7 +443,7 @@ fn main() i32! {
 func TestTestBlockTypeDiagnostic(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"ink.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
+		"ink.conf": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
 		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
 	}
 	src := `fn main() void {};
@@ -483,7 +483,7 @@ test "bad" {
 func TestDidChangeDebounceAndStaleness(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"ink.toml": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
+		"ink.conf": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
 		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
 	}
 	valid := "fn main() void {\n    var n = 1;\n    _ = n;\n};\n"

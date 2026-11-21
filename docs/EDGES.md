@@ -24,13 +24,13 @@ not re-file.
 | 11 | `ink check` re-type-checks every package on each run. | No per-package cache. | `--fast` for rename-level feedback. |
 | 12 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
 | 13 | `within` only cancels calls that observe context. A blocking call that ignores it (`time.Sleep`, `os.Stat`, CPU work) runs to completion. | The deadline cancels the hidden context; it cannot stop a function that never reads it. | Put context-aware Go calls inside `within`; measure elapsed time instead of assuming the block was cut. |
-| 14 | There is no `make`/`new` for a slice of dynamic length. | Slice literals need a constant length; `append` is the only grower. | Append zeros in a loop before `par for`, or collect results into a local slice. |
 
 ## Accepted
 
 | Symptom | Why it stays |
 |---|---|
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
+| Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
 | Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |

@@ -220,6 +220,8 @@ func stmtTerminates(s ast.Stmt) bool {
 		return true
 	case *ast.FailStmt:
 		return true
+	case *ast.ArenaStmt:
+		return blockTerminates(s.Body)
 	case *ast.Block:
 		return blockTerminates(s)
 	case *ast.IfStmt:

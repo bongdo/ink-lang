@@ -63,7 +63,7 @@ func TestTypedVarOr(t *testing.T) {
     X: i32,
 };
 
-fn make(ok: bool) *Point! {
+fn mk(ok: bool) *Point! {
     if (ok) {
         return &Point { X = 1 };
     };
@@ -71,8 +71,8 @@ fn make(ok: bool) *Point! {
 };
 
 fn main() void! {
-    var p: *Point = make(true) or fail;
-    var q: *Point = make(false) or panic("no");
+    var p: *Point = mk(true) or fail;
+    var q: *Point = mk(false) or panic("no");
     assert(p != nil);
     assert(q == nil);
     return;

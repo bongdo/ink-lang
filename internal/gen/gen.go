@@ -326,6 +326,8 @@ var stdImports = map[string]string{
 	"time":    "time",
 	"reflect": "reflect",
 	"testing": "testing",
+	"arena":   "arena",
+	"errors":  "errors",
 }
 
 type importSpec struct {
@@ -438,6 +440,7 @@ type writer struct {
 	results    []ast.Type
 	err        bool
 	renames    map[string]rename
+	arenas     map[string]string
 	self       string
 }
 
@@ -454,7 +457,7 @@ type parRef struct {
 
 func newWriter(f *fileGen, ctx string) *writer {
 	n := 0
-	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename)}
+	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename), arenas: make(map[string]string)}
 }
 
 func (w *writer) next(prefix string) string {

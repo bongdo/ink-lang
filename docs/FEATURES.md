@@ -11,7 +11,7 @@ place with status.
 |---|---|
 | `.ink` files, UTF-8 | ✅ |
 | one directory = one package, no package clause | ✅ |
-| `ink.toml` with `name` and Go module path | ✅ |
+| `ink.conf` with `name` and Go module path (`ink.conf` still read) | ✅ |
 | local import `use ./lib as lib;` | ✅ |
 | Go import `use fmt;`, bare paths, `as` alias | ✅ |
 | versioned import path requires an alias | ✅ |
@@ -53,7 +53,7 @@ place with status.
 | `&x` for variables, fields, literals; `*p` read/write | ✅ |
 | slicing, shared storage | ✅ |
 | `s[i]` on a string is a `byte`; `runes(s)` for code points | ✅ |
-| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max` | ✅ |
+| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `make` | ✅ |
 | `if`, all `for` forms, `match` statement/expression | ✅ |
 | `break`/`continue`, including inside a `match` case | ✅ |
 | user labels, `goto` | — |
@@ -62,6 +62,8 @@ place with status.
 | non-void function that can fall off its end | ✅ `missing-return` |
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
 | `T!` with `or fail`, `or err { }`, `or panic(...)` | ✅ |
+| `error("msg")` fresh error constructor | ✅ |
+| `arena a { ... }` with `a.New` / `a.MakeSlice`, auto-free | ✅ experimental Go `arena` |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
 | manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |
@@ -143,5 +145,5 @@ functions, generic constraints, generic enums, guards and struct patterns,
 lambda parameter inference without an expected type, expression-level `or`,
 user variadics, `discard`, doc comments, and the Go-isms `go`, `chan`,
 `select`, `async`, `await`, `try`, `catch`, `?`, `export`, `let`, `:=`,
-attributes, traits, lifetimes, arenas, `unsafe`, `switch`, labeled control flow,
+attributes, traits, lifetimes, `unsafe`, `switch`, labeled control flow,
 operator overloading, exceptions.
