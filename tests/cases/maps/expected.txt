@@ -1,0 +1,11 @@
+alias 9 2
+param 10
+lookup 0 10 true false
+has true false
+delete false 1
+iter 1 10
+struct copy 1 5
+store 5
+field alias 100
+nil read 0 0 false
+nil delete 0

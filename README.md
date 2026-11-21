@@ -60,7 +60,8 @@ there.
 The 0.2 preview compiler, formatter and language server work end to end for the
 implemented surface. The conformance suite in `tests/cases` covers structs,
 enums, generics, errors, multiple results, type patterns, `defer`, `match`,
-local packages, Go interop, hidden context wrappers and the `par` core.
+local packages, Go interop, hidden context wrappers, pointers, slices, maps and
+the `par` core.
 `bin/check` runs it with the unit and LSP tests.
 
 What works, what is partial and what is deliberately absent is in

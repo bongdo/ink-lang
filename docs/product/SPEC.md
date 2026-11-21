@@ -268,6 +268,24 @@ var n, _ = f();
 _ = n;
 ```
 
+### 4.2. Value and reference semantics
+
+Assignment and argument passing copy the value. Slices, maps and pointers are
+descriptors that share storage:
+
+| Value | `var b = a` | Effect |
+|---|---|---|
+| struct, array | copy | fields and elements are independent; slice, map and pointer fields still share |
+| slice | header copy | one backing array until `append` grows past `cap` |
+| map | descriptor copy | one map; writes through either name are visible |
+| pointer | address copy | both names point at the same value |
+| interface | interface copy | the underlying value or pointer is shared, not deep-copied |
+
+A parameter behaves like `var param = arg`. `append` may write into the shared
+backing array when capacity allows, so keep the returned slice. Map iteration
+order is unspecified; collect the keys and sort them when order matters. Go's
+`slices` and `maps` packages work through `use`.
+
 ## 5. Functions
 
 ```hare

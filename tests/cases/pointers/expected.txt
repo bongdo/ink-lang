@@ -1,0 +1,7 @@
+copy 1 2
+param 1
+ptr 8 {8}
+alias true
+snapshot 8 8
+field 5
+elem 6

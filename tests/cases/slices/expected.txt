@@ -1,0 +1,9 @@
+alias 9 9
+param 42
+grow 1 8 3 4
+cap 5 5 2 4
+slice 6 2 2
+copy 2 42 7
+nil 2 2
+spread [0 42 6 3]
+array 0 3

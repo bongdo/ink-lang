@@ -88,6 +88,13 @@ fn pair() i32, bool { return 1, true; };
   `json.Unmarshal(data, &u)`, `rows.Scan(&name)`.
 - `xs[i]` indexes; `xs[a:b]`, `xs[:b]`, `xs[a:]`, `xs[:]` slice and share
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
+- Assignment and arguments copy the value: structs and arrays copy, while a
+  slice shares its backing array until `append` grows past `cap`; a map,
+  pointer and interface share. Map iteration order is unspecified, so collect
+  and sort keys when order matters.
+- `for (var i, x in xs)`, `for (var k, v in m)`, `for (var x in xs)` and
+  `for ()`; the index is `int`. `var v, ok = m[k]` reads presence without
+  `has`.
 - `make[i32](n)` or `make[i32](n, cap)` makes a slice; `error("msg")` makes a
   fresh error.
 - `arena { ... };` allocates from a Go arena and frees it at block exit.
