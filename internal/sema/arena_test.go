@@ -4,9 +4,9 @@ import "testing"
 
 func TestArenaRejectsPar(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
-    arena a {
+    arena {
         par {
-            var p = a.New[i32]();
+            var p = new[i32]();
             _ = p;
         };
     };

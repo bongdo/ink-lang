@@ -540,8 +540,6 @@ func typeDesc(t ast.Type) string {
 		return "fn"
 	case *ast.GoType:
 		return t.Text
-	case *ast.ArenaType:
-		return "arena"
 	}
 	return "value"
 }

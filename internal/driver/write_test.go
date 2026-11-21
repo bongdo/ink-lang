@@ -66,7 +66,7 @@ func TestGenerateRemovesStalePackages(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("ink.conf", "name = \"stale\"\nmodule = \"example.com/stale\"\n")
+	write("go.mod", "module example.com/stale\n\ngo 1.27\n")
 	write("main.ink", "fn main() void {\n    assert(true);\n};\n")
 	write("a/a.ink", "fn A() i32 {\n    return 1;\n};\n")
 	write("b/b.ink", "fn B() i32 {\n    return 2;\n};\n")
@@ -135,7 +135,7 @@ func TestGenerateSurvivesBrokenManifest(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"mf\"\nmodule = \"example.com/mf\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/mf\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte("fn main() void {\n};\n"), 0o644); err != nil {

@@ -443,8 +443,6 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.write(";")
 	case *ast.ArenaStmt:
 		p.write("arena ")
-		p.write(s.Name)
-		p.write(" ")
 		p.block(s.Body)
 		p.write(";")
 	case *ast.ReturnStmt:

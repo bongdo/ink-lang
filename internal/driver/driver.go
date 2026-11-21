@@ -722,9 +722,6 @@ func New(dir string) error {
 	}
 	name := filepath.Base(abs)
 	cfg := &config.Config{Name: name, Module: "example.com/" + name, Go: "1.27"}
-	if err := config.Save(abs, cfg); err != nil {
-		return err
-	}
 	if err := os.WriteFile(filepath.Join(abs, "AGENTS.md"), []byte(agent.ShortGuide), 0o644); err != nil {
 		return err
 	}
@@ -758,13 +755,12 @@ func Init(dir string) error {
 	if err := os.MkdirAll(abs, 0o755); err != nil {
 		return err
 	}
-	if config.Exists(abs) {
-		return fmt.Errorf("%s already exists", config.FileName)
-	}
-	name := filepath.Base(abs)
-	cfg := &config.Config{Name: name, Module: "example.com/" + name, Go: "1.27"}
-	if err := config.Save(abs, cfg); err != nil {
-		return err
+	if !config.Exists(abs) {
+		name := filepath.Base(abs)
+		cfg := &config.Config{Name: name, Module: "example.com/" + name, Go: "1.27"}
+		if err := config.Save(abs, cfg); err != nil {
+			return err
+		}
 	}
 	agents := filepath.Join(abs, "AGENTS.md")
 	if _, err := os.Stat(agents); err != nil {

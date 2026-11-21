@@ -796,9 +796,6 @@ func (p *parser) parseFailStmt() ast.Stmt {
 func (p *parser) parseArenaStmt() ast.Stmt {
 	start := p.next().Pos
 	s := &ast.ArenaStmt{}
-	if t, ok := p.expectIdent(); ok {
-		s.Name = t.Lit
-	}
 	if p.at(token.LBrace) {
 		s.Body = p.parseBlock()
 	} else {
@@ -1392,7 +1389,7 @@ func (p *parser) typeArgsAllowed(first token.Token, types []ast.Type) bool {
 	if t, ok := types[0].(*ast.NamedType); ok && t.Package == "" && builtinTypes[t.Name] {
 		return true
 	}
-	if first.Kind == token.Ident && first.Lit == "make" {
+	if first.Kind == token.Ident && (first.Lit == "make" || first.Lit == "new") {
 		return true
 	}
 	if first.Kind == token.Ident {

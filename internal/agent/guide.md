@@ -5,14 +5,14 @@ Printed by `ink guide`; loaded on demand as the `ink` OpenCode skill. One canoni
 ## Source of truth
 
 - `ink guide` — this text, printed by the binary; it wins on disagreement.
-- `ink.conf` — project name and Go module path.
+- `go.mod` — project root, module path and Go version.
 - In the compiler repository only: `docs/product/SPEC.md` (wins over everything else),
   `docs/product/EDGES.md`, `examples/tour` (valid), `examples/problems` (invalid on
   purpose). A project created by `ink new` has no `docs/` or `examples/`.
 
 ## Loop
 
-From the project root (the directory with `ink.conf`):
+From the project root (the directory with `go.mod`):
 
 1. `ink check --json --fast` — parse, resolve, sema; fastest feedback.
 2. Fix diagnostics to `[]`; run `ink fmt -w .`.
@@ -32,7 +32,7 @@ No prompts. `ink check --json` exits 1 on errors, 0 when clean.
 
 ```text
 hello/
-  ink.conf         name and Go module path
+  go.mod           module path and Go version
   main.ink         package main; must contain fn main
   lib/             optional local package
 ```
@@ -86,10 +86,10 @@ fn pair() i32, bool { return 1, true; };
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
 - `make[i32](n)` or `make[i32](n, cap)` makes a slice; `error("msg")` makes a
   fresh error.
-- `arena a { ... };` allocates from a Go arena and frees it at block exit.
-  `a.New[T]()` returns `*T`, `a.MakeSlice[T](n)` returns `[]T`. Arena values
-  must not escape the block; `par` inside is rejected. The compiler sets
-  `GOEXPERIMENT=arenas` automatically.
+- `arena { ... };` allocates from a Go arena and frees it at block exit.
+  Inside it `new[Point]()` and `make[i32](n)` use the arena; outside they are
+  ordinary Go allocations. Arena values must not escape the block; `par`
+  inside is rejected. The compiler sets `GOEXPERIMENT=arenas` automatically.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

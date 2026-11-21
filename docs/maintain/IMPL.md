@@ -194,7 +194,7 @@ dropped. `ink check` remains the authoritative whole-project check.
 
 ### `internal/driver`
 
-High-level operations used by the CLI. The driver owns `ink.conf`,
+High-level operations used by the CLI. The driver owns `go.mod`,
 `go.mod`, the Go import stub, parsing, checking, generation and Go commands.
 
 ## Codegen rules

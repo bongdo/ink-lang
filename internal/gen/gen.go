@@ -440,7 +440,7 @@ type writer struct {
 	results    []ast.Type
 	err        bool
 	renames    map[string]rename
-	arenas     map[string]string
+	arenaStack []string
 	self       string
 }
 
@@ -457,7 +457,7 @@ type parRef struct {
 
 func newWriter(f *fileGen, ctx string) *writer {
 	n := 0
-	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename), arenas: make(map[string]string)}
+	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename), arenaStack: nil}
 }
 
 func (w *writer) next(prefix string) string {

@@ -190,9 +190,6 @@ func (w *writer) basicLit(e *ast.BasicLit) string {
 }
 
 func (w *writer) call(c *ast.CallExpr) string {
-	if c.Info != nil && c.Info.Kind == ast.CallArena {
-		return w.arenaCall(c)
-	}
 	if name, ok := builtinName(c); ok {
 		var args []string
 		for _, a := range c.Args {
@@ -338,6 +335,17 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 	case "make":
 		if len(c.TypeArgs) == 1 {
 			elem := w.typeStr(c.TypeArgs[0])
+			if len(w.arenaStack) > 0 {
+				handle := w.arenaStack[len(w.arenaStack)-1]
+				switch len(args) {
+				case 0:
+					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", 0, 0)"
+				case 1:
+					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", " + args[0] + ", " + args[0] + ")"
+				default:
+					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", " + args[0] + ", " + args[1] + ")"
+				}
+			}
 			if len(args) > 1 {
 				return "make([]" + elem + ", " + args[0] + ", " + args[1] + ")"
 			}
@@ -345,6 +353,14 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 				return "make([]" + elem + ", " + args[0] + ")"
 			}
 			return "make([]" + elem + ", 0)"
+		}
+	case "new":
+		if len(c.TypeArgs) == 1 {
+			elem := w.typeStr(c.TypeArgs[0])
+			if len(w.arenaStack) > 0 {
+				return w.f.std("arena") + ".New[" + elem + "](" + w.arenaStack[len(w.arenaStack)-1] + ")"
+			}
+			return "new(" + elem + ")"
 		}
 	}
 	if c.Ellipsis && len(args) > 0 {
@@ -355,38 +371,6 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 
 func (w *writer) posLiteral(n ast.Node) string {
 	return fmt.Sprintf("%q", w.f.g.pos(n))
-}
-
-func (w *writer) arenaCall(c *ast.CallExpr) string {
-	pkg := w.f.std("arena")
-	sel, ok := c.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return ""
-	}
-	id, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return ""
-	}
-	handle := w.arenas[id.Name]
-	if len(c.TypeArgs) != 1 {
-		return ""
-	}
-	t := w.typeStr(c.TypeArgs[0])
-	switch sel.Name {
-	case "New":
-		return pkg + ".New[" + t + "](" + handle + ")"
-	case "MakeSlice":
-		if len(c.Args) == 0 {
-			return ""
-		}
-		n := w.expr(c.Args[0])
-		capacity := n
-		if len(c.Args) > 1 {
-			capacity = w.expr(c.Args[1])
-		}
-		return pkg + ".MakeSlice[" + t + "](" + handle + ", " + n + ", " + capacity + ")"
-	}
-	return ""
 }
 
 func (w *writer) callTarget(c *ast.CallExpr) (string, []string, bool) {

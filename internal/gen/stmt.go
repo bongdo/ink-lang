@@ -476,7 +476,7 @@ func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 	}
 	w.linef("%s := %s.NewArena()", name, pkg)
 	w.linef("_s_d.Push(func() { %s.Free() })", name)
-	w.arenas[s.Name] = name
+	w.arenaStack = append(w.arenaStack, name)
 	w.writeIndent()
 	w.buf.WriteString("{\n")
 	w.indent++
@@ -487,7 +487,7 @@ func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 	if mark != "" {
 		w.linef("_s_d.RunTo(%s)", mark)
 	}
-	delete(w.arenas, s.Name)
+	w.arenaStack = w.arenaStack[:len(w.arenaStack)-1]
 }
 
 func (w *writer) deferStmt(s *ast.DeferStmt) {

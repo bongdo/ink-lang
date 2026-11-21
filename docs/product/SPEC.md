@@ -9,15 +9,14 @@ not a 1.0 promise: feature status is in [`FEATURES.md`](FEATURES.md).
 - Source files end in `.ink`, UTF-8.
 - A package is one directory. Every `.ink` file in it belongs to the same
   package. There is no package clause; the directory name is the package name.
-- The project root is the directory holding `ink.conf`:
+- The project root is the directory holding `go.mod`:
 
 ```text
-name = "hello"
-module = "example.com/hello"
+module example.com/hello
+go 1.27
 ```
 
-  `ink.conf` is a flat `key = "value"` file. `ink.toml` is still read when
-  present, so old projects keep working.
+  `go.mod` is the only project file. There is no Ink-specific config.
 
 - `module` is the Go module path used for generated code. If absent,
   `example.com/<name>` is used.
@@ -175,17 +174,17 @@ An alias does not create a new Go type.
 ### 3.8. Arenas
 
 ```hare
-arena a {
-    var p = a.New[Point]();
+arena {
+    var p = new[Point]();
     p.X = 1;
-    var xs = a.MakeSlice[i32](8);
+    var xs = make[i32](8);
     xs[0] = 2;
 };
 ```
 
-The block allocates from one Go arena and frees it at block exit, including
-`return`, `break`, `continue` and panic. `a.New[T]()` returns `*T`;
-`a.MakeSlice[T](n)` or `(n, cap)` returns `[]T`.
+Inside the block `new[T]()` and `make[T](n)` or `(n, cap)` allocate from one Go
+arena; outside they are ordinary Go allocations. The block frees the arena at
+exit, including `return`, `break`, `continue` and panic.
 
 Values allocated in an arena must not escape the block: after it they are
 use-after-free. `par` inside an arena is rejected. The feature uses Go's
@@ -495,7 +494,7 @@ within 30s {
 - `ink new <dir>` — scaffold a project, install the short `AGENTS.md`, an
   `opencode.json` with the Ink LSP and formatter, and the `ink` OpenCode
   skill with the full reference.
-- `ink init [dir]` — add `ink.conf` and `AGENTS.md` to an existing
+- `ink init [dir]` — add `go.mod` and `AGENTS.md` to an existing
   directory; an existing `AGENTS.md` is not overwritten.
 - `ink guide` — print the embedded agent guide.
 

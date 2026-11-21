@@ -435,6 +435,9 @@ func findProjectRoot(dir string) string {
 		if config.Exists(abs) {
 			return abs
 		}
+		if _, err := os.Stat(filepath.Join(abs, "main.ink")); err == nil {
+			return abs
+		}
 		parent := filepath.Dir(abs)
 		if parent == abs {
 			return ""

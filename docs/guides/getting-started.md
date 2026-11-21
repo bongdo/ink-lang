@@ -7,8 +7,8 @@ ink new hello
 cd hello
 ```
 
-`ink new` writes `ink.conf`, `main.ink`, a short `AGENTS.md`,
-`opencode.json`, `.opencode/skills/ink/SKILL.md`, `go.mod` and `.gitignore`,
+`ink new` writes `main.ink`, a short `AGENTS.md`, `opencode.json`,
+`.opencode/skills/ink/SKILL.md`, `go.mod` and `.gitignore`,
 and prints `created hello`. The short `AGENTS.md` is the ambient agent contract;
 `ink guide` prints the full embedded reference. `opencode.json` starts
 `ink lsp` for `.ink` and formats on edit; the skill carries the full
@@ -19,14 +19,13 @@ without overwriting an existing `AGENTS.md`:
 ink init .
 ```
 
-`ink init` refuses to run when `ink.conf` already exists.
+`ink init` adds `go.mod` if it is absent and keeps an existing one.
 
-`ink.conf`:
+`go.mod`:
 
 ```text
-name = "hello"
-module = "example.com/hello"
-go = "1.27"
+module example.com/hello
+go 1.27
 ```
 
 `main.ink`:

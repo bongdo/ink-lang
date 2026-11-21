@@ -201,12 +201,6 @@ type PointerType struct {
 
 func (*PointerType) typeNode() {}
 
-type ArenaType struct {
-	Span
-}
-
-func (*ArenaType) typeNode() {}
-
 type FuncType struct {
 	Span
 	Params   []Type
@@ -300,7 +294,6 @@ const (
 	CallBuiltin
 	CallConversion
 	CallType
-	CallArena
 )
 
 type CallInfo struct {
@@ -497,7 +490,6 @@ func (*FailStmt) stmtNode() {}
 
 type ArenaStmt struct {
 	Span
-	Name string
 	Body *Block
 }
 

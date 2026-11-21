@@ -364,3 +364,27 @@ a file to maintain.
 directory.
 **Цена:** old links to `docs/archive/...` break; the removed text is in the VCS
 history.
+
+## 2026-11-21 — `go.mod` is the only project file
+
+**Контекст:** `ink.conf` duplicated `module` and `go` from `go.mod` and existed
+only to hold `name` and mark the root.
+**Решение:** `go.mod` is the project marker and the source of module path and Go
+version. `name` is the directory basename; `ink build -o` overrides the binary.
+`ink new` writes `go.mod`; `ink init` creates one if absent. Old `ink.conf` and
+`ink.toml` are no longer read.
+**Почему:** one file, one source of truth, no custom format or parser.
+**Что отвергли:** keeping `ink.conf` for `name`; a hidden project marker.
+**Цена:** renaming the directory changes the default binary name; old projects
+without `go.mod` need `ink init` or `ink build` once.
+
+## 2026-11-21 — Arenas use an invisible allocator
+
+**Контекст:** the first arena implementation exposed `arena a { a.New... }`:
+a handle name plus two methods. The user asked for the smallest cognitive load.
+**Решение:** `arena { ... }` has no handle. Inside the block `new[T]()` and
+`make[T](n[, cap])` allocate from the arena; outside they are normal Go
+allocations. Free is at block exit; `par` inside is rejected.
+**Почему:** one keyword and one rule; `new` and `make` are already familiar.
+**Что отвергли:** a named arena; `arena.New` as a namespace; arena on a function.
+**Цена:** arena values must not escape the block; no escape analysis yet.

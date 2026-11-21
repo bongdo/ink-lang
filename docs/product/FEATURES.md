@@ -11,7 +11,7 @@ place with status.
 |---|---|
 | `.ink` files, UTF-8 | ✅ |
 | one directory = one package, no package clause | ✅ |
-| `ink.conf` with `name` and Go module path (`ink.conf` still read) | ✅ |
+| `go.mod` is the project file: root, module path and Go version | ✅ |
 | local import `use ./lib as lib;` | ✅ |
 | Go import `use fmt;`, bare paths, `as` alias | ✅ |
 | versioned import path requires an alias | ✅ |
@@ -63,7 +63,7 @@ place with status.
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
 | `T!` with `or fail`, `or err { }`, `or panic(...)` | ✅ |
 | `error("msg")` fresh error constructor | ✅ |
-| `arena a { ... }` with `a.New` / `a.MakeSlice`, auto-free | ✅ experimental Go `arena` |
+| `arena { new/make }` with implicit arena allocation, auto-free | ✅ experimental Go `arena` |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
 | manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |

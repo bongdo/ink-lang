@@ -60,7 +60,7 @@ func TestNewProject(t *testing.T) {
 
 func TestCheckTypeErrors(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"tc\"\nmodule = \"example.com/tc\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tc\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "lib"), 0o755); err != nil {
@@ -104,7 +104,7 @@ func TestCheckPathWithSpaces(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"space\"\nmodule = \"example.com/space\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/space\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "main.ink")
@@ -130,7 +130,7 @@ func TestCheckPathWithSpaces(t *testing.T) {
 
 func TestMissingReturnDiagnostic(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"ret\"\nmodule = \"example.com/ret\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/ret\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	src := "fn f() i32 {\n};\n\nfn main() void {\n    _ = f();\n};\n"
@@ -158,7 +158,7 @@ func TestMissingReturnDiagnostic(t *testing.T) {
 
 func TestDuplicateDiagnosticsJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"dup\"\nmodule = \"example.com/dup\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/dup\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	src := "fn main() void! {\n    var p: *Missing = nil;\n    return;\n};\n"
@@ -190,7 +190,7 @@ func TestDuplicateDiagnosticsJSON(t *testing.T) {
 
 func TestCheckFastGlobalCycle(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"cycle\"\nmodule = \"example.com/cycle\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/cycle\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	src := "var a: i32 = b;\nvar b = a + 1;\n\nfn main() void {\n    _ = a;\n    _ = b;\n};\n"
@@ -211,7 +211,7 @@ func TestCheckFastGlobalCycle(t *testing.T) {
 
 func TestCheckFastAndJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"tc\"\nmodule = \"example.com/tc\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tc\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(dir, "lib"), 0o755); err != nil {
@@ -318,7 +318,7 @@ func TestFormatListJSON(t *testing.T) {
 
 func TestCheckTestTypeErrors(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "ink.conf"), []byte("name = \"tc\"\nmodule = \"example.com/tc\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tc\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tc\n\ngo 1.27\n"), 0o644); err != nil {
@@ -493,8 +493,8 @@ func TestInitWritesAgentGuideOnce(t *testing.T) {
 			t.Fatalf("AGENTS.md missing %q", want)
 		}
 	}
-	if err := Init(dir); err == nil {
-		t.Fatal("second Init succeeded")
+	if err := Init(dir); err != nil {
+		t.Fatal(err)
 	}
 	second, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
 	if err != nil {

@@ -205,10 +205,6 @@ func (c *testClient) wait(t *testing.T) error {
 func newProject(t *testing.T, src string) (string, string, string) {
 	t.Helper()
 	root := t.TempDir()
-	config := []byte("name = \"hello\"\nmodule = \"example.com/hello\"\n")
-	if err := os.WriteFile(filepath.Join(root, "ink.conf"), config, 0o644); err != nil {
-		t.Fatal(err)
-	}
 	path := filepath.Join(root, "main.ink")
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
@@ -425,8 +421,7 @@ func TestDuplicateSemanticDiagnostics(t *testing.T) {
 func TestTypeDiagnostics(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
-		"ink.conf": "name = \"hello\"\nmodule = \"example.com/hello\"\n",
-		"go.mod":   "module example.com/hello\n\ngo 1.27\n",
+		"go.mod": "module example.com/hello\n\ngo 1.27\n",
 	}
 	src := "use fmt;\n\nfn main() void! {\n    var n = 1 + \"x\";\n    fmt.Println(n) or fail;\n};\n"
 	for name, text := range files {

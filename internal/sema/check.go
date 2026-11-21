@@ -116,7 +116,7 @@ func (c *checker) funcType(fn *ast.FuncDecl) ast.Type {
 
 func isBuiltinFunc(name string) bool {
 	switch name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new":
 		return true
 	}
 	return false
@@ -523,12 +523,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.resolveExpr(s.Call, false)
 		}
 	case *ast.ArenaStmt:
-		c.push()
-		c.declare(&symbol{name: s.Name, kind: ast.RefLocal, typ: &ast.ArenaType{}, decl: s})
 		c.inArena++
 		c.checkBlock(s.Body)
 		c.inArena--
-		c.pop()
 		c.p.UsesArena = true
 	case *ast.ParStmt:
 		if c.inArena > 0 {

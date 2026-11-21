@@ -268,15 +268,6 @@ func (c *checker) resolvePackageMember(s *ast.SelectorExpr, id *ast.Ident, _ ast
 }
 
 func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
-	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-		if id, ok := sel.X.(*ast.Ident); ok {
-			if sym := c.lookup(id.Name); sym != nil {
-				if _, ok := sym.typ.(*ast.ArenaType); ok {
-					return c.resolveArenaCall(call, sel)
-				}
-			}
-		}
-	}
 	var info *ast.CallInfo
 	var result ast.Type
 	var params []ast.Type
@@ -300,6 +291,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 		case ast.RefBuiltin:
 			if fun.Name == "make" {
 				return c.resolveMake(call)
+			}
+			if fun.Name == "new" {
+				return c.resolveNew(call)
 			}
 			info, result = c.builtinInfo(fun.Name)
 		case ast.RefFunc:
@@ -404,45 +398,6 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	return result
 }
 
-func (c *checker) resolveArenaCall(call *ast.CallExpr, sel *ast.SelectorExpr) ast.Type {
-	if len(call.TypeArgs) != 1 {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "arena.%s needs one type argument", sel.Name)
-		return nil
-	}
-	t := c.resolveType(call.TypeArgs[0])
-	call.TypeArgs = []ast.Type{t}
-	c.p.rejectVoid(c.fc, t, call.Pos())
-	for _, a := range call.Args {
-		c.resolveExpr(a, false)
-		c.checkVoidValue(a)
-	}
-	intT := &ast.NamedType{Name: "int", GoName: "int"}
-	switch sel.Name {
-	case "New":
-		if len(call.Args) != 0 {
-			c.p.errorf(c.fc.file.Path, call.Pos(), "arena.New takes no arguments")
-		}
-		res := &ast.PointerType{Elem: t}
-		call.Info = &ast.CallInfo{Kind: ast.CallArena, Results: 1, ResultTypes: []ast.Type{res}, Builtin: "arena.New"}
-		c.p.UsesArena = true
-		return res
-	case "MakeSlice":
-		if len(call.Args) < 1 || len(call.Args) > 2 {
-			c.p.errorf(c.fc.file.Path, call.Pos(), "arena.MakeSlice takes a length and an optional capacity")
-		}
-		for _, a := range call.Args {
-			c.checkAssign(intT, a)
-		}
-		res := &ast.SliceType{Elem: t}
-		call.Info = &ast.CallInfo{Kind: ast.CallArena, Results: 1, ResultTypes: []ast.Type{res}, Builtin: "arena.MakeSlice"}
-		c.p.UsesArena = true
-		return res
-	default:
-		c.p.errorf(c.fc.file.Path, sel.Pos(), "arena has New and MakeSlice, not %s", sel.Name)
-		return nil
-	}
-}
-
 func builtinError(t ast.Type) bool {
 	n, ok := t.(*ast.NamedType)
 	return ok && n.Package == "" && n.Name == "error"
@@ -477,6 +432,22 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 	}
 	res := &ast.SliceType{Elem: elem}
 	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 1, ResultTypes: []ast.Type{res}, Builtin: "make"}
+	return res
+}
+
+func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {
+	if len(call.TypeArgs) != 1 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "new needs one type: new[Point]()")
+		return nil
+	}
+	elem := c.resolveType(call.TypeArgs[0])
+	call.TypeArgs = []ast.Type{elem}
+	c.p.rejectVoid(c.fc, elem, call.Pos())
+	if len(call.Args) != 0 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "new takes no arguments")
+	}
+	res := &ast.PointerType{Elem: elem}
+	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 1, ResultTypes: []ast.Type{res}, Builtin: "new"}
 	return res
 }
 
