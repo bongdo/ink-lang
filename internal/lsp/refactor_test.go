@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/sema"
 )
 
 func decodeLocations(t *testing.T, result json.RawMessage) []Location {
@@ -741,5 +744,20 @@ fn main() void {
 		if names[want] != kind {
 			t.Fatalf("workspace symbol %q kind = %d, want %d: %+v", want, names[want], kind, names)
 		}
+	}
+}
+
+func TestRenameConflict(t *testing.T) {
+	a := &ast.FuncDecl{Name: "a"}
+	b := &ast.FuncDecl{Name: "b"}
+	fi := &fileInfo{rel: ".", prog: &sema.Program{Packages: map[string]*sema.Package{
+		".": {Funcs: map[string]*ast.FuncDecl{"a": a, "b": b}},
+	}}}
+	s := &server{}
+	if !s.renameConflict(fi, &renameTarget{decl: b, name: "b"}, "a") {
+		t.Fatal("collision not detected")
+	}
+	if s.renameConflict(fi, &renameTarget{decl: b, name: "b"}, "c") {
+		t.Fatal("false collision")
 	}
 }

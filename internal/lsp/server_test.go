@@ -845,3 +845,16 @@ func TestApplyChanges(t *testing.T) {
 		t.Fatalf("incremental change = %q", changed)
 	}
 }
+
+func TestFileAtRejectsStaleVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.ink")
+	s := &server{
+		docs: map[string]*document{path: {text: "x", version: 2}},
+		last: &analysis{files: map[string]*fileInfo{path: {path: path, version: 1, open: true}}},
+	}
+	fi, ok := s.fileAt(pathToURI(path))
+	if !ok || fi != nil {
+		t.Fatalf("stale analysis: fi=%+v ok=%v, want nil,true", fi, ok)
+	}
+}

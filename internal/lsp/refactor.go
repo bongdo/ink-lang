@@ -177,6 +177,36 @@ func (s *server) references(p ReferenceParams) (any, error) {
 	return s.findReferences(target, p.Context.IncludeDeclaration), nil
 }
 
+func (s *server) renameConflict(fi *fileInfo, target *renameTarget, name string) bool {
+	if fi.prog == nil {
+		return false
+	}
+	pkg := fi.prog.Packages[fi.rel]
+	if pkg == nil {
+		return false
+	}
+	switch d := target.decl.(type) {
+	case *ast.FuncDecl:
+		other := pkg.Funcs[name]
+		return other != nil && other != d
+	case *ast.TypeDecl:
+		other := pkg.Types[name]
+		return other != nil && other != d
+	case *ast.VarDecl:
+		other := pkg.Vars[name]
+		return other != nil && other != d
+	case *ast.Variant:
+		for _, t := range pkg.Types {
+			for _, v := range t.Variants {
+				if v != d && v.Name == name {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (s *server) findReferences(target *renameTarget, includeDecl bool) []Location {
 	locations := []Location{}
 	if s.last == nil || target == nil {
@@ -329,6 +359,9 @@ func (s *server) rename(p RenameParams) (any, error) {
 	fi := s.fileOfNode(target.decl)
 	if fi == nil {
 		return nil, nil
+	}
+	if s.renameConflict(fi, target, p.NewName) {
+		return nil, fmt.Errorf("rename would collide with %s", p.NewName)
 	}
 	locations := s.findReferences(target, true)
 	if len(locations) == 0 {

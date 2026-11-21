@@ -85,11 +85,13 @@ type document struct {
 }
 
 type fileInfo struct {
-	path string
-	rel  string
-	src  []byte
-	file *ast.File
-	prog *sema.Program
+	path    string
+	rel     string
+	src     []byte
+	file    *ast.File
+	prog    *sema.Program
+	version int
+	open    bool
 }
 
 type analysis struct {
@@ -634,7 +636,11 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 		if prog != nil {
 			semaErrs = append(semaErrs, prog.Errors...)
 		}
-		a.files[path] = &fileInfo{path: path, rel: ".", src: src, file: f, prog: prog}
+		fi := &fileInfo{path: path, rel: ".", src: src, file: f, prog: prog}
+		if doc := docs[path]; doc != nil {
+			fi.version, fi.open = doc.version, true
+		}
+		a.files[path] = fi
 		parseErrs[path] = errs
 	}
 
@@ -647,7 +653,11 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 		a.parsed = parsed
 		for rel, files := range parsed {
 			for _, f := range files {
-				a.files[f.Path] = &fileInfo{path: f.Path, rel: rel, src: f.Src, file: f, prog: prog}
+				fi := &fileInfo{path: f.Path, rel: rel, src: f.Src, file: f, prog: prog}
+				if doc := docs[f.Path]; doc != nil {
+					fi.version, fi.open = doc.version, true
+				}
+				a.files[f.Path] = fi
 			}
 		}
 		if prog != nil && canTypecheck(root, module) && !hasFatalErrors(parseErrs, prog.Errors) {
@@ -939,8 +949,8 @@ func (s *server) publish(a *analysis) error {
 			diags = []Diagnostic{}
 		}
 		params := PublishDiagnosticsParams{URI: uri, Diagnostics: diags}
-		if doc := s.docs[path]; doc != nil {
-			version := doc.version
+		if fi := a.files[path]; fi != nil && fi.open {
+			version := fi.version
 			params.Version = &version
 		}
 		if err := s.conn.Notify("textDocument/publishDiagnostics", params); err != nil {
@@ -972,7 +982,14 @@ func (s *server) fileAt(uri string) (*fileInfo, bool) {
 	if s.last == nil {
 		return nil, true
 	}
-	return s.last.files[path], true
+	fi := s.last.files[path]
+	if fi == nil {
+		return nil, true
+	}
+	if doc := s.docs[path]; doc != nil && doc.version != fi.version {
+		return nil, true
+	}
+	return fi, true
 }
 
 func (s *server) hover(p TextDocumentPositionParams) (any, error) {
