@@ -8,6 +8,8 @@ func TestClassify(t *testing.T) {
 		code string
 	}{
 		{"import paths are written without quotes: use fmt;", "import-simple"},
+		{"fallible results are marked with '!': write T! instead of T or error", "result-bang"},
+		{"invalid operation: total += u.Age (mismatched types int and int32)", "go-int"},
 		{"no ':=' in Ink; declare with var", "colon-equals"},
 		{"files have no package clause; one directory is one package", "go-package"},
 		{"import is not an Ink declaration; Ink imports with use", "go-import"},

@@ -873,7 +873,11 @@ func diagnosticAt(src []byte, pos token.Pos, msg string, warning bool) Diagnosti
 	if warning {
 		severity = 2
 	}
-	return Diagnostic{Range: rangeAt(src, pos), Severity: severity, Code: diag.Classify(msg).Code, Source: "ink", Message: msg}
+	info := diag.Classify(msg)
+	if info.Hint != "" {
+		msg += " (" + info.Hint + ")"
+	}
+	return Diagnostic{Range: rangeAt(src, pos), Severity: severity, Code: info.Code, Source: "ink", Message: msg}
 }
 
 func rangeAt(src []byte, pos token.Pos) Range {
