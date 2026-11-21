@@ -672,7 +672,7 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 	case *ast.MapType:
 		for _, en := range e.Entries {
 			if en.KeyExpr == nil {
-				c.p.errorf(c.fc.file.Path, en.Pos(), "map literal entry needs key = value")
+				c.p.errorf(c.fc.file.Path, en.Pos(), "map literal entry needs key: value")
 				continue
 			}
 			c.applyNil(en.KeyExpr, ty.Key)
@@ -717,7 +717,7 @@ func (c *checker) resolveFields(e *ast.CompositeLit, fields []*ast.Field, owner 
 	seen := make(map[string]bool)
 	for _, en := range e.Entries {
 		if en.Key == "" {
-			c.p.errorf(c.fc.file.Path, en.Pos(), "struct literal entry needs field = value")
+			c.p.errorf(c.fc.file.Path, en.Pos(), "struct literal entry needs field: value")
 			continue
 		}
 		f := fieldByName2(fields, en.Key)

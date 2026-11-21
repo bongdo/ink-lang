@@ -166,6 +166,7 @@ is copied to `.ink/runtime`.
 
 ## Language
 
+The docs index is [`docs/README.md`](docs/README.md).
 The full specification is in [`docs/SPEC.md`](docs/SPEC.md). Concurrency rules
 are in [`docs/PAR.md`](docs/PAR.md); the Go boundary is in
 [`docs/FFI.md`](docs/FFI.md). Feature status is in

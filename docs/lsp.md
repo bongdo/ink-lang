@@ -41,7 +41,7 @@ command in `~/.config/pero/config.toml`:
 
 ```toml
 [lsp]
-servers = { ink = "/home/bongdo/Projects/ink/bin/ink lsp" }
+servers = { ink = "/path/to/ink lsp" }
 ```
 
 `pero-inked` starts the same server automatically; `bin/run` sets
@@ -110,7 +110,7 @@ remains the fallback and the completion gate.
 - signature help
 - document formatting
 
-Diagnostics are recomputed on every change. Parse and sema run synchronously;
+Diagnostics are recomputed on every change. Parse and sema run on the analysis worker;
 the generated-Go typecheck waits 150 ms after the last edit and stale results
 are dropped. `didOpen`, `didSave` and `didClose` typecheck immediately.
 `didClose` publishes empty diagnostics for the closed buffer, drops it and

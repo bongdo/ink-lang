@@ -1,6 +1,6 @@
 # Ink — граница Go (FFI)
 
-**Статус:** концепция для 1.0. Описывает целевую границу, а не только 0.2.
+**Статус:** граница Go, как она реализована в 0.2; §10 — открытые решения.
 **Связано:** [ONE_WAY.md](ONE_WAY.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
 [EDGES.md](EDGES.md), [decisions.md](decisions.md).
 
@@ -261,7 +261,7 @@ fn Kind(err: error) ErrorKind { ... };
 | simple interfaces | `interface` | method set из поддержанных сигнатур |
 | function values | `fn(...)` | явные типы; без hidden ctx |
 | `error`, `(T, error)` | `T!` | любое число не-error результатов |
-| `(T, bool)` | `var v, ok: ...` | не `or` |
+| `(T, bool)` | `var v, ok = ...` | не `or` |
 | multiple results | `fn() A, B` | для Go-сигнатур; app API лучше struct |
 
 ### 5.2. Не обещается
@@ -282,9 +282,9 @@ fn Kind(err: error) ErrorKind { ... };
 
 - `(T, error)` → `T!`.
 - `error` → `void!`.
-- `(T, bool)` → `var v, ok: f();`, не `or`: bool — не error.
+- `(T, bool)` → `var v, ok = f();`, не `or`: bool — не error.
 - `(A, B, error)` — Go-форма. App-код может писать `(A, B)!` и
-  `var a, b: f() or fail;`; для публичного API facade лучше struct, чтобы
+  `var a, b = f() or fail;`; для публичного API facade лучше struct, чтобы
   не плодить multi-result сигнатуры. Ограничение — на app API, не на
   грамматику.
 - Ошибка из Go не становится panic; panic не маппится в обычный error. На

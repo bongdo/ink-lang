@@ -26,7 +26,7 @@ var rules = []struct {
 	{"import-simple", "written without quotes", "use fmt;", false},
 	{"import-alias", "requires an alias", "use charm.land/bubbletea/v2 as tea;", false},
 	{"decl-equals", "declared without '='", "type User struct { ... }; fn f() void { ... };", false},
-	{"iface-fn", "interface methods are declared without 'fn'", "Write(p: u8[]) int or error;", false},
+	{"iface-fn", "interface methods are declared without 'fn'", "Write(p: u8[]) int!;", false},
 	{"comment-block", "block comments are not supported", "// comment", false},
 	{"const-local", "const is only allowed at package level", "var N = 3;", false},
 	{"const-type", "const cannot have a type", "const N = 3;", false},

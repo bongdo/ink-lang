@@ -493,7 +493,7 @@ func (p *Program) checkMain() {
 		p.errorf(p.Main.Files[0].Path, main.Pos(), "main takes no parameters")
 	}
 	if len(main.Results) > 0 {
-		p.errorf(p.Main.Files[0].Path, main.Pos(), "main returns void or void or error")
+		p.errorf(p.Main.Files[0].Path, main.Pos(), "main returns void or void!")
 	}
 }
 

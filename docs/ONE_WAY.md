@@ -19,7 +19,7 @@
 
 Работает обратное: если формы различаются только синтаксическим вкусом и
 означают одно и то же, вторая форма запрещена. Примеры настоящих дублей:
-`use fmt;` и `use fmt;`, named и positional struct literal, `or fail` и
+`use fmt;` и `use "fmt";`, named и positional struct literal, `or fail` и
 `if err != nil { return err; }`.
 
 ### 1.1. Как решать
@@ -59,33 +59,29 @@ use ./lib as lib;
 use ../shared/config as config;
 ```
 
-- Bare identifier — только простой Go-пакет: путь является одним
-  идентификатором, без `/`, `.`, `-` и других не-identifier символов, и это
-  не local path. `use fmt;`, `use os;`.
-- Кавычки — если путь содержит `/` или `.`, либо это local path (`./`, `../`),
-  либо путь не является одним идентификатором. Это механическое правило, а
-  не выбор: `use fmt;` — тот же импорт, но неканонический; форматтер
-  переписывает его в `use fmt;`.
+- Путь всегда голый, без кавычек: один сегмент (`use fmt;`) или
+  несколько (`use encoding/json;`, `use charm.land/bubbletea/v2 as tea;`).
+  Локальный — `use ./lib as lib;` или `use ../shared/config as config;`.
 - Alias — только когда default alias не то имя, которое нужно в коде, или
   default alias невалиден как идентификатор. Default alias — последний
   сегмент пути, `-` заменяется на `_`. Для пути, оканчивающегося на `/v2`,
   default alias равен `v2`; это версия, а не имя пакета, поэтому alias
   обязателен: `use charm.land/bubbletea/v2 as tea;`. Лишний alias
   (`use fmt as fmt;`) форматтер убирает.
-- Local import — всегда путь в кавычках и всегда с alias, если имя директории
-  не совпадает с желаемым именем в коде. `use ./lib;` без alias допустим
+- Local import — тоже голый путь; alias нужен, если имя директории не
+  совпадает с желаемым именем в коде. `use ./lib;` без alias допустим
   только когда пакет называется `lib`.
 - Blank import — `use modernc.org/sqlite as _;` подключает Go-пакет ради
   побочных эффектов (драйверы, `pprof`, `time/tzdata`) и ничего не связывает;
   local import blank-ом быть не может.
 
-Почему так: форма пути уже говорит, Go это или local. Кавычки не должны
-становиться стилистическим выбором. Частый случай (stdlib) должен быть
-коротким, редкий (third-party path) — явным.
+Почему так: путь — это путь, а не identifier и не строка. Одна лексическая
+форма для stdlib, third-party и local; кавычки не становятся стилистическим
+выбором.
 
-**0.2:** `use fmt;` уже ошибка парсера; канон — `use fmt;`. Alias для
-Go-пути, оканчивающегося на версию (`/v2`, `/v3`, ...), обязателен: это
-проверяет парсер. Local path (`./v2`) этим правилом не задет.
+**0.2:** синтаксис реализован: путь читается до пробела или `;`, кавычки
+отвергаются. Alias для Go-пути, оканчивающегося на версию (`/v2`, `/v3`, ...),
+обязателен; local path (`./v2`) этим правилом не задет.
 
 ### 2.2. Struct literals
 
@@ -145,10 +141,10 @@ os.Remove(path) or panic("cannot remove");
   statement-level. Это не временное ограничение, а решение: путь ошибки
   должен быть виден в структуре кода, а не спрятан внутри выражения.
 - `or` поддерживает любое число не-error результатов:
-  `var a, b: f() or fail;`, `a, b: f() or fail;`,
+  `var a, b = f() or fail;`, `a, b = f() or fail;`,
   `return f() or fail;`, `f() or fail;`. Ошибка по-прежнему
   statement-level и видна в структуре кода; arity проверяет sema.
-  Go-форма `var a, b, err: f();` остаётся для адаптеров, app-код пишет `or`.
+  Go-форма `var a, b, err = f();` остаётся для адаптеров, app-код пишет `or`.
 - Ошибку не сравнивают по строке. `errors.Is`/`errors.As` — на границе,
   в адаптере; app-код получает уже осмысленный `error` или свой enum.
   `isNotFound` в примере — helper facade, а не вызов Go-пакета из домена.
@@ -268,7 +264,7 @@ var xs = u8[] {};
 - `nil` допустим только для pointer, slice, map, function, interface. Для
   struct и enum — нет; zero value enum не конструируется.
 - Наличие ключа в map — `has(m, k)`, а не `m[k] != nil` и не sentinel.
-  Если нужны и значение, и наличие — `var v, ok: m[k];`.
+  Если нужны и значение, и наличие — `var v, ok = m[k];`.
 
 **0.2:** typed `var` реализован: `var p: *User = nil;` даёт expected type
 для bare `nil`. `nil[T]` остаётся разрешённым escape hatch для `any` и
@@ -277,7 +273,7 @@ var xs = u8[] {};
 ### 2.7. `_`
 
 ```hare
-var a, _: f();
+var a, _ = f();
 _ = a;
 ```
 
@@ -433,12 +429,12 @@ flow. См. §10 в [SPEC.md](SPEC.md).
 
 | Правило | Статус | Где |
 |---|---|---|
-| `use fmt;`, кавычки только для `/`/`.`/local | canonical | parser: quoted simple — error; formatter canonical |
+| `use fmt;`, `use encoding/json;`, `use ./lib;` | canonical | parser: кавычки — error |
 | alias для пути с версией (`/v2`, `/v3`, ...) | forbidden без alias | parser |
-| `type X struct/enum/interface`, `fn f() R { ... }` | canonical | parser принимает `=`, formatter переписывает |
+| `type X struct/enum/interface`, `fn f() R { ... }` | canonical | parser: `=` перед телом — error |
 | alias `type X = Y` | canonical | parser; без `=` — ошибка |
 | named struct literals | forbidden (positional) | sema, уже есть |
-| `or` вместо `if err != nil { return err }` в app | canonical | sema: pure propagation — error; inspection allowed |
+| `or fail` вместо `if err != nil { return err }` в app | canonical | sema: pure propagation — error; `or return` — error |
 | range/C-style/`for ()` по намерению | canonical | review; lint на C-style по slice, если range хватает |
 | `par`/`par for`/`within` по намерению | canonical | sema для unsafe `par`; lint на `par` с одним statement |
 | bare `nil` при известном типе | canonical | typed `var` и expected type в sema |
@@ -483,7 +479,7 @@ flow. См. §10 в [SPEC.md](SPEC.md).
 ## 9. Открытые вопросы
 
 - **Multi-result + error.** Решено: `or` поддерживает любое число не-error
-  результатов (`var a, b: f() or fail;`). Go-форма с `err` остаётся для
+  результатов (`var a, b = f() or fail;`). Go-форма с `err` остаётся для
   адаптеров.
 - **`nil[T]` при `any`.** Решено: `nil[T]` остаётся escape hatch для
   `any`/interface, где expected type не фиксирует динамический тип.

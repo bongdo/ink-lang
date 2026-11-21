@@ -462,6 +462,15 @@ func (c *checker) checkAssign(dst ast.Type, e ast.Expr) {
 	if src == nil {
 		return
 	}
+	if c.isErrorAstType(dst) {
+		if _, ok := e.(*ast.NilLit); ok {
+			return
+		}
+		if n, ok := src.(*ast.NamedType); ok && n.Decl == nil && n.Name != "error" {
+			c.p.errorf(c.fc.file.Path, e.Pos(), "cannot use %s as error", n.Name)
+		}
+		return
+	}
 	tgt := c.p.ifaceTargetOf(dst)
 	if tgt == nil || len(tgt.methods) == 0 {
 		return

@@ -74,6 +74,8 @@ fn pair() i32, bool { return 1, true; };
   `or panic("msg");`. `or` always starts a new line, indented once.
 - The handler name is always `err`. Inside it, `fail(err, "context");` wraps and
   returns. Manual `if err != nil { return err; }` propagation is rejected.
+- A fresh error is `fail(errors.New("msg"));`. `fail("msg")` is only the
+  shorthand after `or`; it wraps the call error, it does not create one.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.

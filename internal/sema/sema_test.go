@@ -112,7 +112,7 @@ fn main() void {
     _ = u;
 };
 `})
-	wantError(t, p, "struct literal entry needs field = value")
+	wantError(t, p, "struct literal entry needs field: value")
 }
 
 func TestEnumMatch(t *testing.T) {

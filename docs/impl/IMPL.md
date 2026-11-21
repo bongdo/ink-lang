@@ -88,8 +88,8 @@ The driver guarantees `go.mod` exists and Go imports are resolvable before
 The parser accepts only the canonical declaration forms (`type X struct`,
 `type X enum`, `type X interface`, `fn f() R { ... }`); `=` before a body is a
 parse error. The formatter prints the canonical form. Aliases always require
-`=` (`type X = Y`). A quoted non-local Go import path ending in `/v2`, `/v3`,
-... without an alias is a parse error.
+`=` (`type X = Y`). A non-local Go import path ending in `/v2`, `/v3`, ... without
+an alias is a parse error.
 
 Sema fills:
 

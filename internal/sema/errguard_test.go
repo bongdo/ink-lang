@@ -76,3 +76,13 @@ fn main() void {};
 `})
 	noErrors(t, p)
 }
+
+func TestStringIsNotError(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() void! {
+    fail("usage");
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "cannot use str as error")
+}

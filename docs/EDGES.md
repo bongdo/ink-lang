@@ -23,6 +23,8 @@ not re-file.
 | 10 | LSP waits for the current sema pass even after a newer edit. | A running analysis is not cancelled mid-pass. | None; the newer generation runs next. |
 | 11 | `ink check` re-type-checks every package on each run. | No per-package cache. | `--fast` for rename-level feedback. |
 | 12 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
+| 13 | `within` only cancels calls that observe context. A blocking call that ignores it (`time.Sleep`, `os.Stat`, CPU work) runs to completion. | The deadline cancels the hidden context; it cannot stop a function that never reads it. | Put context-aware Go calls inside `within`; measure elapsed time instead of assuming the block was cut. |
+| 14 | There is no `make`/`new` for a slice of dynamic length. | Slice literals need a constant length; `append` is the only grower. | Append zeros in a loop before `par for`, or collect results into a local slice. |
 
 ## Accepted
 
@@ -32,6 +34,7 @@ not re-file.
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
 | Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |
+| Unsuffixed integer literals are Go `int`; `i32` is int32 and needs `i32(...)`. | Matches Go; `len`, `cap` and `os.FileInfo.Size` return Go integers. |
 | `s[i]` is a `byte`, not a rune. | Matches Go; `runes(s)` is the documented form for code points. |
 | Map writes are rejected in `par` even for disjoint keys, and `par for` cannot range over a map. | A map has no ordinal and no provable disjointness; collect keys, then iterate a slice. |
 | Two writes to different fields of one captured struct are rejected. | One root, one writer: without alias analysis the compiler cannot prove they are disjoint. |

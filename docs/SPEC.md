@@ -200,7 +200,7 @@ const Greeting = "hello";
   an interface, not the default spelling. `nil` is valid only for pointers,
   slices, maps, functions and interfaces.
 - `_` is the only blank/discard construct. It is a result placeholder in
-  multi-result bindings (`var a, _: f();`) and an explicit discard assignment
+  multi-result bindings (`var a, _ = f();`) and an explicit discard assignment
   (`_ = a;`). There is no `discard` builtin.
 - `has(m, key)` reports key presence.
 - `*p` reads a pointer and `*p = v` writes through it.
@@ -239,9 +239,9 @@ Conversions use the type as a function: `i32(x)`, `u64(x)`, `f64(x)`,
 Multiple names are allowed for multi-result calls:
 
 ```hare
-var value, ok: m["key"];
-var n, err: f();
-var n, _: f();
+var value, ok = m["key"];
+var n, err = f();
+var n, _ = f();
 _ = n;
 ```
 
@@ -269,11 +269,11 @@ fn main() void! { ... };
   a function result; it cannot be used as a value type.
 - Several results are a comma-separated list. This is not a tuple value:
   no tuple type, indexing or argument nesting. Allowed positions are `return`,
-  `var a, b: f();` and `a, b: f();`.
+  `var a, b = f();` and `a, b = f();`.
 - In a function type, several results are grouped: `fn(i32) (str, bool)`.
 - The fallible form is `T!`, `(A, B)!` or `void!`.
   `or` propagates the error and yields every non-error result:
-  `var a, b: f() or fail;`.
+  `var a, b = f() or fail;`.
 - `main` may be `void` or `void!`. An error prints to stderr and exits 1.
 - Function literals are closures and the only local callable form; local named
   functions are deliberately absent.
@@ -312,6 +312,10 @@ Forms:
 - `call() or panic();` — panic with the error value.
 
 The handler always starts on a new line, indented once; `ink fmt` enforces it.
+
+A fresh error is `fail(errors.New("msg"));` or `fail(fmt.Errorf("...: %w", err));`.
+`fail("msg")` alone is not a fresh error: it is only the shorthand after `or`,
+where the call supplies the error to wrap.
 
 `or` may appear only as the entire initializer of a `var`, the entire right
 side of an assignment, an expression statement, or a `return` operand. It may
