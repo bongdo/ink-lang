@@ -47,3 +47,38 @@ func TestSaveWritesGoMod(t *testing.T) {
 		t.Fatal("Exists = false")
 	}
 }
+
+func TestFindRootPrefersGoMod(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, FileName), []byte("module example.com/root\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	child := filepath.Join(root, "lib")
+	if err := os.MkdirAll(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(child, "main.ink"), []byte("fn main() void {};\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := FindRoot(child)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != root {
+		t.Fatalf("root = %s, want %s", got, root)
+	}
+}
+
+func TestFindRootFallsBackToMain(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "main.ink"), []byte("fn main() void {};\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := FindRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != root {
+		t.Fatalf("root = %s, want %s", got, root)
+	}
+}

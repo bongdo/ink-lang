@@ -12,7 +12,6 @@ cleanup() {
   local d="$1"
   rm -rf "$d/.ink" "$d/bin" 2>/dev/null || true
   find "$d" -name 'zz_ink.go' -o -name 'zz_ink_test.go' 2>/dev/null | while read -r f; do rm -f "$f"; done
-  rm -f "$d/go.mod" "$d/go.sum" 2>/dev/null || true
 }
 # shortcut: flat JSON without nested objects or escaped quotes, replace sed parsing if the contract grows.
 json_field() {

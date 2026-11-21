@@ -53,7 +53,7 @@ place with status.
 | `&x` for variables, fields, literals; `*p` read/write | ✅ |
 | slicing, shared storage | ✅ |
 | `s[i]` on a string is a `byte`; `runes(s)` for code points | ✅ |
-| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `make` | ✅ |
+| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `make`, `new` | ✅ |
 | `if`, all `for` forms, `match` statement/expression | ✅ |
 | `break`/`continue`, including inside a `match` case | ✅ |
 | user labels, `goto` | — |

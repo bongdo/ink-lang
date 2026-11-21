@@ -35,6 +35,7 @@ not re-file.
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
 | Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. Sema rejects the common escapes; a value passed through a Go function or stored in a captured container may still leak. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
+| `new` and `make` are builtin names. | Go parity; a user function with either name is rejected and must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
 | Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |
 | Unsuffixed integer literals are Go `int`; `i32` is int32 and needs `i32(...)`. | Matches Go; `len`, `cap` and `os.FileInfo.Size` return Go integers. |
