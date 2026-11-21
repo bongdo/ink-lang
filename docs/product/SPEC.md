@@ -1,9 +1,8 @@
 # Ink — language specification (0.2 preview)
 
-This document freezes every question left open in
-[`archive/SYNTAX.md`](../archive/SYNTAX.md). Where this preview and the older v0
-notes disagree, this document wins. This is not a 1.0 promise: feature status is
-in [`FEATURES.md`](FEATURES.md).
+This document is the language contract. Older design notes were removed; their
+decisions are in [`../maintain/decisions.md`](../maintain/decisions.md). This is
+not a 1.0 promise: feature status is in [`FEATURES.md`](FEATURES.md).
 
 ## 1. Source files and packages
 

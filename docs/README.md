@@ -1,13 +1,19 @@
 # Ink docs
 
-Two internal layers, plus the public entry:
+Three layers, plus the public entry:
 
 | Layer | Question | Where |
 |---|---|---|
+| Vault | What does the user want, in their words? | [`../vault/`](../vault/) |
 | Product | What do we ship, and what is the contract? | [`product/`](product/) |
 | Maintenance | How is it built, and why was it decided? | [`maintain/`](maintain/) |
 | Guides | How do I use it? | [`guides/`](guides/) |
-| Archive | What did it look like before? | [`archive/`](archive/), including dated proposals |
+
+## Vault
+
+[`../vault/index.md`](../vault/index.md) — features and system notes, each with
+a quote and `ses_...`. The agent maintains it from the user's words; a note is
+`принято` only when the user says so.
 
 ## Product
 
@@ -36,9 +42,9 @@ Two internal layers, plus the public entry:
 
 - `product/SPEC.md` and `product/PAR.md` describe the language as it ships.
   If code and docs disagree, fix both in the same change.
+- `../vault/` is declaration; `product/` is the contract; `maintain/` is history and internals.
 - `product/FEATURES.md` is the only status table.
 - `product/EDGES.md` is the only list of known deviations.
 - `maintain/decisions.md` is append-only. Never edit an old entry.
-- `archive/` is history. Do not link to it as current documentation.
 - No gap numbers. An item is either a feature (status in `FEATURES.md`) or a
   deviation (entry in `EDGES.md`).

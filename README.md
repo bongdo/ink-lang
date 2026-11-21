@@ -68,7 +68,7 @@ What works, what is partial and what is deliberately absent is in
 you, with the workaround for each, are in [`docs/product/EDGES.md`](docs/product/EDGES.md).
 
 App code has one canonical way per intent
-([`docs/archive/ONE_WAY.md`](docs/archive/ONE_WAY.md)). Ink does not add a second spelling for
+([`vault/features/syntax.md`](vault/features/syntax.md)). Ink does not add a second spelling for
 the same thing, and Go stays an external library at the FFI boundary.
 
 `ink check` type-checks the generated Go through `internal/typecheck` and
@@ -166,7 +166,7 @@ is copied to `.ink/runtime`.
 
 ## Language
 
-The docs index is [`docs/README.md`](docs/README.md).
+The product declaration is [`vault/index.md`](vault/index.md); the docs index is [`docs/README.md`](docs/README.md).
 The full specification is in [`docs/product/SPEC.md`](docs/product/SPEC.md). Concurrency rules
 are in [`docs/product/PAR.md`](docs/product/PAR.md); the Go boundary is in
 [`docs/product/FFI.md`](docs/product/FFI.md). Feature status is in
@@ -199,14 +199,6 @@ Highlights:
 - `par` workers recover panics, keep their own `defer` stack, and reject unsafe
   map/pointer/alias writes; `ink check` type-checks generated Go.
 - `void` is only a function result; value positions are rejected.
-
-## Presentation
-
-`docs/archive/presentation/index.html` — обзор языка, синтаксиса, Bubble Tea и внутренней
-кухни. Рядом: `internals.html` (компилятор) и `cheatsheet.html` (шпаргалка).
-Это снимок превью 0.2: актуальный статус — в
-[`docs/product/FEATURES.md`](docs/product/FEATURES.md), известные края — в
-[`docs/product/EDGES.md`](docs/product/EDGES.md).
 
 ## Editor support (LSP)
 

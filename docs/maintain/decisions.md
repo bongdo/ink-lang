@@ -350,3 +350,17 @@ inside an arena.
 **Цена:** arena values must not escape the block. Using one after the block is
 use-after-free; serde/sema does not prove escape. `arena` remains experimental
 in Go.
+
+## 2026-11-21 — Outdated docs are deleted, not archived
+
+**Контекст:** the archive still carried `ONE_WAY`, old gap notes, four proposals
+and the 0.2 presentation. The user asked to remove all outdated documents.
+**Решение:** `docs/archive/` is gone. `ONE_WAY` was replaced by the vault note
+`syntax`; old proposals were removed; the presentation was removed with its
+assets. `decisions.md` keeps the history that matters.
+**Почему:** an archive that nobody reads is still a second source of truth and
+a file to maintain.
+**Что отвергли:** keeping a frozen archive; moving the presentation to another
+directory.
+**Цена:** old links to `docs/archive/...` break; the removed text is in the VCS
+history.

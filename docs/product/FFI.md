@@ -1,7 +1,7 @@
 # Ink — граница Go (FFI)
 
 **Статус:** граница Go, как она реализована в 0.2; §10 — открытые решения.
-**Связано:** [ONE_WAY.md](../archive/ONE_WAY.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
+**Связано:** [syntax.md](../../vault/features/syntax.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
 [EDGES.md](EDGES.md), [decisions.md](../maintain/decisions.md).
 
 ## 1. Позиция
@@ -183,7 +183,7 @@ fn Kind(err: error) ErrorKind { ... };
   доходит до `par`-границы, где становится `PanicError`, или до процесса.
   Если библиотека паникует на ожидаемом пути, это баг адаптера.
 - Ошибка не теряется: `or err { ... }` либо обрабатывает, либо возвращает.
-  Пустой handler запрещён правилом [ONE_WAY.md](../archive/ONE_WAY.md).
+  Пустой handler запрещён правилом [syntax.md](../../vault/features/syntax.md).
 
 ### 3.4. Callbacks
 
