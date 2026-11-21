@@ -304,3 +304,49 @@ or returned, never bound invisibly.
 model), keeping `or return` as an alias, quoting every import.
 **Цена:** every `or error`, `or return`, quoted import and `=` literal had to be
 migrated once; `fail` is reserved; the formatter rewrites all handlers.
+
+## 2026-11-21 — Project file is `ink.conf`, not TOML
+
+**Контекст:** `BurntSushi/toml` parsed three keys (`name`, `module`, `go`). It
+was the only reason for the dependency and the file format implied full TOML
+support that the compiler never used.
+**Решение:** `ink.conf` is a flat `key = "value"` file parsed with the standard
+library. `ink.toml` is still read when present. `ink new` and `ink init` write
+`ink.conf`.
+**Почему:** one less dependency, one less format to explain, no behavior change
+for the three keys.
+**Что отвергли:** keeping the TOML library for three keys; JSON; a full INI
+parser.
+**Цена:** two filenames during the transition; old projects keep working.
+
+## 2026-11-21 — Docs split into product and maintenance
+
+**Контекст:** live docs mixed the language contract, status, deviations,
+decision history, compiler internals and proposals in one directory. `ONE_WAY`
+described a 1.0 concept and contradicted `SPEC`; `TYPECHECK` duplicated `IMPL`.
+**Решение:** `docs/product/` holds SPEC, PAR, FFI, FEATURES and EDGES;
+`docs/maintain/` holds decisions and IMPL; `docs/guides/` holds user guides;
+dated proposals, `ONE_WAY` and the presentation are frozen in `docs/archive/`.
+`TYPECHECK` was merged into `IMPL` and deleted.
+**Почему:** a reader knows whether a file is a promise, a tool, or history.
+`vault/` remains the user's declaration layer and is not written by agents.
+**Что отвергли:** a vault scaffold written by the agent; keeping proposals live;
+a docs site.
+**Цена:** old links to `docs/SPEC.md` and `docs/decisions.md` break once; the
+archive keeps the old text.
+
+## 2026-11-21 — Arenas are a block with an implicit handle
+
+**Контекст:** Go 1.27 exposes `arena` behind `GOEXPERIMENT=arenas`, but Ink had
+no way to allocate a batch and free it at once.
+**Решение:** `arena a { ... };` owns one `arena.NewArena()` and frees it at block
+exit, including return, break, continue and panic. `a.New[T]()` returns `*T`;
+`a.MakeSlice[T](n[, cap])` returns `[]T`. `par` inside is rejected. The build,
+run, test and typecheck paths set `GOEXPERIMENT=arenas` when a source uses one.
+**Почему:** block scope makes the free point explicit and avoids exposing a
+handle type or a `Free` call to the user.
+**Что отвергли:** a first-class arena type; manual `a.Free()`; allowing `par`
+inside an arena.
+**Цена:** arena values must not escape the block. Using one after the block is
+use-after-free; serde/sema does not prove escape. `arena` remains experimental
+in Go.

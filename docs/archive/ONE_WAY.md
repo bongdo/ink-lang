@@ -1,9 +1,12 @@
+> **Archived.** Frozen design note, kept for history. Not current documentation.
+> Current: [SPEC.md](../product/SPEC.md), [EDGES.md](../product/EDGES.md).
+
 # Ink — один канонический способ
 
 **Статус:** концепция для 1.0. Это не описание 0.2: где текущая реализация
 расходится с концепцией, это сказано явно.
-**Связано:** [SPEC.md](SPEC.md), [PAR.md](PAR.md), [FFI.md](FFI.md),
-[EDGES.md](EDGES.md), [decisions.md](decisions.md).
+**Связано:** [SPEC.md](../product/SPEC.md), [PAR.md](../product/PAR.md), [FFI.md](../product/FFI.md),
+[EDGES.md](../product/EDGES.md), [decisions.md](../maintain/decisions.md).
 
 ## 1. Принцип
 
@@ -31,7 +34,7 @@
 3. Выбор зависит только от данных, а не от вкуса? Сделать его механическим:
    путь содержит `/` — кавычки; expected type известен — bare `nil`.
 4. Нужен Go? Это foreign layer, а не второй способ в app-коде. См.
-   [FFI.md](FFI.md).
+   [FFI.md](../product/FFI.md).
 
 ### 1.2. Статусы формы
 
@@ -213,7 +216,7 @@ within 30s {
 - `par for` — однородные итерации по slice/array/str или C-style счётчику,
   с optional `limit`. Запись — только в disjoint slots, индекс которых
   содержит переменную итерации. Map, указатели, `self`, глобалы — вне
-  safe subset (см. [FFI.md](FFI.md)). `par for` по map запрещён: сначала
+  safe subset (см. [FFI.md](../product/FFI.md)). `par for` по map запрещён: сначала
   последовательный range по ключам, потом параллельный обход slice.
 - `within` — deadline вокруг области, а не оператор параллельности. Он
   композируется с `par`, `par for` и последовательным кодом; один `within`
@@ -345,7 +348,7 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
   app-файлах. Если появился — граница уже протекла.
 
 Подробности, допустимый subset, hidden context и `par` — в
-[FFI.md](FFI.md).
+[FFI.md](../product/FFI.md).
 
 ## 5. Комментарии: line comments only
 
@@ -416,7 +419,7 @@ leaf-вызовы. Запрещено протаскивать Go-формы в 
 
 Уже отсутствует в app-коде и остаётся отсутствующим: `go`, `chan`, `select`,
 `async`, `await`, `try`, `catch`, `unsafe`, `cgo`, `switch`, labeled control
-flow. См. §10 в [SPEC.md](SPEC.md).
+flow. См. §10 в [SPEC.md](../product/SPEC.md).
 
 Это позиция, а не backlog: перечисленное не планируется. Если решение
 пересматривается, оно возвращается одной канонической формой, а не набором

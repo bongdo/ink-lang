@@ -55,4 +55,4 @@ references, rename and quick fixes. In this repo:
   `../ink/bin/ink` automatically.
 - VS Code uses `editors/vscode/syntaxes/ink.tmLanguage.json` plus the
   `ink lsp` client.
-- Neovim setup is in `docs/lsp.md`.
+- Neovim setup is in `docs/guides/lsp.md`.

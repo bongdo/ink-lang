@@ -193,7 +193,7 @@ the iteration variable or be the only writer of that variable inside `par`.
 `ink run -race` and `ink test -race` are the dynamic oracle. Hidden
 context stops at package and function-value boundaries, and aliases or
 escapes the static pass cannot see are covered only by `-race`; see
-[`examples/limits`](../examples/limits/README.md).
+[`examples/limits`](../../examples/limits/README.md).
 
 ## Formatting
 

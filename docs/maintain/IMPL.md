@@ -161,9 +161,12 @@ Generates Go in memory with `internal/gen`, overlays every `zz_ink.go` and
 the embedded runtime into `go/packages`, and maps `//line` positions back to
 `.ink` files. The load mode is `LoadImports | NeedExportFile`, not `LoadTypes`.
 Results are cached in memory by a SHA-256 of generated files, `go.mod`,
-`go.sum` and the runtime source. `ink check` and LSP call it; `build`,
-`run` and `test` still let `go build`/`go test` find type errors. Details:
-[`TYPECHECK.md`](TYPECHECK.md).
+`go.sum`, the runtime source, and the `Tests`/`Race` options; the last 16
+results are kept. `ink check` and LSP call it; `build`, `run` and `test` still
+let `go build`/`go test` find type errors. In the LSP, `didChange` submits
+parse + sema to the analysis worker and schedules the typecheck after 150 ms;
+a newer edit drops stale results. The cache does not include dependency
+sources, hand-written `.go` files, or `GOOS`/`GOARCH`.
 
 ### `internal/format`
 

@@ -10,8 +10,8 @@ Printed by `ink guide`; loaded on demand as the `ink` OpenCode skill. One canoni
 
 - `ink guide` — this text, printed by the binary; it wins on disagreement.
 - `ink.conf` — project name and Go module path.
-- In the compiler repository only: `docs/SPEC.md` (wins over everything else),
-  `docs/EDGES.md`, `examples/tour` (valid), `examples/problems` (invalid on
+- In the compiler repository only: `docs/product/SPEC.md` (wins over everything else),
+  `docs/product/EDGES.md`, `examples/tour` (valid), `examples/problems` (invalid on
   purpose). A project created by `ink new` has no `docs/` or `examples/`.
 
 ## Loop

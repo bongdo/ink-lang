@@ -1,31 +1,44 @@
 # Ink docs
 
-Read by question, not by filename:
+Two internal layers, plus the public entry:
 
-| Question | Document |
+| Layer | Question | Where |
+|---|---|---|
+| Product | What do we ship, and what is the contract? | [`product/`](product/) |
+| Maintenance | How is it built, and why was it decided? | [`maintain/`](maintain/) |
+| Guides | How do I use it? | [`guides/`](guides/) |
+| Archive | What did it look like before? | [`archive/`](archive/), including dated proposals |
+
+## Product
+
+| Document | Contains |
 |---|---|
-| What is Ink and how do I start? | [`../README.md`](../README.md), [`getting-started.md`](getting-started.md) |
-| What works today? | [`FEATURES.md`](FEATURES.md) — status per area |
-| Where can the language surprise me? | [`EDGES.md`](EDGES.md) — ranked, with workarounds |
-| What is the language? | [`SPEC.md`](SPEC.md) — normative |
-| What exactly does `par` do? | [`PAR.md`](PAR.md) — normative concurrency annex |
-| How does Ink talk to Go? | [`FFI.md`](FFI.md) |
-| Why is there only one spelling? | [`ONE_WAY.md`](ONE_WAY.md) |
-| How is the compiler built? | [`impl/IMPL.md`](impl/IMPL.md), [`impl/TYPECHECK.md`](impl/TYPECHECK.md) |
-| Why was this decided? | [`decisions.md`](decisions.md) — append-only |
-| What was proposed? | [`proposals/`](proposals/) — dated, not normative |
-| What did the project look like before? | [`archive/`](archive/) — frozen, not maintained |
-| Slides and cheat sheet | [`presentation/`](presentation/) — 0.2 snapshot, not normative |
-| Editor setup | [`lsp.md`](lsp.md) |
+| [`product/SPEC.md`](product/SPEC.md) | normative language |
+| [`product/PAR.md`](product/PAR.md) | normative `par` / `within` annex |
+| [`product/FFI.md`](product/FFI.md) | Go boundary |
+| [`product/FEATURES.md`](product/FEATURES.md) | the only status table |
+| [`product/EDGES.md`](product/EDGES.md) | the only list of deviations |
+
+## Maintenance
+
+| Document | Contains |
+|---|---|
+| [`maintain/decisions.md`](maintain/decisions.md) | append-only decision log |
+| [`maintain/IMPL.md`](maintain/IMPL.md) | compiler package contracts |
+
+## Guides
+
+- [`guides/getting-started.md`](guides/getting-started.md)
+- [`guides/lsp.md`](guides/lsp.md)
+- `ink guide` — the full embedded agent reference.
 
 ## Rules
 
-- `SPEC.md`, `PAR.md` and `FFI.md` describe the language as it ships. If code
-  and docs disagree, that is a bug; fix both in the same change.
-- `FEATURES.md` is the only status table. Do not add status to other documents.
-- `EDGES.md` is the only list of known deviations. Open items there are the
-  worklist; accepted items are not re-litigated.
-- `decisions.md` is append-only. Never edit an old entry; add a new one.
+- `product/SPEC.md` and `product/PAR.md` describe the language as it ships.
+  If code and docs disagree, fix both in the same change.
+- `product/FEATURES.md` is the only status table.
+- `product/EDGES.md` is the only list of known deviations.
+- `maintain/decisions.md` is append-only. Never edit an old entry.
 - `archive/` is history. Do not link to it as current documentation.
 - No gap numbers. An item is either a feature (status in `FEATURES.md`) or a
   deviation (entry in `EDGES.md`).

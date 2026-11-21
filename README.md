@@ -64,11 +64,11 @@ local packages, Go interop, hidden context wrappers and the `par` core.
 `bin/check` runs it with the unit and LSP tests.
 
 What works, what is partial and what is deliberately absent is in
-[`docs/FEATURES.md`](docs/FEATURES.md). Places where the language can surprise
-you, with the workaround for each, are in [`docs/EDGES.md`](docs/EDGES.md).
+[`docs/product/FEATURES.md`](docs/product/FEATURES.md). Places where the language can surprise
+you, with the workaround for each, are in [`docs/product/EDGES.md`](docs/product/EDGES.md).
 
 App code has one canonical way per intent
-([`docs/ONE_WAY.md`](docs/ONE_WAY.md)). Ink does not add a second spelling for
+([`docs/archive/ONE_WAY.md`](docs/archive/ONE_WAY.md)). Ink does not add a second spelling for
 the same thing, and Go stays an external library at the FFI boundary.
 
 `ink check` type-checks the generated Go through `internal/typecheck` and
@@ -167,12 +167,12 @@ is copied to `.ink/runtime`.
 ## Language
 
 The docs index is [`docs/README.md`](docs/README.md).
-The full specification is in [`docs/SPEC.md`](docs/SPEC.md). Concurrency rules
-are in [`docs/PAR.md`](docs/PAR.md); the Go boundary is in
-[`docs/FFI.md`](docs/FFI.md). Feature status is in
-[`docs/FEATURES.md`](docs/FEATURES.md), and the surprises with workarounds are in
-[`docs/EDGES.md`](docs/EDGES.md). Compiler internals are in
-[`docs/impl/IMPL.md`](docs/impl/IMPL.md).
+The full specification is in [`docs/product/SPEC.md`](docs/product/SPEC.md). Concurrency rules
+are in [`docs/product/PAR.md`](docs/product/PAR.md); the Go boundary is in
+[`docs/product/FFI.md`](docs/product/FFI.md). Feature status is in
+[`docs/product/FEATURES.md`](docs/product/FEATURES.md), and the surprises with workarounds are in
+[`docs/product/EDGES.md`](docs/product/EDGES.md). Compiler internals are in
+[`docs/maintain/IMPL.md`](docs/maintain/IMPL.md).
 
 Highlights:
 
@@ -202,11 +202,11 @@ Highlights:
 
 ## Presentation
 
-`docs/presentation/index.html` — обзор языка, синтаксиса, Bubble Tea и внутренней
+`docs/archive/presentation/index.html` — обзор языка, синтаксиса, Bubble Tea и внутренней
 кухни. Рядом: `internals.html` (компилятор) и `cheatsheet.html` (шпаргалка).
 Это снимок превью 0.2: актуальный статус — в
-[`docs/FEATURES.md`](docs/FEATURES.md), известные края — в
-[`docs/EDGES.md`](docs/EDGES.md).
+[`docs/product/FEATURES.md`](docs/product/FEATURES.md), известные края — в
+[`docs/product/EDGES.md`](docs/product/EDGES.md).
 
 ## Editor support (LSP)
 
@@ -224,7 +224,7 @@ project, not Go library symbols; rename does not check for name conflicts.
 `ink check` remains the source of truth for the whole project; the LSP is an
 editing convenience.
 
-- Neovim: copy the `vim.lsp.start` setup from [`docs/lsp.md`](docs/lsp.md).
+- Neovim: copy the `vim.lsp.start` setup from [`docs/guides/lsp.md`](docs/guides/lsp.md).
 - VS Code: [`editors/vscode`](editors/vscode) has a TextMate grammar and a
   language client. Run `npm install && npm run compile` inside it.
 - Any editor with an LSP client can use `ink lsp`.

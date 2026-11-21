@@ -69,5 +69,5 @@ ink test -race
 ```
 
 `ink check --race` type-checks with `-race`, but it does not execute the
-program. See `ink guide` §Concurrency, [`docs/SPEC.md`](../../docs/SPEC.md) §8 and
-[`docs/EDGES.md`](../../docs/EDGES.md).
+program. See `ink guide` §Concurrency, [`docs/product/SPEC.md`](../../docs/product/SPEC.md) §8 and
+[`docs/product/EDGES.md`](../../docs/product/EDGES.md).
