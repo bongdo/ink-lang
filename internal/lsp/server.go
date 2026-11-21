@@ -141,8 +141,6 @@ func Run(stdin io.Reader, stdout io.Writer, stderr io.Writer, root string) error
 		published: make(map[string]bool),
 	}
 	s.worker = newQueue(nil, func(gen int, result any) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
 		s.publishAnalysis(gen, result)
 	})
 	return s.serve()
@@ -541,7 +539,9 @@ func (s *server) stop() {
 }
 
 func (s *server) publishAnalysis(gen int, result any) {
+	s.mu.Lock()
 	if s.gen != gen {
+		s.mu.Unlock()
 		return
 	}
 	a := result.(*analysis)
@@ -549,7 +549,9 @@ func (s *server) publishAnalysis(gen int, result any) {
 	if a.asyncTypecheck {
 		s.scheduleTypecheck(a, gen)
 	}
-	if err := s.publish(a); err != nil {
+	params, cleared := s.publishPlan(a)
+	s.mu.Unlock()
+	if err := s.writePublish(params, cleared); err != nil {
 		s.logf("publish: %v", err)
 	}
 }
@@ -747,12 +749,14 @@ func (s *server) runTypecheck(a *analysis, gen int) {
 	diags := s.typecheckDiagnostics(a, prog, parsed)
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.last != a || s.gen != gen {
+		s.mu.Unlock()
 		return
 	}
 	s.mergeDiags(a, diags)
-	if err := s.publish(a); err != nil {
+	params, cleared := s.publishPlan(a)
+	s.mu.Unlock()
+	if err := s.writePublish(params, cleared); err != nil {
 		s.logf("typecheck publish: %v", err)
 	}
 }
@@ -935,12 +939,13 @@ func sortDiagnostics(diags []Diagnostic) {
 	})
 }
 
-func (s *server) publish(a *analysis) error {
+func (s *server) publishPlan(a *analysis) ([]PublishDiagnosticsParams, []string) {
 	paths := make([]string, 0, len(a.files))
 	for path := range a.files {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
+	params := make([]PublishDiagnosticsParams, 0, len(paths))
 	current := make(map[string]bool, len(paths))
 	for _, path := range paths {
 		uri := pathToURI(path)
@@ -948,14 +953,12 @@ func (s *server) publish(a *analysis) error {
 		if diags == nil {
 			diags = []Diagnostic{}
 		}
-		params := PublishDiagnosticsParams{URI: uri, Diagnostics: diags}
+		p := PublishDiagnosticsParams{URI: uri, Diagnostics: diags}
 		if fi := a.files[path]; fi != nil && fi.open {
 			version := fi.version
-			params.Version = &version
+			p.Version = &version
 		}
-		if err := s.conn.Notify("textDocument/publishDiagnostics", params); err != nil {
-			return err
-		}
+		params = append(params, p)
 		current[uri] = true
 	}
 	cleared := make([]string, 0)
@@ -965,12 +968,21 @@ func (s *server) publish(a *analysis) error {
 		}
 	}
 	sort.Strings(cleared)
+	s.published = current
+	return params, cleared
+}
+
+func (s *server) writePublish(params []PublishDiagnosticsParams, cleared []string) error {
+	for _, p := range params {
+		if err := s.conn.Notify("textDocument/publishDiagnostics", p); err != nil {
+			return err
+		}
+	}
 	for _, uri := range cleared {
 		if err := s.conn.Notify("textDocument/publishDiagnostics", PublishDiagnosticsParams{URI: uri, Diagnostics: []Diagnostic{}}); err != nil {
 			return err
 		}
 	}
-	s.published = current
 	return nil
 }
 
