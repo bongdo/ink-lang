@@ -33,7 +33,7 @@ not re-file.
 | Symptom | Why it stays |
 |---|---|
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
-| Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. |
+| Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. Sema rejects the common escapes; a value passed through a Go function or stored in a captured container may still leak. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
 | Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |

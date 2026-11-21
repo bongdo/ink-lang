@@ -1,5 +1,8 @@
 # Decisions
 
+Links in entries are historical. Removed documents are in the VCS history;
+current paths are in [`../README.md`](../README.md).
+
 ## 2026-10-27 — Compile to Go and let the Go type-checker validate
 
 **Контекст:** Ink targets Go's runtime and stdlib; implementing a complete
@@ -388,3 +391,19 @@ allocations. Free is at block exit; `par` inside is rejected.
 **Почему:** one keyword and one rule; `new` and `make` are already familiar.
 **Что отвергли:** a named arena; `arena.New` as a namespace; arena on a function.
 **Цена:** arena values must not escape the block; no escape analysis yet.
+
+## 2026-11-21 — Arena values are checked at the block boundary
+
+**Контекст:** the invisible allocator made `new`/`make` arena-backed, but a
+pointer could be assigned to an outer variable, returned, or passed to a
+function and used after `Free`.
+**Решение:** sema tracks arena values. It rejects assignment to a captured
+variable, `return`, function arguments, and `&T{}` inside an arena. Copying a
+scalar field out (`n = p.X`) is allowed. `par` inside an arena is rejected.
+**Почему:** the common escapes are caught without a full escape analysis or a
+new arena type in every signature.
+**Что отвергли:** documentation only; an `arena T` type marker; a runtime
+liveness wrapper.
+**Цена:** passing an arena pointer to a helper inside the block is rejected
+conservatively; a value passed through a Go function or a captured container
+can still leak.

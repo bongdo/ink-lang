@@ -99,8 +99,9 @@ fn pair() i32, bool { return 1, true; };
   fresh error.
 - `arena { ... };` allocates from a Go arena and frees it at block exit.
   Inside it `new[Point]()` and `make[i32](n)` use the arena; outside they are
-  ordinary Go allocations. Arena values must not escape the block; `par`
-  inside is rejected. The compiler sets `GOEXPERIMENT=arenas` automatically.
+  ordinary Go allocations. Arena values must not escape: no assignment to a
+  captured variable, no return, no function argument, no `&T{}` inside. Copy
+  a scalar field out instead. `par` inside is rejected. The compiler sets `GOEXPERIMENT=arenas` automatically.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

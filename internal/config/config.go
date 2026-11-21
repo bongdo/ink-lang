@@ -20,15 +20,21 @@ func FindRoot(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	mainRoot := ""
 	for {
 		if Exists(abs) {
 			return abs, nil
 		}
-		if _, err := os.Stat(filepath.Join(abs, "main.ink")); err == nil {
-			return abs, nil
+		if mainRoot == "" {
+			if _, err := os.Stat(filepath.Join(abs, "main.ink")); err == nil {
+				mainRoot = abs
+			}
 		}
 		parent := filepath.Dir(abs)
 		if parent == abs {
+			if mainRoot != "" {
+				return mainRoot, nil
+			}
 			return abs, nil
 		}
 		abs = parent

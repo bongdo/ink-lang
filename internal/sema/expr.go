@@ -42,6 +42,11 @@ func (c *checker) resolveExprInner(e ast.Expr, top bool) ast.Type {
 		xt := c.resolveExpr(e.X, false)
 		switch e.Op {
 		case token.Amp:
+			if c.inArena > 0 {
+				if _, ok := unparen(e.X).(*ast.CompositeLit); ok {
+					c.p.errorf(c.fc.file.Path, e.Pos(), "&T{} allocates outside the arena; use new[T]()")
+				}
+			}
 			if xt == nil {
 				return nil
 			}

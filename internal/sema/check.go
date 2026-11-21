@@ -9,15 +9,17 @@ import (
 )
 
 type symbol struct {
-	name   string
-	kind   ast.RefKind
-	typ    ast.Type
-	goType types.Type
-	decl   ast.Node
-	field  *ast.Field
-	fn     *ast.FuncDecl
-	typD   *ast.TypeDecl
-	use    *ast.Use
+	name       string
+	kind       ast.RefKind
+	typ        ast.Type
+	goType     types.Type
+	decl       ast.Node
+	field      *ast.Field
+	fn         *ast.FuncDecl
+	typD       *ast.TypeDecl
+	use        *ast.Use
+	arena      bool
+	arenaDepth int
 }
 
 type scope struct {
@@ -63,6 +65,7 @@ func (c *checker) declare(sym *symbol) {
 	if sym.name == "_" {
 		return
 	}
+	sym.arenaDepth = c.inArena
 	if sc := c.top(); sc != nil {
 		sc.names[sym.name] = sym
 	}
@@ -193,6 +196,120 @@ func inkTypeName(t ast.Type) string {
 		return n.PkgAlias + "." + n.Name
 	}
 	return n.Name
+}
+
+func refLike(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.PointerType, *ast.SliceType, *ast.MapType, *ast.FuncType:
+		return true
+	case *ast.NamedType:
+		if t.Package == "" && (t.Name == "any" || t.Name == "error") {
+			return true
+		}
+		if t.Decl != nil && (t.Decl.Kind == ast.TypeInterface || t.Decl.Kind == ast.TypeEnum) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *checker) isArenaExpr(e ast.Expr) bool {
+	e = unparen(e)
+	switch e := e.(type) {
+	case *ast.OrExpr:
+		return c.isArenaExpr(e.X)
+	case *ast.Ident:
+		if sym := c.lookupLocal(e.Name); sym != nil {
+			return sym.arena
+		}
+		return false
+	case *ast.CallExpr:
+		if e.Info != nil {
+			if (e.Info.Builtin == "new" || e.Info.Builtin == "make") && c.inArena > 0 {
+				return true
+			}
+			if e.Info.Builtin == "append" {
+				for _, a := range e.Args {
+					if c.isArenaExpr(a) {
+						return true
+					}
+				}
+				return false
+			}
+		}
+		if sel, ok := e.Fun.(*ast.SelectorExpr); ok && c.isArenaExpr(sel.X) && refLike(c.exprType(e)) {
+			return true
+		}
+		if refLike(c.exprType(e)) {
+			for _, a := range e.Args {
+				if c.isArenaExpr(a) {
+					return true
+				}
+			}
+		}
+		return false
+	case *ast.SelectorExpr:
+		return c.isArenaExpr(e.X) && refLike(c.exprType(e))
+	case *ast.IndexExpr:
+		return c.isArenaExpr(e.X) && refLike(c.exprType(e))
+	case *ast.UnaryExpr:
+		if e.Op == token.Amp {
+			return c.isArenaExpr(e.X)
+		}
+	case *ast.CompositeLit:
+		for _, en := range e.Entries {
+			if c.isArenaExpr(en.Value) || (en.KeyExpr != nil && c.isArenaExpr(en.KeyExpr)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (c *checker) arenaTargetOutside(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.Ident:
+		sym := c.lookup(e.Name)
+		return sym == nil || sym.arenaDepth < c.inArena
+	case *ast.SelectorExpr:
+		return c.arenaTargetOutside(e.X)
+	case *ast.IndexExpr:
+		return c.arenaTargetOutside(e.X)
+	}
+	return false
+}
+
+func (c *checker) markArenaTarget(e ast.Expr) {
+	if id, ok := unparen(e).(*ast.Ident); ok {
+		if sym := c.lookupLocal(id.Name); sym != nil {
+			sym.arena = true
+		}
+	}
+}
+
+func (c *checker) checkArenaCall(e ast.Expr) {
+	e = unparen(e)
+	if or, ok := e.(*ast.OrExpr); ok {
+		c.checkArenaCall(or.X)
+		return
+	}
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return
+	}
+	if call.Info != nil {
+		switch call.Info.Builtin {
+		case "new", "make", "append", "len", "cap", "has", "delete",
+			"min", "max", "runes", "bytes", "assert", "assert_eq", "panic":
+			return
+		}
+	}
+	for _, a := range call.Args {
+		if c.isArenaExpr(a) {
+			c.p.errorf(c.fc.file.Path, a.Pos(), "arena value passed to a function; copy it or keep it in the arena block")
+			return
+		}
+	}
 }
 
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
@@ -422,11 +539,30 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				}
 			}
 		}
+		if c.inArena > 0 && len(s.Rhs) == len(s.Lhs) {
+			for i, lhs := range s.Lhs {
+				if c.isArenaExpr(s.Rhs[i]) {
+					if c.arenaTargetOutside(lhs) {
+						c.p.errorf(c.fc.file.Path, lhs.Pos(), "arena value escapes the arena block")
+					} else {
+						c.markArenaTarget(lhs)
+					}
+				}
+			}
+		}
+		if c.inArena > 0 {
+			for _, e := range s.Rhs {
+				c.checkArenaCall(e)
+			}
+		}
 	case *ast.ExprStmt:
 		if m, ok := unparen(s.X).(*ast.MatchExpr); !ok || m.IsExpr {
 			c.checkMatchValue(s.X)
 		}
 		c.resolveExpr(s.X, true)
+		if c.inArena > 0 {
+			c.checkArenaCall(s.X)
+		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
 		c.checkErrGuard(s)
@@ -499,6 +635,14 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				}
 			}
 		}
+		if c.inArena > 0 {
+			for _, e := range s.Results {
+				if c.isArenaExpr(e) {
+					c.p.errorf(c.fc.file.Path, e.Pos(), "arena value escapes the arena block")
+					break
+				}
+			}
+		}
 		if c.inPar {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or fail")
 		}
@@ -521,6 +665,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "defer expects a call")
 		} else {
 			c.resolveExpr(s.Call, false)
+			if c.inArena > 0 {
+				c.checkArenaCall(s.Call)
+			}
 		}
 	case *ast.ArenaStmt:
 		c.inArena++
@@ -822,7 +969,11 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		if t == nil && len(types) == len(v.Names) {
 			t = types[i]
 		}
-		c.declare(&symbol{name: name, kind: ast.RefLocal, typ: t, goType: c.goTypeOf(t), decl: v})
+		sym := &symbol{name: name, kind: ast.RefLocal, typ: t, goType: c.goTypeOf(t), decl: v}
+		if c.inArena > 0 && i < len(v.Values) && c.isArenaExpr(v.Values[i]) {
+			sym.arena = true
+		}
+		c.declare(sym)
 	}
 }
 

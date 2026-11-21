@@ -16,7 +16,8 @@ module example.com/hello
 go 1.27
 ```
 
-  `go.mod` is the only project file. There is no Ink-specific config.
+  `go.mod` is the only project file. There is no Ink-specific config. It wins
+  over a nested `main.ink`; `main.ink` only marks a root when no `go.mod` exists.
 
 - `module` is the Go module path used for generated code. If absent,
   `example.com/<name>` is used.
@@ -187,7 +188,10 @@ arena; outside they are ordinary Go allocations. The block frees the arena at
 exit, including `return`, `break`, `continue` and panic.
 
 Values allocated in an arena must not escape the block: after it they are
-use-after-free. `par` inside an arena is rejected. The feature uses Go's
+use-after-free. Sema rejects assigning an arena value to a captured variable,
+returning it, passing it to a function, or taking `&T{}` inside the block;
+copying a scalar field out (`n = p.X`) is allowed. `par` inside an arena is
+rejected. The feature uses Go's
 experimental `arena` package; `ink` sets `GOEXPERIMENT=arenas` for build, run,
 test and typecheck when a source uses an arena.
 
