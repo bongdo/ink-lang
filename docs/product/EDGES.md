@@ -37,6 +37,8 @@ not re-file.
 | Arena memory never crosses a function boundary. | A callee could keep the pointer and the block would free it; the check is syntactic, so helpers cannot take arena values. Copy data out with `copy`. |
 | An arena value may be read as a field, an index or a value copy. | A struct or array copy is allowed only when its type holds no references; a copy of references would still point into the arena. |
 | A worker writes arena elements indexed by its own iteration variable. | `par` proves disjoint slots through the loop variable; an index from another loop is rejected as a captured write. |
+| A fixed-size `arena` inside a loop warns (`arena-loop`). | The allocation is the same every iteration, and Go still counts it as an allocation; a buffer allocated before the loop is faster and allocation-free. |
+| A per-iteration arena over one 8 MB chunk is called out in the same warning. | Go returns a freed arena chunk to the next arena only after a GC, so a bigger block keeps triggering GCs. |
 | `new` and `make` inside `par` inside `arena` are rejected. | The Go arena is not safe for concurrent use; allocate before `par` and let workers fill the memory. |
 | A worker may open its own `arena { ... };`. | It creates a separate handle in that goroutine, so no shared arena state. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |

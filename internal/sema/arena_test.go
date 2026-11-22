@@ -1,6 +1,9 @@
 package sema
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestArenaAllowsParOnPreallocated(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
@@ -278,4 +281,81 @@ fn f() void {
 fn main() void {};
 `})
 	wantError(t, p, "arena value cannot leave the arena block")
+}
+
+func wantWarning(t *testing.T, p *Program, sub string) {
+	t.Helper()
+	for _, e := range p.Errors {
+		if e.Warning && strings.Contains(e.Msg, sub) {
+			return
+		}
+	}
+	t.Fatalf("want warning %q, got %v", sub, p.Errors)
+}
+
+func TestArenaLoopFixedSizeWarns(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `const W = 100;
+const H = 100;
+
+fn f() void {
+    for (var i = 0; i < 10; i += 1) {
+        arena {
+            var px = make[u8](W * H * 4);
+            px[0] = 1;
+        };
+    };
+};
+
+fn main() void {};
+`})
+	wantWarning(t, p, "arena in a loop allocates 40000 bytes")
+}
+
+func TestArenaLoopChunkWarns(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() void {
+    for (var i = 0; i < 10; i += 1) {
+        arena {
+            var px = make[u8](16 * 1024 * 1024);
+            px[0] = 1;
+        };
+    };
+};
+
+fn main() void {};
+`})
+	wantWarning(t, p, "over 2 chunks")
+}
+
+func TestArenaLoopVariableSizeNoWarn(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f(n: int) void {
+    for (var i = 0; i < 10; i += 1) {
+        arena {
+            var px = make[u8](n);
+            px[0] = 1;
+        };
+    };
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
+}
+
+func TestArenaInParLoopNoWarn(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() void {
+    arena {
+        var out = make[i32](8);
+        par for (var y = i32(0); y < i32(8); y += 1) limit 2 {
+            arena {
+                var tmp = make[i32](4);
+                tmp[0] = y;
+                out[y] = tmp[0];
+            };
+        };
+    };
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
 }

@@ -717,6 +717,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.checkBlock(s.Body)
 		c.inArena--
 		c.p.UsesArena = true
+		c.warnArenaLoop(s)
 	case *ast.ParStmt:
 		c.checkPar(s.Body, nil)
 	case *ast.WithinStmt:

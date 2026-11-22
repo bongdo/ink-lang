@@ -99,8 +99,9 @@ fn pair() i32, bool { return 1, true; };
   a captured variable, no return, no `&T{}`, no call argument or receiver.
   Read fields and indices, copy structs and arrays that hold no references, and
   `copy` bytes out. `par` is allowed; `new`/`make` must run before `par`, a
-  worker may write `rows[y]` and open its own `arena { ... };`. The compiler sets
-  `GOEXPERIMENT=arenas` automatically.
+  worker may write `rows[y]` and open its own `arena { ... };`. A fixed-size
+  arena inside a loop warns: allocate the buffer before the loop instead. The
+  compiler sets `GOEXPERIMENT=arenas` automatically.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency
