@@ -22,6 +22,13 @@ fallible results (`or return`, `or err`, `or panic`), block-scoped `defer`,
 and bare `nil`, `par`, `par for ... limit`, `within`, builtins, Go interop and
 `test` blocks.
 
+## `frame/` — arena and `par` with raylib
+
+`frame/main.ink` rasterizes a frame into an arena-allocated pixel buffer, fills
+row bands from several workers and uploads the buffer once per frame. It needs
+`libraylib` at runtime; see `frame/README.md` for the build flags and the
+measured fill times.
+
 ## `problems/` — intentionally invalid
 
 `problems/main.ink` is a catalogue of known 0.2 limits. `ink check` fails

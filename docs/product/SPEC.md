@@ -189,11 +189,19 @@ exit, including `return`, `break`, `continue` and panic.
 
 Values allocated in an arena must not escape the block: after it they are
 use-after-free. Sema rejects assigning an arena value to a captured variable,
-returning it, passing it to a function, or taking `&T{}` inside the block;
-copying a scalar field out (`n = p.X`) is allowed. `par` inside an arena is
-rejected. The feature uses Go's
-experimental `arena` package; `ink` sets `GOEXPERIMENT=arenas` for build, run,
-test and typecheck when a source uses an arena.
+returning one, and `&T{}` inside the block; copying a scalar field out
+(`n = p.X`) is allowed. Passing an arena value to a function borrows it for the
+call: the callee must not keep it.
+
+`par` is allowed inside an arena. `new` and `make` must run before `par`: the
+Go arena is not safe for concurrent use, so an allocation inside a worker is an
+error. Workers read and write only memory the block already allocated; each
+worker may open its own `arena { ... };`. Arenas nest and free inside out, so a
+value from an inner arena cannot be stored in an outer one.
+
+The feature uses Go's experimental `arena` package; `ink` sets
+`GOEXPERIMENT=arenas` for build, run, test and typecheck when a source uses an
+arena.
 
 ## 4. Variables, constants, literals
 

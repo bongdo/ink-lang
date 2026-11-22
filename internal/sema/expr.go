@@ -423,6 +423,9 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 		c.p.errorf(c.fc.file.Path, call.Pos(), "make needs one element type: make[i32](n)")
 		return nil
 	}
+	if c.arenaInWorker() {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
+	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}
 	c.p.rejectVoid(c.fc, elem, call.Pos())
@@ -444,6 +447,9 @@ func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {
 	if len(call.TypeArgs) != 1 {
 		c.p.errorf(c.fc.file.Path, call.Pos(), "new needs one type: new[Point]()")
 		return nil
+	}
+	if c.arenaInWorker() {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
 	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}

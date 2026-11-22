@@ -6,6 +6,5 @@ zz_ink.go
 zz_ink_test.go
 editors/vscode/node_modules/
 editors/vscode/out/
-tests/cases/*/go.mod
-tests/cases/*/go.sum
 tests/cases/*/bin/
+examples/*/bin/

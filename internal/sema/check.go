@@ -42,6 +42,7 @@ type checker struct {
 	parFrames   []parFrame
 	parLoopBase []int
 	inPar       bool
+	parArenas   []int
 	inArena     int
 	tparams     map[string]bool
 }
@@ -287,31 +288,6 @@ func (c *checker) markArenaTarget(e ast.Expr) {
 	}
 }
 
-func (c *checker) checkArenaCall(e ast.Expr) {
-	e = unparen(e)
-	if or, ok := e.(*ast.OrExpr); ok {
-		c.checkArenaCall(or.X)
-		return
-	}
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return
-	}
-	if call.Info != nil {
-		switch call.Info.Builtin {
-		case "new", "make", "append", "len", "cap", "has", "delete",
-			"min", "max", "runes", "bytes", "assert", "assert_eq", "panic":
-			return
-		}
-	}
-	for _, a := range call.Args {
-		if c.isArenaExpr(a) {
-			c.p.errorf(c.fc.file.Path, a.Pos(), "arena value passed to a function; copy it or keep it in the arena block")
-			return
-		}
-	}
-}
-
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
 	if c.fn == nil {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
@@ -550,19 +526,11 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				}
 			}
 		}
-		if c.inArena > 0 {
-			for _, e := range s.Rhs {
-				c.checkArenaCall(e)
-			}
-		}
 	case *ast.ExprStmt:
 		if m, ok := unparen(s.X).(*ast.MatchExpr); !ok || m.IsExpr {
 			c.checkMatchValue(s.X)
 		}
 		c.resolveExpr(s.X, true)
-		if c.inArena > 0 {
-			c.checkArenaCall(s.X)
-		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
 		c.checkErrGuard(s)
@@ -665,9 +633,6 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "defer expects a call")
 		} else {
 			c.resolveExpr(s.Call, false)
-			if c.inArena > 0 {
-				c.checkArenaCall(s.Call)
-			}
 		}
 	case *ast.ArenaStmt:
 		c.inArena++
@@ -675,9 +640,6 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.inArena--
 		c.p.UsesArena = true
 	case *ast.ParStmt:
-		if c.inArena > 0 {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "par is not allowed inside arena")
-		}
 		c.checkPar(s.Body, nil)
 	case *ast.WithinStmt:
 		c.resolveExpr(s.Duration, false)
@@ -785,12 +747,14 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.parFrames = append(c.parFrames, frame)
 			oldInPar := c.inPar
 			c.inPar = true
+			c.parArenas = append(c.parArenas, c.inArena)
 			c.loopDepth++
 			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
 			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
+			c.parArenas = c.parArenas[:len(c.parArenas)-1]
 			c.parFrames = c.parFrames[:len(c.parFrames)-1]
 			c.checkParWrites(f.Body, frame)
 		} else {
@@ -853,12 +817,14 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.parFrames = append(c.parFrames, frame)
 			oldInPar := c.inPar
 			c.inPar = true
+			c.parArenas = append(c.parArenas, c.inArena)
 			c.loopDepth++
 			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
 			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
+			c.parArenas = c.parArenas[:len(c.parArenas)-1]
 			c.parFrames = c.parFrames[:len(c.parFrames)-1]
 			c.checkParWrites(f.Body, frame)
 		} else {
@@ -994,6 +960,13 @@ func (c *checker) checkVoidValue(e ast.Expr) {
 	}
 }
 
+func (c *checker) arenaInWorker() bool {
+	if !c.inPar || len(c.parArenas) == 0 {
+		return false
+	}
+	return c.inArena <= c.parArenas[len(c.parArenas)-1]
+}
+
 func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	c.needCtx()
 	frame := parFrame{plain: true}
@@ -1001,6 +974,7 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 	oldInPar := c.inPar
 	c.inPar = true
+	c.parArenas = append(c.parArenas, c.inArena)
 	c.push()
 	for _, s := range body.Stmts {
 		c.push()
@@ -1009,6 +983,7 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	}
 	c.pop()
 	c.inPar = oldInPar
+	c.parArenas = c.parArenas[:len(c.parArenas)-1]
 	c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 	c.parFrames = c.parFrames[:len(c.parFrames)-1]
 	c.checkParWrites(body, frame)

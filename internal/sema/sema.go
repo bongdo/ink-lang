@@ -3,13 +3,13 @@ package sema
 import (
 	"fmt"
 	"go/types"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink/internal/config"
 	"github.com/bongdo/ink/internal/token"
 	"golang.org/x/tools/go/packages"
 )
@@ -519,7 +519,7 @@ func (p *Program) loadGo() {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
 		Dir:  p.Root,
-		Env:  append(os.Environ(), "GOFLAGS=-buildvcs=false"),
+		Env:  config.GoEnv(false),
 	}
 	loaded, err := packages.Load(cfg, paths...)
 	if err != nil {

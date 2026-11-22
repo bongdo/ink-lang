@@ -52,11 +52,7 @@ var (
 )
 
 func typecheckEnv(arena bool) []string {
-	env := append(os.Environ(), "GOFLAGS=-buildvcs=false")
-	if arena {
-		env = append(env, "GOEXPERIMENT=arenas")
-	}
-	return env
+	return config.GoEnv(arena)
 }
 
 func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Error) {

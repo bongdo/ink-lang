@@ -2,7 +2,26 @@ package sema
 
 import "testing"
 
-func TestArenaRejectsPar(t *testing.T) {
+func TestArenaAllowsParOnPreallocated(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn fill(xs: i32[], y: i32) void {
+    xs[y] = y;
+};
+
+fn f() void {
+    arena {
+        var xs = make[i32](16);
+        par for (var y = 0; y < 16; y += 1) limit 4 {
+            fill(xs, y);
+        };
+    };
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
+}
+
+func TestArenaRejectsAllocationInsidePar(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
         par {
@@ -14,7 +33,45 @@ func TestArenaRejectsPar(t *testing.T) {
 
 fn main() void {};
 `})
-	wantError(t, p, "par is not allowed inside arena")
+	wantError(t, p, "arena allocation inside par")
+}
+
+func TestArenaAllowsWorkerArena(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() void {
+    arena {
+        var outer = make[i32](4);
+        par {
+            arena {
+                var tmp = make[i32](4);
+                tmp[0] = outer[0];
+            };
+        };
+    };
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
+}
+
+func TestArenaAllowsNested(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() i32 {
+    var n = i32(0);
+    arena {
+        var xs = make[i32](4);
+        arena {
+            var ys = make[i32](4);
+            ys[1] = 5;
+            n = ys[1];
+        };
+        xs[0] = n;
+    };
+    return n;
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
 }
 
 func TestArenaEscapeRejected(t *testing.T) {
@@ -47,12 +104,12 @@ fn main() void {};
 	wantError(t, p, "arena value escapes the arena block")
 }
 
-func TestArenaArgRejected(t *testing.T) {
+func TestArenaArgBorrows(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
 
 fn consume(p: *Point) void { _ = p; };
 
-fn leak() void {
+fn f() void {
     arena {
         var p = new[Point]();
         consume(p);
@@ -61,7 +118,7 @@ fn leak() void {
 
 fn main() void {};
 `})
-	wantError(t, p, "arena value passed to a function")
+	noErrors(t, p)
 }
 
 func TestArenaAddrRejected(t *testing.T) {

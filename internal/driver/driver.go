@@ -331,11 +331,7 @@ func modulePrefix(path string) string {
 }
 
 func (p *Project) env() []string {
-	env := append(os.Environ(), "GOFLAGS=-buildvcs=false")
-	if p.Program != nil && p.Program.UsesArena {
-		env = append(env, "GOEXPERIMENT=arenas")
-	}
-	return env
+	return config.GoEnv(p.Program != nil && p.Program.UsesArena)
 }
 
 func (p *Project) goCommand(args ...string) (string, error) {
