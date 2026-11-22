@@ -34,7 +34,9 @@ not re-file.
 |---|---|
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
 | Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. Sema rejects the common escapes; a value stored by a callee or in a captured container may still leak. |
-| An arena value passed to a function is borrowed for the call. | No annotation and no interprocedural analysis; the callee must not keep the value past the block. |
+| Arena memory never crosses a function boundary. | A callee could keep the pointer and the block would free it; the check is syntactic, so helpers cannot take arena values. Copy data out with `copy`. |
+| An arena value may be read as a field, an index or a value copy. | A struct or array copy is allowed only when its type holds no references; a copy of references would still point into the arena. |
+| A worker writes arena elements indexed by its own iteration variable. | `par` proves disjoint slots through the loop variable; an index from another loop is rejected as a captured write. |
 | `new` and `make` inside `par` inside `arena` are rejected. | The Go arena is not safe for concurrent use; allocate before `par` and let workers fill the memory. |
 | A worker may open its own `arena { ... };`. | It creates a separate handle in that goroutine, so no shared arena state. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |

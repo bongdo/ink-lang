@@ -24,10 +24,10 @@ and bare `nil`, `par`, `par for ... limit`, `within`, builtins, Go interop and
 
 ## `frame/` — arena and `par` with raylib
 
-`frame/main.ink` rasterizes a frame into an arena-allocated pixel buffer, fills
-row bands from several workers and uploads the buffer once per frame. It needs
-`libraylib` at runtime; see `frame/README.md` for the build flags and the
-measured fill times.
+`frame/main.ink` rasterizes a frame into an arena-allocated row buffer, shades
+rows in parallel, copies them into one persistent buffer and uploads it once per
+frame. It needs `libraylib` at runtime; see `frame/README.md` for the build flags
+and the measured fill times.
 
 ## `problems/` — intentionally invalid
 

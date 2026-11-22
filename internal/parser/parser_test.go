@@ -1527,3 +1527,26 @@ func TestGoOnlySyntaxHints(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMakePointerTypeArg(t *testing.T) {
+	f := mustParse(t, "fn f() void {\n"+
+		"    var xs = make[*Point](4);\n"+
+		"    var p = new[**Point]();\n"+
+		"    _ = xs;\n"+
+		"    _ = p;\n"+
+		"};\n")
+	call := singleValue(t, findVar(t, f, "xs")).(*ast.CallExpr)
+	if len(call.TypeArgs) != 1 {
+		t.Fatalf("make type args = %d", len(call.TypeArgs))
+	}
+	if _, ok := call.TypeArgs[0].(*ast.PointerType); !ok {
+		t.Fatalf("make type arg = %#v", call.TypeArgs[0])
+	}
+	call2 := singleValue(t, findVar(t, f, "p")).(*ast.CallExpr)
+	if len(call2.TypeArgs) != 1 {
+		t.Fatalf("new type args = %d", len(call2.TypeArgs))
+	}
+	if _, ok := call2.TypeArgs[0].(*ast.PointerType); !ok {
+		t.Fatalf("new type arg = %#v", call2.TypeArgs[0])
+	}
+}

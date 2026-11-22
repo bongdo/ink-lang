@@ -199,16 +199,31 @@ func inkTypeName(t ast.Type) string {
 	return n.Name
 }
 
-func refLike(t ast.Type) bool {
+func arenaRef(t ast.Type) bool {
 	switch t := t.(type) {
 	case *ast.PointerType, *ast.SliceType, *ast.MapType, *ast.FuncType:
 		return true
+	case *ast.ArrayType:
+		return arenaRef(t.Elem)
 	case *ast.NamedType:
 		if t.Package == "" && (t.Name == "any" || t.Name == "error") {
 			return true
 		}
-		if t.Decl != nil && (t.Decl.Kind == ast.TypeInterface || t.Decl.Kind == ast.TypeEnum) {
-			return true
+		if t.Decl != nil {
+			switch t.Decl.Kind {
+			case ast.TypeInterface, ast.TypeEnum:
+				return true
+			case ast.TypeStruct:
+				for _, f := range t.Decl.Fields {
+					if arenaRef(f.Type) {
+						return true
+					}
+				}
+			case ast.TypeAlias:
+				if t.Decl.Target != nil {
+					return arenaRef(t.Decl.Target)
+				}
+			}
 		}
 	}
 	return false
@@ -238,10 +253,10 @@ func (c *checker) isArenaExpr(e ast.Expr) bool {
 				return false
 			}
 		}
-		if sel, ok := e.Fun.(*ast.SelectorExpr); ok && c.isArenaExpr(sel.X) && refLike(c.exprType(e)) {
+		if sel, ok := e.Fun.(*ast.SelectorExpr); ok && c.isArenaExpr(sel.X) && arenaRef(c.exprType(e)) {
 			return true
 		}
-		if refLike(c.exprType(e)) {
+		if arenaRef(c.exprType(e)) {
 			for _, a := range e.Args {
 				if c.isArenaExpr(a) {
 					return true
@@ -250,9 +265,13 @@ func (c *checker) isArenaExpr(e ast.Expr) bool {
 		}
 		return false
 	case *ast.SelectorExpr:
-		return c.isArenaExpr(e.X) && refLike(c.exprType(e))
+		return c.isArenaExpr(e.X) && arenaRef(c.exprType(e))
 	case *ast.IndexExpr:
-		return c.isArenaExpr(e.X) && refLike(c.exprType(e))
+		return c.isArenaExpr(e.X) && arenaRef(c.exprType(e))
+	case *ast.SliceExpr:
+		return c.isArenaExpr(e.X) && arenaRef(c.exprType(e))
+	case *ast.FuncLit:
+		return c.inArena > 0
 	case *ast.UnaryExpr:
 		if e.Op == token.Amp {
 			return c.isArenaExpr(e.X)
@@ -270,6 +289,9 @@ func (c *checker) isArenaExpr(e ast.Expr) bool {
 func (c *checker) arenaTargetOutside(e ast.Expr) bool {
 	switch e := unparen(e).(type) {
 	case *ast.Ident:
+		if e.Name == "_" {
+			return false
+		}
 		sym := c.lookup(e.Name)
 		return sym == nil || sym.arenaDepth < c.inArena
 	case *ast.SelectorExpr:
@@ -281,10 +303,66 @@ func (c *checker) arenaTargetOutside(e ast.Expr) bool {
 }
 
 func (c *checker) markArenaTarget(e ast.Expr) {
-	if id, ok := unparen(e).(*ast.Ident); ok {
-		if sym := c.lookupLocal(id.Name); sym != nil {
-			sym.arena = true
+	for {
+		switch t := unparen(e).(type) {
+		case *ast.Ident:
+			if sym := c.lookupLocal(t.Name); sym != nil {
+				sym.arena = true
+			}
+			return
+		case *ast.SelectorExpr:
+			e = t.X
+		case *ast.IndexExpr:
+			e = t.X
+		case *ast.SliceExpr:
+			e = t.X
+		default:
+			return
 		}
+	}
+}
+
+func (c *checker) checkArenaCall(call *ast.CallExpr) {
+	if call == nil {
+		return
+	}
+	if call.Info != nil {
+		switch call.Info.Builtin {
+		case "len", "cap", "min", "max":
+			return
+		case "append":
+			return
+		case "copy":
+			c.checkArenaCopy(call)
+			return
+		}
+	}
+	if sel, ok := unparen(call.Fun).(*ast.SelectorExpr); ok && c.isArenaExpr(sel.X) {
+		c.p.errorf(c.fc.file.Path, sel.X.Pos(), "method call on an arena value; read its fields instead")
+		return
+	}
+	for _, a := range call.Args {
+		if c.isArenaExpr(a) {
+			c.p.errorf(c.fc.file.Path, a.Pos(), "arena value cannot leave the arena block; read a field or an index instead")
+			return
+		}
+	}
+}
+
+func (c *checker) checkArenaCopy(call *ast.CallExpr) {
+	for _, a := range call.Args {
+		if !c.isArenaExpr(a) {
+			continue
+		}
+		t := c.exprType(a)
+		if st, ok := t.(*ast.SliceType); ok {
+			t = st.Elem
+		}
+		if !arenaRef(t) {
+			continue
+		}
+		c.p.errorf(c.fc.file.Path, a.Pos(), "arena value cannot leave the arena block; read a field or an index instead")
+		return
 	}
 }
 

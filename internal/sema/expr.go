@@ -28,7 +28,11 @@ func (c *checker) resolveExprInner(e ast.Expr, top bool) ast.Type {
 	case *ast.SelectorExpr:
 		return c.resolveSelector(e)
 	case *ast.CallExpr:
-		return c.resolveCall(e)
+		t := c.resolveCall(e)
+		if c.inArena > 0 {
+			c.checkArenaCall(e)
+		}
+		return t
 	case *ast.IndexExpr:
 		xt := c.resolveExpr(e.X, false)
 		c.resolveExpr(e.Index, false)
@@ -895,6 +899,7 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 	subj := c.resolveExpr(m.Subject, false)
 	m.SubjectType = subj
+	subjArena := c.inArena > 0 && c.isArenaExpr(m.Subject)
 	open := c.isOpenType(subj)
 	m.TypeSwitch = open
 	var enum *ast.TypeDecl
@@ -968,14 +973,14 @@ func (c *checker) resolveMatch(m *ast.MatchExpr) ast.Type {
 		if pat.Variant != nil {
 			for i, name := range pat.Fields {
 				if i < len(pat.FieldDecls) && pat.FieldDecls[i] != nil {
-					c.declare(&symbol{name: name, kind: ast.RefLocal, typ: pat.FieldDecls[i].Type, decl: cs})
+					c.declare(&symbol{name: name, kind: ast.RefLocal, typ: pat.FieldDecls[i].Type, decl: cs, arena: subjArena})
 				} else {
-					c.declare(&symbol{name: name, kind: ast.RefLocal, decl: cs})
+					c.declare(&symbol{name: name, kind: ast.RefLocal, decl: cs, arena: subjArena})
 				}
 			}
 		}
 		if open && pat != nil && pat.Bind != "" && pat.Bind != "_" {
-			c.declare(&symbol{name: pat.Bind, kind: ast.RefLocal, typ: pat.TypePat, goType: c.goTypeOf(pat.TypePat), decl: cs})
+			c.declare(&symbol{name: pat.Bind, kind: ast.RefLocal, typ: pat.TypePat, goType: c.goTypeOf(pat.TypePat), decl: cs, arena: subjArena})
 		}
 		if cs.Expr != nil {
 			t := c.resolveExpr(cs.Expr, false)

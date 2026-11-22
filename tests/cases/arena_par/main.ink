@@ -1,29 +1,30 @@
 use fmt;
 
-type Frame struct {
-    px: i32[],
-    rows: i32,
-};
+const RowLen = 4;
 
-fn fill(f: *Frame, y: i32) void {
-    var row = y * f.rows;
-    for (var x = i32(0); x < f.rows; x += 1) {
-        f.px[row + x] = y * 10 + x;
+type Row = i32[RowLen];
+
+fn fillRow(y: i32) Row {
+    var r = Row {};
+    for (var x = i32(0); x < i32(RowLen); x += 1) {
+        r[x] = y * 10 + x;
     };
+    return r;
 };
 
 fn main() void! {
     var sum = i32(0);
+    var out = make[i32](RowLen * 4);
     arena {
-        var f = new[Frame]();
-        f.rows = 4;
-        f.px = make[i32](16);
+        var rows = make[Row](4);
         par for (var y = i32(0); y < i32(4); y += 1) limit 2 {
-            fill(f, y);
+            rows[y] = fillRow(y);
         };
-        var xs = f.px[:];
-        for (var i = 0; i < len(xs); i += 1) {
-            sum += xs[i];
+        for (var y = 0; y < 4; y += 1) {
+            copy(out[y * RowLen:], rows[y][:]);
+        };
+        for (var i = 0; i < len(out); i += 1) {
+            sum += out[i];
         };
         arena {
             var tmp = make[i32](2);

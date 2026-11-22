@@ -1354,13 +1354,12 @@ func (p *parser) parseIndex(x ast.Expr) ast.Expr {
 	}
 	save := p.i
 	saveErrs := len(p.errs)
-	first := p.tok()
 	p.silent++
 	types, ok := p.parseTypeList()
 	ok = ok && p.at(token.RBracket)
 	p.silent--
 	p.errs = p.errs[:saveErrs]
-	if ok && p.peek(1) == token.LParen && p.typeArgsAllowed(first, types) {
+	if ok && p.peek(1) == token.LParen && p.typeArgsAllowed(x, types) {
 		p.next()
 		return p.parseCall(x, types)
 	}
@@ -1379,7 +1378,7 @@ func (p *parser) parseIndex(x ast.Expr) ast.Expr {
 	return &ast.IndexExpr{Span: p.fin(start), X: x, Index: low}
 }
 
-func (p *parser) typeArgsAllowed(first token.Token, types []ast.Type) bool {
+func (p *parser) typeArgsAllowed(callee ast.Expr, types []ast.Type) bool {
 	if len(types) > 1 {
 		return true
 	}
@@ -1389,11 +1388,18 @@ func (p *parser) typeArgsAllowed(first token.Token, types []ast.Type) bool {
 	if t, ok := types[0].(*ast.NamedType); ok && t.Package == "" && builtinTypes[t.Name] {
 		return true
 	}
-	if first.Kind == token.Ident && (first.Lit == "make" || first.Lit == "new") {
+	name := ""
+	switch c := callee.(type) {
+	case *ast.Ident:
+		name = c.Name
+	case *ast.SelectorExpr:
+		name = c.Name
+	}
+	if name == "make" || name == "new" {
 		return true
 	}
-	if first.Kind == token.Ident {
-		r, _ := utf8.DecodeRuneInString(first.Lit)
+	if name != "" {
+		r, _ := utf8.DecodeRuneInString(name)
 		return unicode.IsUpper(r)
 	}
 	return false

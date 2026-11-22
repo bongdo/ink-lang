@@ -95,11 +95,12 @@ fn pair() i32, bool { return 1, true; };
   fresh error.
 - `arena { ... };` allocates from a Go arena and frees it at block exit.
   Inside it `new[Point]()` and `make[i32](n)` use the arena; outside they are
-  ordinary Go allocations. Arena values must not escape: no assignment to a
-  captured variable, no return, no `&T{}` inside. A call argument is a borrow
-  for that call; the callee must not keep it. Copy a scalar field out instead.
-  `par` is allowed; `new`/`make` must run before `par`, and a worker may open its
-  own `arena { ... };`. The compiler sets `GOEXPERIMENT=arenas` automatically.
+  ordinary Go allocations. Arena memory never leaves the block: no assignment to
+  a captured variable, no return, no `&T{}`, no call argument or receiver.
+  Read fields and indices, copy structs and arrays that hold no references, and
+  `copy` bytes out. `par` is allowed; `new`/`make` must run before `par`, a
+  worker may write `rows[y]` and open its own `arena { ... };`. The compiler sets
+  `GOEXPERIMENT=arenas` automatically.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

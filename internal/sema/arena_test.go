@@ -3,15 +3,11 @@ package sema
 import "testing"
 
 func TestArenaAllowsParOnPreallocated(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn fill(xs: i32[], y: i32) void {
-    xs[y] = y;
-};
-
-fn f() void {
+	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
         var xs = make[i32](16);
-        par for (var y = 0; y < 16; y += 1) limit 4 {
-            fill(xs, y);
+        par for (var y = i32(0); y < i32(16); y += 1) limit 4 {
+            xs[y] = y * 2;
         };
     };
 };
@@ -19,6 +15,42 @@ fn f() void {
 fn main() void {};
 `})
 	noErrors(t, p)
+}
+
+func TestArenaRejectsMethodCall(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+
+type Mover struct {
+    fn Move(p: *Point) void { p.X = 1; };
+};
+
+fn f() void {
+    arena {
+        var m = new[Mover]();
+        var p = new[Point]();
+        m.Move(p);
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "method call on an arena value")
+}
+
+func TestArenaRejectsClosureEscape(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+
+fn f() void {
+    var out = fn() i32 { return 0; };
+    arena {
+        var p = new[Point]();
+        out = fn() i32 { return p.X; };
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "arena value escapes the arena block")
 }
 
 func TestArenaRejectsAllocationInsidePar(t *testing.T) {
@@ -104,7 +136,7 @@ fn main() void {};
 	wantError(t, p, "arena value escapes the arena block")
 }
 
-func TestArenaArgBorrows(t *testing.T) {
+func TestArenaRejectsArg(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
 
 fn consume(p: *Point) void { _ = p; };
@@ -113,6 +145,61 @@ fn f() void {
     arena {
         var p = new[Point]();
         consume(p);
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "arena value cannot leave the arena block")
+}
+
+func TestArenaAllowsPureBuiltins(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() i32 {
+    var n = i32(0);
+    arena {
+        var xs = make[i32](4, 8);
+        n = len(xs) + cap(xs);
+    };
+    return n;
+};
+
+fn main() void {};
+`})
+	noErrors(t, p)
+}
+
+func TestArenaRejectsStructWithPointer(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+
+type Holder struct {
+    P: *Point,
+};
+
+fn consume(h: Holder) void { _ = h; };
+
+fn f() void {
+    arena {
+        var hs = make[Holder](2);
+        var h = hs[0];
+        consume(h);
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "arena value cannot leave the arena block")
+}
+
+func TestArenaAllowsScalarStructCopy(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Vec struct { X: i32 };
+
+fn consume(v: Vec) void { _ = v; };
+
+fn f() void {
+    arena {
+        var vs = make[Vec](2);
+        var v = vs[0];
+        consume(v);
     };
 };
 
@@ -152,4 +239,43 @@ fn f() i32 {
 fn main() void {};
 `})
 	noErrors(t, p)
+}
+
+func TestArenaRejectsCopyOfPointers(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+
+fn f() void {
+    var out = make[*Point](2);
+    arena {
+        var xs = make[*Point](2);
+        copy(out, xs);
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "arena value cannot leave the arena block")
+}
+
+func TestArenaRejectsMatchBinding(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+
+fn consume(p: *Point) void { _ = p; };
+
+fn f() void {
+    arena {
+        var p = new[Point]();
+        var v: any = p;
+        match (v) {
+            case *Point as q => {
+                consume(q);
+            };
+            else => {};
+        };
+    };
+};
+
+fn main() void {};
+`})
+	wantError(t, p, "arena value cannot leave the arena block")
 }
