@@ -467,16 +467,23 @@ func (w *writer) failStmt(s *ast.FailStmt) {
 }
 
 func (w *writer) arenaStmt(s *ast.ArenaStmt) {
-	pkg := w.f.std("arena")
-	name := w.next("a")
+	sites := arenaSites(s.Body)
+	saved := w.scratch
 	mark := ""
-	if !blockTerminates(s.Body) {
-		mark = w.next("mark")
-		w.linef("%s := _s_d.Mark()", mark)
+	if len(sites) > 0 {
+		w.scratch = make(map[*ast.CallExpr]string, len(sites))
+		if !blockTerminates(s.Body) {
+			mark = w.next("mark")
+			w.linef("%s := _s_d.Mark()", mark)
+		}
+		for _, call := range sites {
+			scratch := w.f.scratchVar(w.typeStr(call.TypeArgs[0]))
+			batch := w.next("b")
+			w.linef("%s := %s.Begin()", batch, scratch)
+			w.linef("_s_d.Push(func() { %s.End(%s) })", scratch, batch)
+			w.scratch[call] = batch
+		}
 	}
-	w.linef("%s := %s.NewArena()", name, pkg)
-	w.linef("_s_d.Push(func() { %s.Free() })", name)
-	w.arenaStack = append(w.arenaStack, name)
 	w.writeIndent()
 	w.buf.WriteString("{\n")
 	w.indent++
@@ -487,7 +494,27 @@ func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 	if mark != "" {
 		w.linef("_s_d.RunTo(%s)", mark)
 	}
-	w.arenaStack = w.arenaStack[:len(w.arenaStack)-1]
+	w.scratch = saved
+}
+
+func arenaSites(body *ast.Block) []*ast.CallExpr {
+	if body == nil {
+		return nil
+	}
+	var out []*ast.CallExpr
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.ArenaStmt:
+			return false
+		case *ast.CallExpr:
+			if n.Info != nil && n.Info.Kind == ast.CallBuiltin && len(n.TypeArgs) == 1 &&
+				(n.Info.Builtin == "new" || n.Info.Builtin == "make") {
+				out = append(out, n)
+			}
+		}
+		return true
+	})
+	return out
 }
 
 func (w *writer) deferStmt(s *ast.DeferStmt) {

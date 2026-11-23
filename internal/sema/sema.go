@@ -63,7 +63,6 @@ type Program struct {
 	Main      *Package
 	Errors    []Error
 	GoTypes   map[ast.Expr]types.Type
-	UsesArena bool
 	ExprTypes map[ast.Expr]ast.Type
 	goNamed   map[*ast.NamedType]types.Type
 	goOf      map[ast.Type]types.Type
@@ -519,7 +518,7 @@ func (p *Program) loadGo() {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
 		Dir:  p.Root,
-		Env:  config.GoEnv(false),
+		Env:  config.GoEnv(),
 	}
 	loaded, err := packages.Load(cfg, paths...)
 	if err != nil {

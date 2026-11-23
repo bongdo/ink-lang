@@ -712,7 +712,7 @@ func (s *server) typecheckDiagnostics(a *analysis, prog *sema.Program, parsed ma
 	if prog == nil {
 		return out
 	}
-	for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: a.root, Module: a.module, Tests: true, Arena: prog.UsesArena}) {
+	for _, e := range typecheck.Check(prog, parsed, typecheck.Options{Root: a.root, Module: a.module, Tests: true}) {
 		fi := a.files[canonicalPath(e.Path)]
 		if fi == nil {
 			s.logf("typecheck: %s", e.Msg)

@@ -63,7 +63,7 @@ place with status.
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
 | `T!` with `or fail`, `or err { }`, `or panic(...)` | ✅ |
 | `error("msg")` fresh error constructor | ✅ |
-| `arena { new/make }` with implicit arena allocation, auto-free | ✅ experimental Go `arena` |
+| `arena { new/make }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
 | manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |

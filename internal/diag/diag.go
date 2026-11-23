@@ -44,7 +44,6 @@ var rules = []struct {
 	{"par-capture-write", "captured from outside par", "copy the value into a local and collect the result", false},
 	{"par-break", "cannot leave a par block", "return a value or set a local flag", false},
 	{"par-loop", "for () is not allowed inside par", "use a bounded loop", false},
-	{"arena-loop", "arena in a loop", "move make/new before the loop and reuse the buffer", false},
 	{"array-const", "must be declared in a local package", "use a const from a local package", false},
 	{"generic-args", "requires type arguments", "Stack[i32]", false},
 	{"missing-return", "missing return", "end every path with return;", false},

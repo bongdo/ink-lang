@@ -226,7 +226,7 @@ func (p *Project) Check(opt CheckOptions) error {
 		return err
 	}
 	if opt.Typecheck && !opt.Fast && !p.HasErrors() {
-		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race, Arena: p.Program != nil && p.Program.UsesArena}) {
+		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race}) {
 			p.Errors = append(p.Errors, typecheckError(e.Path, e.Pos, e.Msg))
 		}
 	}
@@ -331,7 +331,7 @@ func modulePrefix(path string) string {
 }
 
 func (p *Project) env() []string {
-	return config.GoEnv(p.Program != nil && p.Program.UsesArena)
+	return config.GoEnv()
 }
 
 func (p *Project) goCommand(args ...string) (string, error) {

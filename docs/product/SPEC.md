@@ -183,27 +183,31 @@ arena {
 };
 ```
 
-Inside the block `new[T]()` and `make[T](n)` or `(n, cap)` allocate from one Go
-arena; outside they are ordinary Go allocations. The block frees the arena at
-exit, including `return`, `break`, `continue` and panic.
+Inside the block `new[T]()` and `make[T](n)` or `(n, cap)` take memory from a
+per-type scratch buffer; outside they are ordinary Go allocations. The buffer is
+reused by the next execution of the same block, so a loop allocates only until
+its high-water mark and then does not allocate at all. Memory is not returned to
+the GC: each block keeps its buffer reserved. Every execution starts zeroed, so
+`new` and `make` keep their Go semantics.
 
 Arena memory never leaves the block. Sema rejects assigning it to a captured
 variable, returning it, passing it as a call argument or receiver, deferring a
 call with it, and taking `&T{}` inside the block. Reading stays: a field, an
 index, `len`/`cap`/`min`/`max`, a value copy of a struct or array whose type
 holds no references, and `copy` out when the element type holds no references.
-So `n = p.X` and `copy(px, row)` work, while `f(p)` and `p.Move()` do not.
+So `n = p.X` and `copy(px, row)` work, while `f(p)` and `p.Move()` do not. The
+rule is what makes reuse safe: nothing can read the buffer after the block
+returns it.
 
-`par` is allowed inside an arena. `new` and `make` must run before `par`: the
-Go arena is not safe for concurrent use, so an allocation inside a worker is an
-error. A worker may write an arena element indexed by its own iteration
-variable (`rows[y] = row`) and may open its own `arena { ... };`. Arenas nest and
-free inside out, so a value from an inner arena cannot be stored in an outer
-one.
+`par` is allowed inside an arena. `new` and `make` must run before `par`: a
+worker shares the block's batch, so an allocation inside a worker is an error.
+A worker may write an arena element indexed by its own iteration variable
+(`rows[y] = row`) and may open its own `arena { ... };`.
 
-The feature uses Go's experimental `arena` package; `ink` sets
-`GOEXPERIMENT=arenas` for build, run, test and typecheck when a source uses an
-arena.
+The buffer is an ordinary Go object, so the GC traces it. A buffer whose type
+holds no pointers is not scanned, and after the first execution the block
+allocates nothing. `arena` does not use Go's experimental `arena` package and
+needs no `GOEXPERIMENT` flag.
 
 ## 4. Variables, constants, literals
 

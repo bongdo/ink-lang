@@ -28,7 +28,6 @@ type Options struct {
 	Module string
 	Tests  bool
 	Race   bool
-	Arena  bool
 }
 
 type Error struct {
@@ -51,8 +50,8 @@ var (
 	cacheOrder []string
 )
 
-func typecheckEnv(arena bool) []string {
-	return config.GoEnv(arena)
+func typecheckEnv() []string {
+	return config.GoEnv()
 }
 
 func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Error) {
@@ -81,7 +80,7 @@ func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Er
 	if errs, ok := cacheGet(key); ok {
 		return errs
 	}
-	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests, opt.Race, opt.Arena)
+	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests, opt.Race)
 	cachePut(key, out)
 	return out
 }
@@ -162,7 +161,7 @@ func cachePut(key string, errs []Error) {
 	cacheOrder = append(cacheOrder, key)
 }
 
-func load(root, module string, files []gen.File, known map[string]bool, tests, race, arena bool) []Error {
+func load(root, module string, files []gen.File, known map[string]bool, tests, race bool) []Error {
 	overlay := make(map[string][]byte, len(files)+1)
 	importDirs := make(map[string]string, len(files))
 	seen := make(map[string]bool)
@@ -200,7 +199,7 @@ func load(root, module string, files []gen.File, known map[string]bool, tests, r
 		Dir:     root,
 		Tests:   tests,
 		Overlay: overlay,
-		Env:     typecheckEnv(arena),
+		Env:     typecheckEnv(),
 	}
 	if race {
 		cfg.BuildFlags = []string{"-race"}

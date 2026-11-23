@@ -97,15 +97,16 @@ fn pair() i32, bool { return 1, true; };
   `has`.
 - `make[i32](n)` or `make[i32](n, cap)` makes a slice; `error("msg")` makes a
   fresh error.
-- `arena { ... };` allocates from a Go arena and frees it at block exit.
-  Inside it `new[Point]()` and `make[i32](n)` use the arena; outside they are
-  ordinary Go allocations. Arena memory never leaves the block: no assignment to
-  a captured variable, no return, no `&T{}`, no call argument or receiver.
-  Read fields and indices, copy structs and arrays that hold no references, and
-  `copy` bytes out. `par` is allowed; `new`/`make` must run before `par`, a
-  worker may write `rows[y]` and open its own `arena { ... };`. A fixed-size
-  arena inside a loop warns: allocate the buffer before the loop instead. The
-  compiler sets `GOEXPERIMENT=arenas` automatically.
+- `arena { ... };` takes memory from a reusable scratch buffer and returns it at
+  block exit. Inside it `new[Point]()` and `make[i32](n)` use the buffer;
+  outside they are ordinary Go allocations. The buffer is reused by the next
+  execution, so a hot loop stops allocating after its high-water mark; memory
+  stays reserved for that block and each execution starts zeroed. Arena memory
+  never leaves the block: no assignment to a captured variable, no return, no
+  `&T{}`, no call argument or receiver. Read fields and indices, copy structs
+  and arrays that hold no references, and `copy` bytes out. `par` is allowed;
+  `new`/`make` must run before `par`, a worker may write `rows[y]` and open its
+  own `arena { ... };`.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency

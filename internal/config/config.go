@@ -41,18 +41,14 @@ func FindRoot(dir string) (string, error) {
 	}
 }
 
-func GoEnv(arena bool) []string {
+func GoEnv() []string {
 	flags := os.Getenv("GOFLAGS")
 	if flags == "" {
 		flags = "-buildvcs=false"
 	} else {
 		flags += " -buildvcs=false"
 	}
-	env := append(os.Environ(), "GOFLAGS="+flags)
-	if arena {
-		env = append(env, "GOEXPERIMENT=arenas")
-	}
-	return env
+	return append(os.Environ(), "GOFLAGS="+flags)
 }
 
 func Exists(root string) bool {

@@ -335,15 +335,14 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 	case "make":
 		if len(c.TypeArgs) == 1 {
 			elem := w.typeStr(c.TypeArgs[0])
-			if len(w.arenaStack) > 0 {
-				handle := w.arenaStack[len(w.arenaStack)-1]
+			if batch, ok := w.scratch[c]; ok {
 				switch len(args) {
 				case 0:
-					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", 0, 0)"
+					return batch + ".Slice(0, 0)"
 				case 1:
-					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", " + args[0] + ", " + args[0] + ")"
+					return batch + ".Slice(" + args[0] + ", " + args[0] + ")"
 				default:
-					return w.f.std("arena") + ".MakeSlice[" + elem + "](" + handle + ", " + args[0] + ", " + args[1] + ")"
+					return batch + ".Slice(" + args[0] + ", " + args[1] + ")"
 				}
 			}
 			if len(args) > 1 {
@@ -357,8 +356,8 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 	case "new":
 		if len(c.TypeArgs) == 1 {
 			elem := w.typeStr(c.TypeArgs[0])
-			if len(w.arenaStack) > 0 {
-				return w.f.std("arena") + ".New[" + elem + "](" + w.arenaStack[len(w.arenaStack)-1] + ")"
+			if batch, ok := w.scratch[c]; ok {
+				return batch + ".New()"
 			}
 			return "new(" + elem + ")"
 		}

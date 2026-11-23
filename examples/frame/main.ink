@@ -37,17 +37,19 @@ fn main() void {
     defer rl.UnloadTexture(tex);
 
     var px = make[u8](RowLen * H);
-    var rows = make[Row](H);
     var t0 = rl.GetTime();
     var workers = i32(runtime.GOMAXPROCS(0));
 
     for (var frame = 0; rl.WindowShouldClose() == false; frame += 1) {
         var t = (rl.GetTime() - t0) * 0.2;
-        par for (var y = i32(0); y < i32(H); y += 1) limit workers {
-            rows[y] = shadeRow(y, t);
-        };
-        for (var y = 0; y < H; y += 1) {
-            copy(px[y * RowLen:], rows[y][:]);
+        arena {
+            var rows = make[Row](H);
+            par for (var y = i32(0); y < i32(H); y += 1) limit workers {
+                rows[y] = shadeRow(y, t);
+            };
+            for (var y = 0; y < H; y += 1) {
+                copy(px[y * RowLen:], rows[y][:]);
+            };
         };
         rl.UpdateTexture(tex, px);
         rl.BeginDrawing();

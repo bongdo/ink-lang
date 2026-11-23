@@ -108,3 +108,63 @@ func (p *ParErrors) First() error {
 	}
 	return p.errs[0].Err
 }
+
+type Batch[T any] struct {
+	buf []T
+	off int
+}
+
+func (b *Batch[T]) Slice(n, cap int) []T {
+	if cap < n {
+		cap = n
+	}
+	if b.off+cap > len(b.buf) {
+		size := 2 * len(b.buf)
+		if size < b.off+cap {
+			size = b.off + cap
+		}
+		next := make([]T, size)
+		copy(next, b.buf[:b.off])
+		b.buf = next
+	}
+	start := b.off
+	clear(b.buf[start : start+cap])
+	b.off = start + cap
+	return b.buf[start : start+n : start+cap]
+}
+
+func (b *Batch[T]) New() *T {
+	s := b.Slice(1, 1)
+	return &s[0]
+}
+
+func (b *Batch[T]) reset() {
+	clear(b.buf[:b.off])
+	b.off = 0
+}
+
+type Scratch[T any] struct {
+	mu   sync.Mutex
+	free []*Batch[T]
+}
+
+func (s *Scratch[T]) Begin() *Batch[T] {
+	s.mu.Lock()
+	var b *Batch[T]
+	if n := len(s.free); n > 0 {
+		b = s.free[n-1]
+		s.free = s.free[:n-1]
+	}
+	s.mu.Unlock()
+	if b == nil {
+		b = &Batch[T]{}
+	}
+	return b
+}
+
+func (s *Scratch[T]) End(b *Batch[T]) {
+	b.reset()
+	s.mu.Lock()
+	s.free = append(s.free, b)
+	s.mu.Unlock()
+}

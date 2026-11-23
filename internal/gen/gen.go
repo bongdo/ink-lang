@@ -222,19 +222,40 @@ func (g *generator) writeLineDirective(w *writer, n ast.Node) {
 	w.buf.WriteByte('\n')
 }
 
+type scratchVar struct {
+	name string
+	typ  string
+}
+
 type fileGen struct {
-	g          *generator
-	pkg        *sema.Package
-	body       strings.Builder
-	need       map[string]bool
-	used       map[string]bool
-	stdAliases map[string]string
-	goPkgs     map[string]string
-	extra      map[string]importSpec
+	g             *generator
+	pkg           *sema.Package
+	body          strings.Builder
+	need          map[string]bool
+	used          map[string]bool
+	stdAliases    map[string]string
+	goPkgs        map[string]string
+	extra         map[string]importSpec
+	scratch       []scratchVar
+	scratchByType map[string]string
 }
 
 func (f *fileGen) needPkg(alias string) {
 	f.need[alias] = true
+}
+
+func (f *fileGen) scratchVar(typ string) string {
+	if f.scratchByType == nil {
+		f.scratchByType = make(map[string]string)
+	}
+	if name, ok := f.scratchByType[typ]; ok {
+		return name
+	}
+	name := "_s_scr" + strconv.Itoa(len(f.scratch)+1)
+	f.scratch = append(f.scratch, scratchVar{name: name, typ: typ})
+	f.scratchByType[typ] = name
+	f.needPkg("rt")
+	return name
 }
 
 func (f *fileGen) std(key string) string {
@@ -326,7 +347,6 @@ var stdImports = map[string]string{
 	"time":    "time",
 	"reflect": "reflect",
 	"testing": "testing",
-	"arena":   "arena",
 	"errors":  "errors",
 }
 
@@ -413,6 +433,16 @@ func (f *fileGen) assemble(path string) ([]byte, error) {
 		}
 		b.WriteString(")\n\n")
 	}
+	for _, s := range f.scratch {
+		b.WriteString("var ")
+		b.WriteString(s.name)
+		b.WriteString(" _s_rt.Scratch[")
+		b.WriteString(s.typ)
+		b.WriteString("]\n")
+	}
+	if len(f.scratch) > 0 {
+		b.WriteString("\n")
+	}
 	b.WriteString(f.body.String())
 	src := []byte(b.String())
 	out, err := format.Source(src)
@@ -440,7 +470,7 @@ type writer struct {
 	results    []ast.Type
 	err        bool
 	renames    map[string]rename
-	arenaStack []string
+	scratch    map[*ast.CallExpr]string
 	self       string
 }
 
@@ -457,7 +487,7 @@ type parRef struct {
 
 func newWriter(f *fileGen, ctx string) *writer {
 	n := 0
-	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename), arenaStack: nil}
+	return &writer{f: f, ctx: ctx, n: &n, renames: make(map[string]rename)}
 }
 
 func (w *writer) next(prefix string) string {
@@ -497,6 +527,7 @@ func (w *writer) sub() *writer {
 		results: w.results,
 		err:     w.err,
 		renames: make(map[string]rename),
+		scratch: w.scratch,
 		self:    w.self,
 	}
 	for k, v := range w.renames {

@@ -33,14 +33,13 @@ not re-file.
 | Symptom | Why it stays |
 |---|---|
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
-| Arena values must not escape the `arena` block. | Freeing happens at block exit; using a value after is use-after-free, as in Go. Sema rejects the common escapes; a value stored by a callee or in a captured container may still leak. |
-| Arena memory never crosses a function boundary. | A callee could keep the pointer and the block would free it; the check is syntactic, so helpers cannot take arena values. Copy data out with `copy`. |
-| An arena value may be read as a field, an index or a value copy. | A struct or array copy is allowed only when its type holds no references; a copy of references would still point into the arena. |
+| Arena values must not escape the `arena` block. | The block returns its buffer for reuse; a value that outlived it would read the next execution's data. Sema rejects the common escapes; a value stored by a callee or in a captured container may still leak. |
+| Arena memory never crosses a function boundary. | The check is syntactic; helpers cannot take arena values, because a callee could keep the pointer past the block. Copy data out with `copy`. |
+| An arena value may be read as a field, an index or a value copy. | A struct or array copy is allowed only when its type holds no references; a copy of references would still point into the buffer. |
 | A worker writes arena elements indexed by its own iteration variable. | `par` proves disjoint slots through the loop variable; an index from another loop is rejected as a captured write. |
-| A fixed-size `arena` inside a loop warns (`arena-loop`). | The allocation is the same every iteration, and Go still counts it as an allocation; a buffer allocated before the loop is faster and allocation-free. |
-| A per-iteration arena over one 8 MB chunk is called out in the same warning. | Go returns a freed arena chunk to the next arena only after a GC, so a bigger block keeps triggering GCs. |
-| `new` and `make` inside `par` inside `arena` are rejected. | The Go arena is not safe for concurrent use; allocate before `par` and let workers fill the memory. |
-| A worker may open its own `arena { ... };`. | It creates a separate handle in that goroutine, so no shared arena state. |
+| `new` and `make` inside `par` inside `arena` are rejected. | A worker shares the block's batch with the loop, so allocate before `par` and let workers fill the memory. |
+| A worker may open its own `arena { ... };`. | The block starts and ends inside the worker, so its batch is local to that goroutine. |
+| Arena memory stays reserved for its block. | The buffer is reused, not freed; a block keeps its high-water mark for the life of the program. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | `new` and `make` are builtin names. | Go parity; a user function with either name is rejected and must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |
