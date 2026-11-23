@@ -20,29 +20,29 @@ json_field() {
 json_number() {
   printf '%s' "$1" | sed -n "s/.*\"$2\":\\([0-9][0-9]*\\).*/\\1/p"
 }
-check_tour() {
-  local src="$root/examples/tour" dir out err
+check_example() {
+  local name="$1" dir out err
   dir=$(mktemp -d)
   out=$(mktemp)
   err=$(mktemp)
-  cp -R "$src/." "$dir/"
+  cp -R "$root/examples/$name/." "$dir/"
   cleanup "$dir"
   if ! (cd "$dir" && timeout 120 "$ink" check >"$out" 2>"$err"); then
-    echo "FAIL examples/tour (check)" >&2
+    echo "FAIL examples/$name (check)" >&2
     cat "$err" >&2
     fail=1
   fi
   if ! (cd "$dir" && timeout 180 "$ink" test >"$out" 2>"$err"); then
-    echo "FAIL examples/tour (test)" >&2
+    echo "FAIL examples/$name (test)" >&2
     cat "$err" >&2
     fail=1
   fi
   if ! (cd "$dir" && timeout 120 "$ink" run >"$out" 2>"$err"); then
-    echo "FAIL examples/tour (run)" >&2
+    echo "FAIL examples/$name (run)" >&2
     cat "$err" >&2
     fail=1
-  elif ! diff -u "$dir/expected.txt" "$out"; then
-    echo "FAIL examples/tour (output)" >&2
+  elif [ -f "$dir/expected.txt" ] && ! diff -u "$dir/expected.txt" "$out"; then
+    echo "FAIL examples/$name (output)" >&2
     fail=1
   fi
   rm -rf "$dir"
@@ -222,7 +222,8 @@ for dir in "$root"/tests/cases/*/; do
   rm -f "$out" "$err"
   cleanup "$dir"
 done
-check_tour
+check_example tour
+check_example small
 check_problems
 if [ "$fail" -ne 0 ]; then
   exit 1

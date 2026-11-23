@@ -1,0 +1,31 @@
+42 7 INK 7
+hi, a {"name":"a"} {"name":"a","pass":"secret"}
+c c
+12.56636 0
+circle 2
+3 hey
+2 1
+[2 4 6]
+1 true 7 true 8
+inline: nope
+-1
+handled: step: nope
+wrapped: 0
+scope: nope
+listened: 0
+defer: inside block
+defer: block exit
+25 3
+289
+3 2 2 3 true 3 5
+42
+195 hé 3
+true true true true nil
+42
+i32 str user other
+neg zero pos set
+[1 2 3]
+7 7 [2 4 6 8]
+detached: 3
+14
+scope 7

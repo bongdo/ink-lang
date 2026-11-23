@@ -1,5 +1,24 @@
 # Syntax examples
 
+## `small/` — every construct, one file
+
+`small/main.ink` is the dense tour: imports (Go, local), `const`/`var`, aliases,
+struct with methods and `wire`/named contract views, enum and exhaustive
+`match`, interface, generics, multiple and fallible results with `or fail`,
+inline `on err` and the scope listener, block-scoped `defer`, all loop forms,
+builtins, pointers, `any`/literal/`nil` patterns, `go { }`, `go for ... limit`,
+detached `go f(args)`, `arena`, Go interop and `test` blocks. It runs without
+extra dependencies:
+
+```sh
+cd examples/small
+../../bin/ink check
+../../bin/ink test
+../../bin/ink run
+```
+
+`expected.txt` pins the output; `tests/run.sh` checks it.
+
 ## `tour/` — valid, runnable
 
 `tour/main.ink` is the full syntax tour. It compiles and runs:
