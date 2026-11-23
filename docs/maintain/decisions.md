@@ -644,3 +644,16 @@ colour-blind.
 rule, silent discard, `errgroup`-like handles.
 **Цена:** a background failure can only be logged or escalated from inside the
 task; supervision stays in a Go adapter.
+
+## 2026-11-23 — Exit does not wait for detached tasks
+
+**Контекст:** a detached `go f(args)` started right before `main` returns is
+dropped. Joining program-owned tasks at exit would fix that, but changes exit
+semantics for every Ink program.
+**Решение:** no join at exit. The process ends when `main` returns, exactly like
+Go: goroutines and their `defer`s do not run. `go { ... }` or an explicit
+`sync.WaitGroup` is the way to guarantee completion.
+**Почему:** the owner asked for Go's behaviour where Go has one; adding a
+runtime wait would be a language rule Go does not have.
+**Что отвергли:** a program wait group at exit, a root-scope join.
+**Цена:** fire-and-forget work can be lost at exit; this is documented in EDGES.

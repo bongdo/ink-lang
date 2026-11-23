@@ -34,6 +34,7 @@ not re-file.
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
 | `par` is rejected and `within` is removed. | The concurrency keyword is `go`; a deadline is `context.WithTimeout`, passed as an ordinary value. |
 | `go f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `go f(...) on err { ... };` at the launch site. |
+| Process exit does not wait for detached tasks. | Go's contract: when `main` returns the process exits, the tasks and their `defer`s are dropped. Use `go { ... }` or an explicit `sync.WaitGroup` when the work must finish. |
 | `go { }` and `go for` join and never cancel early. | All workers run to completion, then the lowest ordinal error is delivered. A deadline does not stop them. |
 | A detached task's `on err` handler runs in the task, not in the launching scope. | It sees `err` and package-level names only; locals of the launcher are rejected at compile time, so the handler cannot race with the caller. |
 | A panic is a Go panic. | `on err` never receives it and `go` does not recover it; the process exits with status 2. This is the Go contract, not a gap. |
