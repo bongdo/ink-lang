@@ -53,6 +53,7 @@ var rules = []struct {
 	{"unused-import", "imported and not used", "remove the import or use it", false},
 	{"undefined", "undefined:", "declare or import the name", false},
 	{"unused-var", "declared and not used", "use the variable or replace it with _", false},
+	{"contract", "contract:", "declare wire { Field: \"name\"; } inside a struct", false},
 }
 
 func Classify(msg string) Info {

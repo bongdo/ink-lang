@@ -73,6 +73,7 @@ func (p *Program) resolveTypeDecl(fc *fileCtx, d *ast.TypeDecl) {
 			}
 			p.resolveSignature(fc, m, tparams)
 		}
+		p.resolveContracts(fc, d)
 	case ast.TypeEnum:
 		if len(d.TypeParams) > 0 {
 			p.errorf(fc.file.Path, d.Pos(), "generic enums are not supported")

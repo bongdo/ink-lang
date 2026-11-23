@@ -63,6 +63,13 @@ fn pair() i32, bool { return 1, true; };
 
 - `type X struct/enum/interface` has no `=`; aliases keep `=`. Methods live in
   the type body; `self` is implicit; struct literals use `field: value`.
+- Contract blocks live in a struct body. `wire { Field: "name"; };` is the
+  default JSON view; any other lowercase block name is a named view:
+  `admin { Field: "name"; };`. A block is an allowlist; unlisted fields are
+  omitted. Named views are package-local and must be used (`u.admin()`) or the
+  compiler reports `contract`. Named views return `map[str, any]`; only the
+  default `wire` view decodes. `check`, `store`, `doc` and `policy` are ordinary
+  view names in this version, not validators or database schemas.
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - `var x = value;`; `var p: *T = nil;`; no `:=`.
 - `const` is package-level and untyped; a local `const` is an error, use `var`.
@@ -156,6 +163,7 @@ go save(1, "hello");            // detached, program-owned
 | `import-alias` | add `as name` to a versioned import (`/v2`, `/v3`) |
 | `err-manual` | replace manual propagation with `or fail` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
+| `contract` | keep the block inside a struct; list existing exported fields; use each named view |
 | `par-removed` | write `go { ... };` |
 | `within-removed` | use `context.WithTimeout` and pass `ctx` explicitly |
 | `or-panic` | use `on err { panic(...) }` or `or fail` |

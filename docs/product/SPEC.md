@@ -113,6 +113,47 @@ type Buffer struct {
 - Methods always use a pointer receiver.
 - A method may not have the same name as a field of its type.
 
+### 3.3.1. Contract blocks
+
+A struct body may declare contract blocks. `wire` is the default external view;
+any other lowercase block name is a named view of the same contract type:
+
+```hare
+type User struct {
+    ID: i64,
+    Email: str,
+    Pass: str,
+
+    wire {
+        ID: "id",
+        Email: "email",
+    };
+
+    admin {
+        ID: "id",
+        Email: "email",
+    };
+};
+```
+
+- A block is an allowlist: only listed fields are serialized; unlisted fields
+  are excluded from that view.
+- An entry is `Field: "external-name"`; names are arbitrary strings that
+  `encoding/json` accepts as a field tag. Empty names, `-`, quote, backslash,
+  comma and control characters are rejected.
+- Fields in a view must be exported. A field appears once per block, and an
+  external name appears once per block.
+- `wire` may appear once per type and is the default view used by
+  `encoding/json`. Named views are encode-only in this version; only `wire`
+  decodes.
+- Named view names start with a lowercase letter and generate a package-local
+  method with the same name returning `map[str, any]`: `u.admin()`. A named view
+  that is never referenced by a selector is an error.
+- Contract blocks are not supported on generic structs in this version.
+- A type without blocks keeps Go's default JSON behavior.
+- `check`, `store`, `doc` and `policy` are ordinary view names in this version;
+  they do not validate, map a database or document anything.
+
 ### 3.4. Enums
 
 ```hare

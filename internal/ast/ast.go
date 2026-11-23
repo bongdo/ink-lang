@@ -97,6 +97,7 @@ type TypeDecl struct {
 	Target     Type
 	Fields     []*Field
 	Methods    []*FuncDecl
+	Contracts  []*Contract
 	Variants   []*Variant
 	IFace      []*IFaceMethod
 	GoName     string
@@ -108,6 +109,20 @@ type Field struct {
 	Span
 	Name string
 	Type Type
+}
+
+type Contract struct {
+	Span
+	Name   string
+	Fields []*ContractField
+}
+
+func (*Contract) node() {}
+
+type ContractField struct {
+	Span
+	Field    string
+	External string
 }
 
 type Variant struct {

@@ -529,7 +529,7 @@ App-код делает `match` по `NetError`, а не `errors.Is` по Go-т�
 
 | Что нужно | Почему не выражается | Рабочая форма |
 |---|---|---|
-| Имена JSON-полей | нет struct tags; `encoding/json` берёт имена Go-полей, а поле с маленькой буквы в Ink неэкспортировано | `map[str, any]` для ответа или DTO с тегами в binding |
+| Имена JSON-полей | решено: `wire { Field: \"name\"; };` внутри struct | именованные виды `admin { ... }` для второго набора |
 | Шаблоны и статика в бинаре | нет `//go:embed`: attributes вне языка | `os.DirFS` и файлы рядом с бинарём, либо binding с `embed.FS` |
 | SIGTERM и graceful shutdown | нет `chan`; `signal.Notify` требует канал | binding: Go-пакет слушает сигнал и вызывает `srv.Shutdown` |
 | Регистрация драйвера БД, `pprof`, `tzdata` | нужен blank-импорт | `use path as _;` — blank import |

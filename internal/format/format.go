@@ -276,7 +276,7 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 			p.line()
 			p.lastLine = f.EndPos().Line
 		}
-		if len(t.Fields) > 0 && len(t.Methods) > 0 {
+		if len(t.Fields) > 0 && (len(t.Methods) > 0 || len(t.Contracts) > 0) {
 			p.blank()
 		}
 		for i, m := range t.Methods {
@@ -285,6 +285,15 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 			}
 			p.flush(m.Pos().Offset)
 			p.funcDecl(m)
+		}
+		if len(t.Methods) > 0 && len(t.Contracts) > 0 {
+			p.blank()
+		}
+		for i, c := range t.Contracts {
+			if i > 0 {
+				p.blank()
+			}
+			p.contract(c)
 		}
 		p.flush(t.EndPos().Offset)
 		p.indent--
@@ -481,6 +490,34 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 	default:
 		p.write(";")
 	}
+}
+
+func (p *printer) contract(c *ast.Contract) {
+	p.flush(c.Pos().Offset)
+	p.gap(c.Pos().Line)
+	p.ind()
+	p.write(c.Name)
+	p.write(" {")
+	p.line()
+	p.indent++
+	p.lastLine = c.Pos().Line
+	for _, f := range c.Fields {
+		p.flush(f.Pos().Offset)
+		p.gap(f.Pos().Line)
+		p.ind()
+		p.write(f.Field)
+		p.write(": ")
+		p.write(strconv.Quote(f.External))
+		p.write(",")
+		p.line()
+		p.lastLine = f.EndPos().Line
+	}
+	p.flush(c.EndPos().Offset)
+	p.indent--
+	p.ind()
+	p.write("};")
+	p.line()
+	p.lastLine = c.EndPos().Line
 }
 
 func (p *printer) ifClause(s *ast.IfStmt) {

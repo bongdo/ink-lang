@@ -259,6 +259,12 @@ func (s *server) findReferences(target *renameTarget, includeDecl bool) []Locati
 						}
 					}
 				}
+			case *ast.ContractField:
+				if decl, ok := target.decl.(*ast.Field); ok && n.Field == decl.Name {
+					if start, end, ok := findWord(fi.src, n.Pos().Offset, n.EndPos().Offset, n.Field); ok {
+						add(fi, Range{Start: PositionAt(fi.src, start), End: PositionAt(fi.src, end)})
+					}
+				}
 			}
 			return true
 		})

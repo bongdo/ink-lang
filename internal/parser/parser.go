@@ -543,10 +543,14 @@ func (p *parser) parseStructBody(td *ast.TypeDecl) {
 		case token.Fn:
 			td.Methods = append(td.Methods, p.parseFuncDecl(td))
 		case token.Ident:
+			if p.peek(1) == token.LBrace {
+				td.Contracts = append(td.Contracts, p.parseContract())
+				break
+			}
 			td.Fields = append(td.Fields, p.parseField())
 			if p.at(token.Comma) {
 				p.next()
-			} else if !p.at(token.RBrace) && !p.at(token.Fn) {
+			} else if !p.at(token.RBrace) && !p.at(token.Fn) && !p.startsContract() {
 				p.errorf(p.tok().Pos, "expected ',' after field, found %s", describe(p.tok()))
 			}
 		case token.Semi:
@@ -557,6 +561,125 @@ func (p *parser) parseStructBody(td *ast.TypeDecl) {
 		}
 	}
 	p.expect(token.RBrace)
+}
+
+func (p *parser) startsContract() bool {
+	return p.at(token.Ident) && p.peek(1) == token.LBrace
+}
+
+func (p *parser) contractShaped() bool {
+	start := p.i
+	if p.at(token.Ident) && p.peek(1) == token.LBrace {
+		start = p.i + 1
+	}
+	if start >= len(p.toks) || p.toks[start].Kind != token.LBrace {
+		return false
+	}
+	depth := 0
+	for i := start; i < len(p.toks); i++ {
+		switch p.toks[i].Kind {
+		case token.LBrace:
+			depth++
+		case token.RBrace:
+			depth--
+			if depth == 0 {
+				return false
+			}
+		case token.Ident:
+			if depth == 1 && i+2 < len(p.toks) && p.toks[i+1].Kind == token.Colon &&
+				(p.toks[i+2].Kind == token.String || p.toks[i+2].Kind == token.RawString) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *parser) skipContractBlock() {
+	if !p.at(token.LBrace) {
+		return
+	}
+	p.next()
+	p.skipContract()
+	if p.at(token.RBrace) {
+		p.next()
+	}
+}
+
+func (p *parser) parseContract() *ast.Contract {
+	start := p.tok().Pos
+	name := p.next().Lit
+	c := &ast.Contract{Name: name}
+	if !p.at(token.LBrace) {
+		p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
+		c.Span = p.fin(start)
+		return c
+	}
+	p.next()
+	for !p.at(token.RBrace) && !p.at(token.EOF) {
+		if p.at(token.Comma) || p.at(token.Semi) {
+			p.next()
+			continue
+		}
+		if !p.at(token.Ident) {
+			p.errorf(p.tok().Pos, "expected field name, found %s", describe(p.tok()))
+			p.skipContract()
+			break
+		}
+		fieldStart := p.tok().Pos
+		field := p.next().Lit
+		if !p.at(token.Colon) {
+			p.errorf(p.tok().Pos, "expected ':', found %s", describe(p.tok()))
+			p.skipContract()
+			break
+		}
+		p.next()
+		if !p.at(token.String) && !p.at(token.RawString) {
+			p.errorf(p.tok().Pos, "expected external name string, found %s", describe(p.tok()))
+			p.skipContract()
+			break
+		}
+		ext := p.stringLit(p.next())
+		c.Fields = append(c.Fields, &ast.ContractField{
+			Span:     p.fin(fieldStart),
+			Field:    field,
+			External: ext,
+		})
+		if p.at(token.Comma) || p.at(token.Semi) {
+			p.next()
+		} else if !p.at(token.RBrace) {
+			p.errorf(p.tok().Pos, "expected ',' or ';', found %s", describe(p.tok()))
+			p.skipContract()
+			break
+		}
+	}
+	if p.at(token.RBrace) {
+		p.next()
+	}
+	if p.at(token.Semi) || p.at(token.Comma) {
+		p.next()
+	}
+	c.Span = p.fin(start)
+	return c
+}
+
+func (p *parser) skipContract() {
+	depth := 0
+	for !p.at(token.EOF) {
+		switch p.kind() {
+		case token.LBrace:
+			depth++
+			p.next()
+		case token.RBrace:
+			if depth == 0 {
+				return
+			}
+			depth--
+			p.next()
+		default:
+			p.next()
+		}
+	}
 }
 
 func (p *parser) parseField() *ast.Field {
@@ -578,6 +701,15 @@ func (p *parser) parseEnumBody(td *ast.TypeDecl) {
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		switch p.kind() {
 		case token.Ident:
+			if p.startsContract() && p.contractShaped() {
+				p.errorf(p.tok().Pos, "contract: blocks are only allowed in struct bodies")
+				p.next()
+				p.skipContractBlock()
+				if p.at(token.Comma) || p.at(token.Semi) {
+					p.next()
+				}
+				continue
+			}
 			td.Variants = append(td.Variants, p.parseVariant(td))
 			if p.at(token.Comma) {
 				p.next()
@@ -631,7 +763,18 @@ func (p *parser) parseInterfaceBody(td *ast.TypeDecl) {
 	p.next()
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		switch p.kind() {
-		case token.Fn, token.Ident:
+		case token.Ident:
+			if p.startsContract() {
+				p.errorf(p.tok().Pos, "contract: blocks are only allowed in struct bodies")
+				p.next()
+				p.skipContractBlock()
+				if p.at(token.Comma) || p.at(token.Semi) {
+					p.next()
+				}
+				continue
+			}
+			td.IFace = append(td.IFace, p.parseIFaceMethod())
+		case token.Fn:
 			td.IFace = append(td.IFace, p.parseIFaceMethod())
 		case token.Semi:
 			p.next()

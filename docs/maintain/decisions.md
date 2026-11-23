@@ -575,3 +575,21 @@ project in Ink without a Go adapter for background work.
 **Что отвергли:** pools, queues, handles and `send`.
 **Цена:** state travels through arguments only; there is no `wait`, so shutdown
 and coordination stay in a Go binding.
+
+## 2026-11-23 — Struct contract blocks instead of Go tags
+
+**Контекст:** JSON APIs need external field names and subsets; Go tags are
+untyped strings with no compiler check, and the owner rejected copying that
+anti-pattern into Ink.
+**Решение:** a struct body may declare blocks. `wire { Field: "name"; };` is the
+default view and compiles to Go `json` tags; any other lowercase block name is a
+named view and compiles to a package-local method returning `map[str, any]`.
+A block is an allowlist; named views must be used. Blocks live only inside the
+type body; there are no outside blocks.
+**Почему:** one declaration owns external names, unlisted fields cannot leak,
+and the compiler checks fields, duplicates and names. The owner chose this over
+field tags and over one big `contracts` block.
+**Что отвергли:** Go struct tags, `wire Admin`, `check Admin`, named
+`store`/`doc`/`policy`, top-level blocks, generated view types.
+**Цена:** named views are package-local and encode-only; generic structs are
+rejected; map views lose declaration order.

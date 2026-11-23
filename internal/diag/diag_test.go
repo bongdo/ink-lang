@@ -18,6 +18,7 @@ func TestClassify(t *testing.T) {
 		{"chan does not exist; keep channels in a Go adapter", "go-chan"},
 		{"select does not exist; use go or a Go adapter", "go-select"},
 		{"par was renamed to go", "par-removed"},
+		{"contract: field \"ID\" is not in User", "contract"},
 		{"within was removed; use context.WithTimeout", "within-removed"},
 		{"or panic was removed; use on err { panic(...) } or or fail", "or-panic"},
 		{"use 'on err { ... }' instead of 'or err { ... }'", "or-err"},

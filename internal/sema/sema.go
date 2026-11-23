@@ -57,23 +57,25 @@ type Package struct {
 }
 
 type Program struct {
-	Root      string
-	Module    string
-	Packages  map[string]*Package
-	Main      *Package
-	Errors    []Error
-	GoTypes   map[ast.Expr]types.Type
-	ExprTypes map[ast.Expr]ast.Type
-	goNamed   map[*ast.NamedType]types.Type
-	goOf      map[ast.Type]types.Type
-	declPkg   map[*ast.TypeDecl]*Package
-	global    map[*Package]map[string]ast.Type
-	funcs     map[ast.Node]*funcInfo
-	needsCtx  map[ast.Node]bool
-	edges     []ctxEdge
-	litCalls  []litCall
-	goCache   map[string]*GoPkg
-	seenError map[string]bool
+	Root             string
+	Module           string
+	Packages         map[string]*Package
+	Main             *Package
+	Errors           []Error
+	GoTypes          map[ast.Expr]types.Type
+	ExprTypes        map[ast.Expr]ast.Type
+	goNamed          map[*ast.NamedType]types.Type
+	goOf             map[ast.Type]types.Type
+	declPkg          map[*ast.TypeDecl]*Package
+	global           map[*Package]map[string]ast.Type
+	funcs            map[ast.Node]*funcInfo
+	needsCtx         map[ast.Node]bool
+	edges            []ctxEdge
+	litCalls         []litCall
+	goCache          map[string]*GoPkg
+	seenError        map[string]bool
+	contractUses     map[*ast.TypeDecl]map[string]bool
+	invalidContracts map[*ast.Contract]bool
 }
 
 type Options struct {
@@ -142,6 +144,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 	p.checkMain()
 	p.colorContext()
 	p.finalChecks()
+	p.checkContractUsage()
 	return p
 }
 

@@ -109,7 +109,8 @@ place with status.
 | implicit Go generic inference | ◐ Go infers; Ink hover does not show the result type |
 | Go variadic calls with `...` | ✅ |
 | unexported Go API | — Go visibility rules |
-| struct tags for JSON/DB | ○ decision needed |
+| contract blocks `wire` / named views inside a struct | ✅ JSON names and subsets; named views are package-local and encode-only |
+| Go struct tags in source | — not needed; contracts compile to tags |
 | `//go:embed` | ○ decision needed |
 | `context.Context` in an Ink signature | ✅ ordinary value; pass it explicitly |
 

@@ -759,3 +759,45 @@ func TestRenameConflict(t *testing.T) {
 		t.Fatal("false collision")
 	}
 }
+
+func TestRenameFieldInContract(t *testing.T) {
+	src := `type User struct {
+    ID: i64,
+    Email: str,
+
+    wire {
+        ID: "id",
+        Email: "email",
+    };
+
+    admin {
+        ID: "id",
+    };
+};
+
+fn main() void {
+    var u = User { ID: 1, Email: "e" };
+    _ = u.admin();
+};
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	position := PositionAt([]byte(src), strings.Index(src, "ID: i64")+1)
+	msg := c.request("textDocument/rename", RenameParams{
+		TextDocumentPositionParams: TextDocumentPositionParams{
+			TextDocument: TextDocumentIdentifier{URI: uri},
+			Position:     position,
+		},
+		NewName: "Key",
+	})
+	edit := decodeEdit(t, msg.Result)
+	renamed := applyWorkspaceEdit(src, edit.Changes[uri])
+	if strings.Contains(renamed, "ID: \"id\"") {
+		t.Fatalf("contract entry was not renamed:\n%s", renamed)
+	}
+	if !strings.Contains(renamed, "Key: \"id\"") {
+		t.Fatalf("expected renamed contract entry:\n%s", renamed)
+	}
+}

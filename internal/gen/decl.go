@@ -2,6 +2,7 @@ package gen
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bongdo/ink/internal/ast"
@@ -391,13 +392,22 @@ func (g *generator) typeDecl(w *writer, d *ast.TypeDecl) {
 
 func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 	w.directive(d)
+	wire := wireNames(d)
 	if len(d.Fields) == 0 {
 		w.line("type " + name + g.typeParamsDecl(d.TypeParams) + " struct{}")
 	} else {
 		w.line("type " + name + g.typeParamsDecl(d.TypeParams) + " struct {")
 		w.indent++
 		for _, fld := range d.Fields {
-			w.line(fld.Name + " " + g.typeStr(w.f, fld.Type))
+			tag := ""
+			if wire != nil && fld.Name != "_" {
+				ext, ok := wire[fld.Name]
+				if !ok {
+					ext = "-"
+				}
+				tag = " `json:" + strconv.Quote(ext) + "`"
+			}
+			w.line(fld.Name + " " + g.typeStr(w.f, fld.Type) + tag)
 		}
 		w.indent--
 		w.line("}")
@@ -408,6 +418,38 @@ func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 		g.funcDecl(mw, m, d)
 		w.buf.WriteString(mw.buf.String())
 	}
+	for _, c := range d.Contracts {
+		if c.Name == "wire" {
+			continue
+		}
+		w.directive(c)
+		w.line("func (self *" + name + ") " + c.Name + "() map[string]any {")
+		w.indent++
+		w.line("return map[string]any{")
+		w.indent++
+		for _, cf := range c.Fields {
+			w.line(strconv.Quote(cf.External) + ": self." + cf.Field + ",")
+		}
+		w.indent--
+		w.line("}")
+		w.indent--
+		w.line("}")
+		w.line("")
+	}
+}
+
+func wireNames(d *ast.TypeDecl) map[string]string {
+	for _, c := range d.Contracts {
+		if c.Name != "wire" {
+			continue
+		}
+		names := make(map[string]string, len(c.Fields))
+		for _, f := range c.Fields {
+			names[f.Field] = f.External
+		}
+		return names
+	}
+	return nil
 }
 
 func (g *generator) enumDecl(w *writer, d *ast.TypeDecl, name string) {

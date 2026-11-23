@@ -193,6 +193,19 @@ func (c *checker) resolveSelector(s *ast.SelectorExpr) ast.Type {
 			}
 			return ft
 		}
+		if contractView(st, s.Name) != nil {
+			c.p.markContractUse(st, s.Name)
+			if !c.accessible(st, s.Name) {
+				c.p.errorf(c.fc.file.Path, s.Pos(), "contract: view %s is not accessible outside its package", s.Name)
+				return nil
+			}
+			mapT := &ast.MapType{
+				Span:  s.Span,
+				Key:   &ast.NamedType{Name: "str", GoName: "string"},
+				Value: &ast.NamedType{Name: "any", GoName: "any"},
+			}
+			return &ast.FuncType{Span: s.Span, Results: []ast.Type{mapT}}
+		}
 	}
 	gt := c.goTypeOfExpr(s.X)
 	if gt != nil {
