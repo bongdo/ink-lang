@@ -644,8 +644,9 @@ func TestFeatures(t *testing.T) {
 func TestGoImportCompletion(t *testing.T) {
 	src := `use fmt;
 
-fn main() void {
-    fmt.Println("hi");
+fn main() void! {
+    fmt.Println("hi")
+        or fail;
 };
 `
 	root, _, uri := newProject(t, src)

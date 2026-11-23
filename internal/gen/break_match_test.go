@@ -24,7 +24,7 @@ fn main() void {
         };
         };
     };
-    fmt.Println(sum);
+    _, _ = fmt.Println(sum);
 
     var seen = 0;
     for (var i = 0; i < 6; i += 1) {
@@ -40,7 +40,7 @@ fn main() void {
         };
         };
     };
-    fmt.Println(seen);
+    _, _ = fmt.Println(seen);
 
     var xs = i32[] { 1, 2, 3, 4 };
     var first = i32(0);
@@ -54,7 +54,7 @@ fn main() void {
         };
         };
     };
-    fmt.Println(first);
+    _, _ = fmt.Println(first);
 
     var total = 0;
     for (var i = 0; i < 3; i += 1) {
@@ -80,7 +80,7 @@ fn main() void {
         };
         };
     };
-    fmt.Println(total);
+    _, _ = fmt.Println(total);
 };
 `,
 	})
@@ -106,7 +106,7 @@ fn main() void {
         };
         n += i;
     };
-    fmt.Println(n);
+    _, _ = fmt.Println(n);
 };
 `,
 	})

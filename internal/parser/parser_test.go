@@ -120,9 +120,11 @@ func countNodes(f *ast.File) map[string]int {
 		case *ast.DeferStmt:
 			m["defer"]++
 		case *ast.ParStmt:
-			m["par"]++
-		case *ast.WithinStmt:
-			m["within"]++
+			m["go"]++
+		case *ast.GoCallStmt:
+			m["gocall"]++
+		case *ast.OnErrStmt:
+			m["onerr"]++
 		case *ast.MatchExpr:
 			m["match"]++
 		case *ast.OrExpr:
@@ -545,18 +547,16 @@ const statementsSrc = `fn f(n: int) void {
     for () {
         break;
     };
-    par {
+    go {
         a = 1;
     };
-    par for (var i = 0; i < n; i += 1) limit 4 {
+    go for (var i = 0; i < n; i += 1) limit 4 {
         a = i;
     };
-    par for (var j in xs) limit n {
+    go for (var j in xs) limit n {
         continue;
     };
-    within d {
-        a = 1;
-    };
+    go f();
     match (a) {
     case 0 => a = 1;
     else => { a = 2; };
@@ -574,8 +574,8 @@ func TestStatements(t *testing.T) {
 	want := map[string]int{
 		"if":       2,
 		"for":      7,
-		"par":      1,
-		"within":   1,
+		"go":       1,
+		"gocall":   1,
 		"match":    1,
 		"defer":    1,
 		"return":   1,
@@ -597,7 +597,6 @@ func TestStatements(t *testing.T) {
 	var mapRange *ast.ForStmt
 	var emptyFor *ast.ForStmt
 	var matchStmt *ast.MatchExpr
-	var within *ast.WithinStmt
 	ast.Inspect(f, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.IfStmt:
@@ -616,8 +615,6 @@ func TestStatements(t *testing.T) {
 			}
 		case *ast.MatchExpr:
 			matchStmt = n
-		case *ast.WithinStmt:
-			within = n
 		}
 		return true
 	})
@@ -661,13 +658,6 @@ func TestStatements(t *testing.T) {
 	if emptyFor == nil || emptyFor.Body == nil {
 		t.Errorf("infinite for = %+v", emptyFor)
 	}
-	if within == nil {
-		t.Fatal("no within")
-	}
-	if id, ok := within.Duration.(*ast.Ident); !ok || id.Name != "d" {
-		t.Errorf("within duration = %#v", within.Duration)
-	}
-
 	if matchStmt == nil {
 		t.Fatal("no match")
 	}
@@ -720,9 +710,9 @@ const expressionsSrc = "fn e() void! {\n" +
 	"    var fl2 = fn(i: int, j: int) bool { return i < j; };\n" +
 	"    var np = nil[*Node];\n" +
 	"    var o1 = os.Open(\"x\") or fail;\n" +
-	"    var o2 = os.Open(\"x\") or err { return err; };\n" +
-	"    var o3 = os.Open(\"x\") or panic(\"bad\");\n" +
-	"    var o4 = os.Open(\"x\") or panic();\n" +
+	"    var o2 = os.Open(\"x\") on err { return err; };\n" +
+	"    var o3 = os.Open(\"x\") or fail(\"bad\");\n" +
+	"    var o4 = os.Open(\"x\") on err { panic(\"bad\"); };\n" +
 	"    var orAny = a or fail;\n" +
 	"    var u = -a + !b + ^c + ~d + &e + *p;\n" +
 	"    var up = +a;\n" +
@@ -893,7 +883,7 @@ func TestExpressions(t *testing.T) {
 		}
 		return true
 	})
-	if modes[ast.OrFail] != 2 || modes[ast.OrHandle] != 1 || modes[ast.OrPanic] != 2 {
+	if modes[ast.OrFail] != 3 || modes[ast.OrHandle] != 2 || modes[ast.OrPanic] != 0 {
 		t.Errorf("or modes = %+v", modes)
 	}
 	if any := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr); any.Mode != ast.OrFail {
@@ -907,12 +897,12 @@ func TestExpressions(t *testing.T) {
 		t.Errorf("o2 = %+v", handle)
 	}
 	o3 := singleValue(t, findVar(t, f, "o3")).(*ast.OrExpr)
-	if o3.PanicArg == nil {
-		t.Error("o3 panic arg nil")
+	if o3.FailArg == nil {
+		t.Error("o3 fail arg nil")
 	}
 	o4 := singleValue(t, findVar(t, f, "o4")).(*ast.OrExpr)
-	if o4.PanicArg != nil {
-		t.Errorf("o4 panic arg = %#v", o4.PanicArg)
+	if o4.Mode != ast.OrHandle || o4.Block == nil {
+		t.Errorf("o4 = %+v", o4)
 	}
 
 	unaryOps := map[token.Kind]bool{}
@@ -1159,7 +1149,7 @@ fn main() void! {
         fmt.Println(u.Greet()) or fail;
     };
 
-    var data = read("users.txt") or err {
+    var data = read("users.txt") on err {
         fmt.Println("read failed:", err) or fail;
         return err;
     };
@@ -1501,7 +1491,8 @@ func TestGoOnlySyntaxHints(t *testing.T) {
 		{"switch", "fn main() void {\n    switch (x) {\n    };\n};\n", "go-switch", 2, 5},
 		{"package", "package main\n\nfn main() void {\n};\n", "go-package", 1, 1},
 		{"import", "import \"fmt\"\n\nfn main() void {\n};\n", "go-import", 1, 1},
-		{"go", "fn main() void {\n    go f();\n};\n", "go-go", 2, 5},
+		{"par", "fn main() void {\n    par {\n    };\n};\n", "par-removed", 2, 5},
+		{"within", "fn main() void {\n    within 1s {\n    };\n};\n", "within-removed", 2, 5},
 		{"chan", "fn main() void {\n    var c chan i32;\n    _ = c;\n};\n", "go-chan", 2, 11},
 		{"select", "fn main() void {\n    select {\n    };\n};\n", "go-select", 2, 5},
 		{"goto", "fn main() void {\n    goto done;\n};\n", "go-goto", 2, 5},
@@ -1548,5 +1539,33 @@ func TestParseMakePointerTypeArg(t *testing.T) {
 	}
 	if _, ok := call2.TypeArgs[0].(*ast.PointerType); !ok {
 		t.Fatalf("new type arg = %#v", call2.TypeArgs[0])
+	}
+}
+
+func TestRemovedSyntaxRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"or err", "fn main() void {\n    var x = f() or err {\n    };\n};\n", "use 'on err { ... }' instead of 'or err { ... }'"},
+		{"or panic", "fn main() void {\n    var x = f() or panic(\"x\");\n};\n", "or panic was removed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := Parse("removed.ink", []byte(tc.src))
+			if len(errs) == 0 {
+				t.Fatal("expected an error")
+			}
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Msg, tc.want) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("errors = %v, want %q", errs, tc.want)
+			}
+		})
 	}
 }

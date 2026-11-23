@@ -26,30 +26,30 @@ func parOK(t *testing.T, src string) {
 
 func TestParMapWriteRejected(t *testing.T) {
 	cases := map[string]string{
-		"plain par": `fn main() void {
+		"plain go": `fn main() void {
     var m = map[i32, i32] {};
-    par {
+    go {
         m[0] = 1;
     };
 };
 `,
 		"range map": `fn main() void {
     var m = map[i32, i32] { 1 = 1 };
-    par for (var k, v in m) {
+    go for (var k, v in m) {
         m[k] = v;
     };
 };
 `,
 		"c-style": `fn main() void {
     var m = map[i32, i32] {};
-    par for (var i = 0; i < 2; i += 1) {
+    go for (var i = 0; i < 2; i += 1) {
         m[i] = i;
     };
 };
 `,
 		"nested through map": `fn main() void {
     var mm = map[i32, i32[]] {};
-    par for (var i = 0; i < 2; i += 1) {
+    go for (var i = 0; i < 2; i += 1) {
         mm[i][0] = i;
     };
 };
@@ -57,7 +57,7 @@ func TestParMapWriteRejected(t *testing.T) {
 		"disjoint key map": `fn main() void {
     var xs = i32[] {1, 2};
     var out = map[i32, i32] {};
-    par for (var i, x in xs) {
+    go for (var i, x in xs) {
         out[i] = x;
     };
 };
@@ -79,7 +79,7 @@ func TestParPointerWriteRejected(t *testing.T) {
 fn main() void {
     var c = C { n = 0 };
     var p = &c;
-    par {
+    go {
         p.n = 1;
     };
 };
@@ -87,7 +87,7 @@ fn main() void {
 		"deref": `fn main() void {
     var n = 0;
     var p = &n;
-    par {
+    go {
         *p = 2;
     };
 };
@@ -95,7 +95,7 @@ fn main() void {
 		"slot": `fn main() void {
     var xs = i32[2] {};
     var p = &xs;
-    par {
+    go {
         p[0] = 3;
     };
 };
@@ -105,7 +105,7 @@ fn main() void {
 };
 
 fn bump(p: *C) void {
-    par {
+    go {
         p.n = 1;
     };
 };
@@ -118,7 +118,7 @@ fn main() void {
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
-			parWant(t, src, "captured from outside par")
+			parWant(t, src, "captured from outside go")
 		})
 	}
 }
@@ -133,7 +133,7 @@ fn main() void {
     var c = C { n = 0 };
     var p = &c;
     var q = p;
-    par {
+    go {
         q.n = 1;
     };
 };
@@ -145,7 +145,7 @@ fn main() void {
 fn main() void {
     var c = C { n = 0 };
     var p = &c;
-    par {
+    go {
         {
             var q = p;
             q.n = 1;
@@ -160,7 +160,7 @@ fn main() void {
 fn main() void {
     var c = C { n = 0 };
     var p = &c;
-    par {
+    go {
         {
             var q = p;
             var r = q;
@@ -172,7 +172,7 @@ fn main() void {
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
-			parWant(t, src, "captured from outside par")
+			parWant(t, src, "captured from outside go")
 		})
 	}
 }
@@ -190,7 +190,7 @@ func TestParMethodWriteRejected(t *testing.T) {
 fn main() void {
     var c = C { n = 0 };
     var p = &c;
-    par {
+    go {
         p.Bump();
     };
 };
@@ -203,7 +203,7 @@ fn main() void {
     };
 
     fn Run() void {
-        par {
+        go {
             self.Bump();
         };
     };
@@ -217,9 +217,9 @@ fn main() void {
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
-			want := "captured from outside par"
+			want := "captured from outside go"
 			if name == "self" {
-				want = "writing to self inside par"
+				want = "writing to self inside go"
 			}
 			parWant(t, src, want)
 		})
@@ -230,7 +230,7 @@ func TestParSharedSliceRejected(t *testing.T) {
 	cases := map[string]string{
 		"two slots": `fn main() void {
     var out = i32[2] {};
-    par {
+    go {
         out[0] = 1;
         out[1] = 2;
     };
@@ -239,7 +239,7 @@ func TestParSharedSliceRejected(t *testing.T) {
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
-			parWant(t, src, "captured from outside par")
+			parWant(t, src, "captured from outside go")
 		})
 	}
 }
@@ -253,7 +253,7 @@ func TestParReadWriteRejected(t *testing.T) {
 fn main() void {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = id(1);
         b = a + 1;
     };
@@ -266,7 +266,7 @@ fn main() void {
 fn main() void {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = id(1);
         b = id(a);
     };
@@ -279,7 +279,7 @@ fn main() void {
 fn main() void {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = id(1);
         if (a > 0) {
             b = 2;
@@ -294,7 +294,7 @@ fn main() void {
 fn main() void {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = id(1);
         for (var k = 0; k < a; k += 1) {
             b += k;
@@ -305,7 +305,7 @@ fn main() void {
 		"slot written and read": `fn main() void {
     var out = i32[2] {};
     var n = 0;
-    par {
+    go {
         out[0] = 1;
         n = out[1];
     };
@@ -314,7 +314,7 @@ fn main() void {
 	}
 	for name, src := range cases {
 		t.Run(name, func(t *testing.T) {
-			parWant(t, src, "read by another par statement")
+			parWant(t, src, "read by another go statement")
 		})
 	}
 }
@@ -328,7 +328,7 @@ func TestParWriteSetsAllowed(t *testing.T) {
 fn main() void {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = id(1);
         b = id(2);
     };
@@ -338,7 +338,7 @@ fn main() void {
     var a = 1;
     var b = 0;
     var c = 0;
-    par {
+    go {
         b = a + 1;
         c = a + 2;
     };
@@ -350,21 +350,21 @@ fn main() void {
 
 fn main() void {
     var a = 0;
-    par {
+    go {
         a = id(1);
     };
 };
 `,
 		"single statement reads and writes": `fn main() void {
     var a = 0;
-    par {
+    go {
         a += 1;
     };
 };
 `,
 		"single slice slot": `fn main() void {
     var out = i32[1] {};
-    par {
+    go {
         out[0] = 1;
     };
 };
@@ -379,7 +379,7 @@ fn main() void {
 
 fn main() void {
     var c = C { n = 0 };
-    par {
+    go {
         c.Bump();
     };
 };
@@ -391,7 +391,7 @@ fn main() void {
 fn main() void {
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
-    par for (var i, x in xs) {
+    go for (var i, x in xs) {
         out[i] = id(x);
     };
 };
@@ -400,47 +400,8 @@ fn main() void {
     var m = map[i32, i32] { 1 = 2, 2 = 3 };
     var ks = i32[] {1, 2};
     var out = i32[4] {};
-    par for (var i, k in ks) {
+    go for (var i, k in ks) {
         out[i] = m[k];
-    };
-};
-`,
-	}
-	for name, src := range cases {
-		t.Run(name, func(t *testing.T) {
-			parOK(t, src)
-		})
-	}
-}
-
-func TestParAllowsWithin(t *testing.T) {
-	cases := map[string]string{
-		"par": `fn main() void {
-    var a = 0;
-    par {
-        within 5s {
-            a = 1;
-        };
-    };
-};
-`,
-		"par for": `fn main() void {
-    var out = i32[2] {};
-    par for (var i = 0; i < 2; i += 1) {
-        within 5s {
-            out[i] = i;
-        };
-    };
-};
-`,
-		"nested within": `fn main() void {
-    var a = 0;
-    par {
-        within 5s {
-            within 1s {
-                a = 1;
-            };
-        };
     };
 };
 `,
@@ -454,27 +415,27 @@ func TestParAllowsWithin(t *testing.T) {
 
 func TestParAllowsDefer(t *testing.T) {
 	cases := map[string]string{
-		"par": `fn note() void {
+		"go": `fn note() void {
 };
 
 fn main() void {
-    par {
+    go {
         defer note();
         note();
     };
 };
 `,
-		"par for": `fn note() void {
+		"go for": `fn note() void {
 };
 
 fn main() void {
-    par for (var i = 0; i < 2; i += 1) {
+    go for (var i = 0; i < 2; i += 1) {
         defer note();
         note();
     };
 };
 `,
-		"with within and or fail": `fn note() void {
+		"with defer and or fail": `fn note() void {
 };
 
 fn load() i32! {
@@ -483,57 +444,11 @@ fn load() i32! {
 
 fn main() void! {
     var a = 0;
-    par {
+    go {
         defer note();
-        within 5s {
-            defer note();
-            a = load() or fail;
-        };
+        a = load() or fail;
     };
     a += 1;
-};
-`,
-	}
-	for name, src := range cases {
-		t.Run(name, func(t *testing.T) {
-			parOK(t, src)
-		})
-	}
-}
-
-func TestParAllowsOrPanic(t *testing.T) {
-	cases := map[string]string{
-		"message": `fn load() i32! {
-    return 1;
-};
-
-fn main() void {
-    var a = 0;
-    par {
-        a = load() or panic("boom");
-    };
-};
-`,
-		"error value": `fn load() i32! {
-    return 1;
-};
-
-fn main() void {
-    var a = 0;
-    par {
-        a = load() or panic();
-    };
-};
-`,
-		"par for": `fn load() i32! {
-    return 1;
-};
-
-fn main() void {
-    var out = i32[2] {};
-    par for (var i = 0; i < 2; i += 1) {
-        out[i] = load() or panic("boom");
-    };
 };
 `,
 	}
@@ -548,49 +463,49 @@ func TestParForCstyleIterVar(t *testing.T) {
 	parOK(t, `fn main() void {
     var out = i32[4] {};
     var i = 0;
-    par for (i = 0; i < 4; i += 1) {
+    go for (i = 0; i < 4; i += 1) {
         out[i] = i * 2;
     };
 };
 `)
 	parWant(t, `fn main() void {
     var i = 0;
-    par for (i = 0; i < 4; i += 1) {
+    go for (i = 0; i < 4; i += 1) {
         i = i + 1;
     };
 };
-`, "captured from outside par")
+`, "captured from outside go")
 }
 
 func TestParBoundaryStillRejected(t *testing.T) {
 	parWant(t, `fn main() void {
-    par {
+    go {
         return;
     };
 };
-`, "cannot leave a par block")
+`, "cannot leave a go block")
 	parWant(t, `fn main() void {
     var out = i32[2] {};
-    par for (var i = 0; i < 2; i += 1) {
+    go for (var i = 0; i < 2; i += 1) {
         out[i] = i;
         break;
     };
 };
-`, "break cannot leave a par block")
+`, "break cannot leave a go block")
 	parWant(t, `fn main() void {
     var out = i32[2] {};
-    par for (var i = 0; i < 2; i += 1) {
+    go for (var i = 0; i < 2; i += 1) {
         out[i] = i;
         continue;
     };
 };
-`, "continue cannot leave a par block")
+`, "continue cannot leave a go block")
 }
 
 func TestParBreakContinueNestedLoopAllowed(t *testing.T) {
 	cases := map[string]string{
-		"par block": `fn main() void {
-    par {
+		"go block": `fn main() void {
+    go {
         for (var i = 0; i < 4; i += 1) {
             if (i == 2) {
                 break;
@@ -602,8 +517,8 @@ func TestParBreakContinueNestedLoopAllowed(t *testing.T) {
     };
 };
 `,
-		"par for": `fn main() void {
-    par for (var i = 0; i < 4; i += 1) {
+		"go for": `fn main() void {
+    go for (var i = 0; i < 4; i += 1) {
         for (var j = 0; j < 4; j += 1) {
             if (j == 2) {
                 break;
@@ -615,9 +530,9 @@ func TestParBreakContinueNestedLoopAllowed(t *testing.T) {
     };
 };
 `,
-		"loop around par": `fn main() void {
+		"loop around go": `fn main() void {
     for (var i = 0; i < 2; i += 1) {
-        par {
+        go {
             for (var j = 0; j < 4; j += 1) {
                 if (j == 2) {
                     break;
@@ -630,9 +545,9 @@ func TestParBreakContinueNestedLoopAllowed(t *testing.T) {
     };
 };
 `,
-		"par for inside loop": `fn main() void {
+		"go for inside loop": `fn main() void {
     for (var i = 0; i < 2; i += 1) {
-        par for (var j = 0; j < 4; j += 1) {
+        go for (var j = 0; j < 4; j += 1) {
             for (var k = 0; k < 4; k += 1) {
                 if (k == 2) {
                     break;
@@ -660,62 +575,62 @@ func TestParBreakContinueCrossingRejected(t *testing.T) {
 		want string
 	}{
 		{
-			name: "plain par break",
+			name: "plain go break",
 			src: `fn main() void {
-    par {
+    go {
         break;
     };
 };
 `,
-			want: "break cannot leave a par block",
+			want: "break cannot leave a go block",
 		},
 		{
-			name: "plain par continue",
+			name: "plain go continue",
 			src: `fn main() void {
-    par {
+    go {
         continue;
     };
 };
 `,
-			want: "continue cannot leave a par block",
+			want: "continue cannot leave a go block",
 		},
 		{
-			name: "loop break out of par",
+			name: "loop break out of go",
 			src: `fn main() void {
     for (var i = 0; i < 2; i += 1) {
-        par {
+        go {
             break;
         };
     };
 };
 `,
-			want: "break cannot leave a par block",
+			want: "break cannot leave a go block",
 		},
 		{
-			name: "loop continue out of par",
+			name: "loop continue out of go",
 			src: `fn main() void {
     for (var i = 0; i < 2; i += 1) {
-        par {
+        go {
             continue;
         };
     };
 };
 `,
-			want: "continue cannot leave a par block",
+			want: "continue cannot leave a go block",
 		},
 		{
-			name: "break out of nested par",
+			name: "break out of nested go",
 			src: `fn main() void {
-    par {
+    go {
         for (var i = 0; i < 2; i += 1) {
-            par {
+            go {
                 break;
             };
         };
     };
 };
 `,
-			want: "break cannot leave a par block",
+			want: "break cannot leave a go block",
 		},
 	}
 	for _, tc := range cases {

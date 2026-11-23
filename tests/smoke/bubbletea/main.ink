@@ -17,8 +17,8 @@ type Model struct {
             };
             else => {};
         };
-        par {
-            fmt.Println("update");
+        go {
+            _, _ = fmt.Println("update");
         };
         return self, nil;
     };

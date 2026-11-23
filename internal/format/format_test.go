@@ -59,11 +59,11 @@ fn main() void! {
     for (var i = 0; i < 10; i += 1) {
         if (i % 2 == 0) { continue; };
     };
-    par {
+    go {
         fmt.Println("a") or fail;
         fmt.Println("b") or fail;
     };
-    within 10s {
+    {
         fmt.Println("c") or fail;
     };
     var xs = u8[] {1, 2};
@@ -436,11 +436,11 @@ fn main() void {
 func TestEmptyForLoop(t *testing.T) {
 	src := `fn main() void {
     for (; ; ) {};
-    par for (;;) limit 2 {};
+    go for (;;) limit 2 {};
 };
 `
 	out := formatSrc(t, src)
-	for _, want := range []string{"for () {}", "par for () limit 2 {}"} {
+	for _, want := range []string{"for () {}", "go for () limit 2 {}"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q:\n%s", want, out)
 		}

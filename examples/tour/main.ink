@@ -130,21 +130,21 @@ fn applyPair(f: PairFn, n: i32) str, bool {
 
 // `defer` is block-scoped: this runs at the end of the `if` block.
 fn deferPrint() void {
-    fmt.Println("defer: block exit");
+    _, _ = fmt.Println("defer: block exit");
 };
 
 fn deferDemo() void {
     if (true) {
         defer deferPrint();
-        fmt.Println("defer: inside block");
+        _, _ = fmt.Println("defer: inside block");
     };
-    fmt.Println("defer: after block");
+    _, _ = fmt.Println("defer: after block");
 };
 
 fn handleDemo() i32 {
     var v = mayFail(false)
-        or err {
-            fmt.Println("or err: handled", err);
+        on err {
+            _, _ = fmt.Println("on err: handled", err);
             return -1;
         };
     return v;
@@ -152,7 +152,9 @@ fn handleDemo() i32 {
 
 fn panicDemo() i32 {
     var v = mayFail(true)
-        or panic("unreachable");
+        on err {
+            panic("unreachable");
+        };
     return v;
 };
 
@@ -290,10 +292,10 @@ fn main() void! {
     fmt.Println(panicked)
         or fail;
 
-    // `or err` handles the error here and keeps the previous value.
+    // `on err` handles the error here and keeps the previous value.
     var fallback = i32(0);
     fallback = mayFail(false)
-        or err {
+        on err {
             fmt.Println("fallback", err)
                 or fail;
         };
@@ -404,10 +406,10 @@ fn main() void! {
     fmt.Println(nums)
         or fail;
 
-    // par: each top-level statement is a worker.
+    // go: each top-level statement is a worker.
     var left = i32(0);
     var right = i32(0);
-    par {
+    go {
         left = mayFail(true)
             or fail;
         right = mayFail(true)
@@ -416,19 +418,19 @@ fn main() void! {
     fmt.Println(left, right)
         or fail;
 
-    // par for: disjoint slots, explicit limit.
+    // go for: disjoint slots, explicit limit.
     var out = i32[4] {};
-    par for (var i, x in i32[] { 1, 2, 3, 4 }) limit 2 {
+    go for (var i, x in i32[] { 1, 2, 3, 4 }) limit 2 {
         out[i] = x * 2;
     };
     fmt.Println(out)
         or fail;
 
-    // within: deadline around a block.
-    within 10ms {
+    // A nested block scopes its own defer and locals.
+    {
         var w = mayFail(true)
             or fail;
-        fmt.Println("within", w)
+        fmt.Println("scope", w)
             or fail;
     };
 

@@ -158,8 +158,8 @@ fn read(path: str) str! {
 };
 
 fn main() void! {
-    var s = read("x") or err {
-        fmt.Println("failed", err) or panic("output");
+    var s = read("x") on err {
+        fmt.Println("failed", err) or fail("output");
         return err;
     };
     fmt.Println(s) or fail;
@@ -228,18 +228,16 @@ func TestPar(t *testing.T) {
 fn main() void! {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = load(1) or fail;
         b = load(2) or fail;
     };
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
-    par for (var i = 0; i < 3; i += 1) limit 2 {
+    go for (var i = 0; i < 3; i += 1) limit 2 {
         out[i] = xs[i];
     };
-    within 10s {
-        a = load(3) or fail;
-    };
+    a = load(3) or fail;
 };
 `})
 	noErrors(t, p)
@@ -264,12 +262,12 @@ fn main() void {
 func TestParWriteRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void {
     var total = 0;
-    par for (var i = 0; i < 4; i += 1) {
+    go for (var i = 0; i < 4; i += 1) {
         total += i;
     };
 };
 `})
 	if len(p.Errors) == 0 {
-		t.Fatal("expected a par write error")
+		t.Fatal("expected a go write error")
 	}
 }

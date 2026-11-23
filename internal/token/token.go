@@ -79,6 +79,8 @@ const (
 	Match
 	Case
 	Par
+	Go
+	On
 	Within
 	Arena
 	Limit
@@ -166,6 +168,8 @@ var names = map[Kind]string{
 	Match:         "match",
 	Case:          "case",
 	Par:           "par",
+	Go:            "go",
+	On:            "on",
 	Within:        "within",
 	Arena:         "arena",
 	Limit:         "limit",

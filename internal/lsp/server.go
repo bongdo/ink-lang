@@ -75,8 +75,8 @@ var builtinFuncs = []string{
 
 var keywords = []string{
 	"use", "as", "fn", "type", "struct", "enum", "interface", "var", "const",
-	"return", "if", "else", "for", "in", "match", "case", "par", "within",
-	"limit", "defer", "break", "continue", "or", "test", "true", "false", "nil", "map",
+	"return", "if", "else", "for", "in", "match", "case", "go", "on",
+	"limit", "defer", "break", "continue", "or", "fail", "arena", "test", "true", "false", "nil", "map",
 }
 
 type document struct {

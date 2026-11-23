@@ -70,12 +70,19 @@ fn pair() i32, bool { return 1, true; };
   A versioned path (`/v2`) requires an alias. No quotes.
 - `T!` marks a fallible result. `void!` may fail with no value. Multi-result:
   `(A, B)!`.
-- Handlers: `or fail;`, `or fail("context");`, `or err { ... };`,
-  `or panic("msg");`. `or` always starts a new line, indented once.
-- The handler name is always `err`. Inside it, `fail(err, "context");` wraps and
-  returns. Manual `if err != nil { return err; }` propagation is rejected.
+- Handlers: `or fail;`, `or fail("context");`, `expr on err { ... };`.
+  `or` always starts a new line, indented once.
+- `on err { ... };` as the first statement of a function or block is a scope
+  listener for unhandled `go` errors. It must be non-empty and cannot use
+  `fail` or `return`.
+- The handler error is always `err`. Inside it, `fail(err, "context");` wraps
+  and returns. Manual `if err != nil { return err; }` propagation is rejected.
 - A fresh error is `fail(error("msg"));`. `fail("msg")` is only the
   shorthand after `or`; it wraps the call error, it does not create one.
+- A fallible call as a bare statement (`f();`) is a compile error. Use
+  `f() on err { ... };` or `f() or fail;`; `_ = f();` discards deliberately.
+  The rule also applies inside `go` bodies.
+- `panic(...)` is Go's panic: not caught by `on err`, not recovered by `go`.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.
@@ -101,25 +108,40 @@ fn pair() i32, bool { return 1, true; };
   when it is inside one. Every execution starts zeroed. Arena memory
   never leaves the block: no assignment to a captured variable, no return, no
   `&T{}`, no call argument or receiver. Read fields and indices, copy structs
-  and arrays that hold no references, and `copy` bytes out. `par` is allowed;
-  `new`/`make` must run before `par`, a worker may write `rows[y]` and open its
+  and arrays that hold no references, and `copy` bytes out. `go` is allowed;
+  `new`/`make` must run before `go`, a worker may write `rows[y]` and open its
   own `arena { ... };`.
 - `//` comments only; `void` is a result only.
 
 ## Concurrency
 
 ```hare
-par {
+go {
     a = loadA()
         or fail;
 };
-par for (var i = 0; i < len(xs); i += 1) limit 8 { ... };
-within 30s { ... };
+go for (var i = 0; i < len(xs); i += 1) limit 8 { ... };
+go save(1, "hello");            // detached, program-owned
 ```
 
-- `par` runs top-level statements as workers; nested blocks are sequential.
-- Maps: no range in `par for`, no writes in `par`. Collect keys, write locally.
-- Hidden context stops at package and function-value boundaries.
+- `go { }` runs top-level statements as workers and joins at the block.
+  Nested blocks are sequential inside one worker.
+- `go for` runs iterations as workers; `limit N` is optional (default
+  `GOMAXPROCS`); the body is sequential inside one worker.
+- `go f(args);` starts a detached task; `f` returns `void` or `void!`.
+  Arguments and the receiver are evaluated first and there is no closure; the
+  task is owned by the program and may outlive the caller. A method call on a
+  value takes its address, so the task shares that variable.
+- `on err { ... };` first in a function or block listens for unhandled errors
+  of `go` constructs. A scope listener cannot be empty or use `fail`/`return`;
+  log, record or `panic`. An inline `expr on err { ... };` handles one
+  expression, may fall through, and leaves the value at its zero value; it may
+  `fail`, `return` or `panic`.
+- Maps: no range in `go for`, no writes in `go`. Collect keys, write locally.
+- No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
+  APIs that need it. `go` never creates or cancels a context.
+- Panics are Go panics: `on err` does not catch them and `go` does not recover
+  them; the process exits with status 2.
 - Checks are static (aliases, escapes, literals); `ink run -race` and
   `ink test -race` are the dynamic oracle.
 
@@ -134,11 +156,14 @@ within 30s { ... };
 | `import-alias` | add `as name` to a versioned import (`/v2`, `/v3`) |
 | `err-manual` | replace manual propagation with `or fail` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
-| `par-map-write` | write to a local slice, merge after the `par` |
-| `par-map-range` | collect keys into a slice, then `par for` the slice |
-| `par-capture-write` | copy the value locally and collect the result |
-| `par-break` | return a value or set a local flag |
-| `par-loop` | replace `for ()` with a bounded loop |
+| `par-removed` | write `go { ... };` |
+| `within-removed` | use `context.WithTimeout` and pass `ctx` explicitly |
+| `or-panic` | use `on err { panic(...) }` or `or fail` |
+| `go-map-write` | write to a local slice, merge after the `go` |
+| `go-map-range` | collect keys into a slice, then `go for` the slice |
+| `go-capture-write` | copy the value locally and collect the result |
+| `go-break` | return a value or set a local flag |
+| `go-loop` | replace `for ()` with a bounded loop |
 | `comment-block` | use `//`; block comments are rejected |
 | `void-value` | return or store a value; `void` is a result only |
 | `missing-return` | end every path with `return;` |

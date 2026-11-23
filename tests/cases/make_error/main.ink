@@ -25,7 +25,7 @@ fn main() void! {
     fmt.Println(xs[0], mkPoint().X)
         or fail;
     bad()
-        or err {
+        on err {
             fmt.Println(err)
                 or fail;
         };

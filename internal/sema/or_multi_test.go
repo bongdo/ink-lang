@@ -17,28 +17,28 @@ fn pass(n: i32) i32, bool! {
 };
 
 fn handle(n: i32) i32, bool! {
-    return pair(n) or err {
+    return pair(n) on err {
         return 0, false;
     };
 };
 
-fn must(n: i32) i32, bool {
-    return pair(n) or panic("bad");
+fn must(n: i32) i32, bool! {
+    return pair(n) or fail("bad");
 };
 
 fn main() void! {
     var a, b = pair(1) or fail;
     a, b = pair(2) or fail;
     pair(3) or fail;
-    var c, d = pair(4) or err {
+    var c, d = pair(4) on err {
         return;
     };
-    var e, f = pair(5) or panic("bad");
+    var e, f = pair(5) or fail("bad");
     var g, h, err = pair(6);
     assert(err == nil);
     var i, j = pass(7) or fail;
     var k, l = handle(8) or fail;
-    var m, n = must(9);
+    var m, n = must(9) or fail;
     _ = a + c + e + g + i + k + m;
     _ = b;
     _ = d;
@@ -90,9 +90,9 @@ fn pair() i32, bool! {
     return 1, true, nil[error];
 };
 
-fn main() void {
-    var a = plain() or panic("x");
-    var b, c = pair() or panic("x");
+fn main() void! {
+    var a = plain() or fail("x");
+    var b, c = pair() or fail("x");
 };
 `})
 	if !hasError(p, "call does not return an error") {

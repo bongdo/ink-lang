@@ -99,10 +99,11 @@ Sema fills:
 - `ast.NamedType.Decl/Variant/GoName/PkgAlias`
 - `ast.CompositeLit.Variant`, `CompositeEntry.Field`
 - `ast.CallExpr.Info` (including `ResultTypes`)
-- `ast.FuncLit.ParamTypes`, `NeedsCtx`, `GoCallback`
-- `ast.FuncDecl.Results`, `NeedsCtx`, `GoName`
-- `ast.IFaceMethod.Results`, `NeedsCtx`
-- `ast.FuncType.Results`, `NeedsCtx`
+- `ast.FuncLit.ParamTypes`
+- `ast.FuncDecl.Results`, `GoName`
+- `ast.IFaceMethod.Results`
+- `ast.FuncType.Results`
+- `ast.GoCallStmt.Call`, `ast.OnErrStmt.Body`
 - `ast.MatchExpr.ResultType`, `IsExpr`, `SubjectType`, `TypeSwitch`
 - `ast.Case.Pat.Variant`, `FieldDecls`, `Default`
 - `ast.Pattern.TypePat`, `Bind`
@@ -121,8 +122,12 @@ Sema rules added with the canonical surface:
 - `void` is accepted only as a function result. `rejectVoid` rejects it in
   variables, fields, parameters, arguments, returns with values and composite
   elements.
-- `par for` over a map is rejected; `for ()` is rejected in a `par`/`par for`
+- `go for` over a map is rejected; `for ()` is rejected in a `go`/`go for`
   body. Function literals remain outside the static analysis.
+- A fallible call as a bare expression statement is rejected; `_ = f();` is
+  the explicit discard.
+- `on err { }` at the start of a block is a scope listener: non-empty, no
+  `fail`/`return` inside. An inline `expr on err { ... }` is a local handler.
 
 Sema also checks interface conformance (`internal/sema/iface.go`): method sets
 for local structs, local interfaces and Go types, compared at assignments,
@@ -231,7 +236,7 @@ High-level operations used by the CLI. The driver owns `go.mod`,
   package name.
 - Imports are merged per package; conflicting aliases are a sema error.
 - Generated support package: `<module>/.ink/runtime`, imported only when
-  needed (defer stack, asserts, `has`, par helpers).
+  needed (defer stack, asserts, `has`, `ParErrors`).
 
 ### Main wrapper
 
@@ -239,7 +244,7 @@ High-level operations used by the CLI. The driver owns `go.mod`,
 
 ```go
 func main() {
-    if err := _s_main(context.Background()); err != nil {
+    if err := _s_main(); err != nil {
         fmt.Fprintln(os.Stderr, err)
         os.Exit(1)
     }
@@ -247,27 +252,16 @@ func main() {
 ```
 
 The real body is named `_s_main` when a wrapper is needed. A `void` main gets
-a plain wrapper. If `main` does not need a context, no context is passed.
+a plain wrapper.
 
-### Hidden context
+### Context
 
-- A function with `FuncDecl.NeedsCtx` is emitted as two Go functions:
-  - public `Name(...)` with the exact source signature;
-  - internal `_s_Name_ctx(_s_ctx, ...)` (or `_s_Type_Name_ctx`) with the body.
-- The public wrapper calls the internal function with
-  `context.Background()`. Direct Ink calls inside `par`/`within` call the
-  internal function with the current `_s_ctx`.
-- Methods follow the same rule: the public method keeps the Go interface
-  signature, the internal free function holds the body.
-- A call to a foreign package or through a function value uses the public
-  wrapper; a deadline does not cross that boundary.
-- Calls to Go functions whose first parameter is `context.Context` insert
-  `_s_ctx` and `CallInfo.NeedsCtx` is true.
-- `ParStmt`, `par for` with fallible bodies, and `WithinStmt` need a context.
-- A function literal passed to Go that needs a context gets
-  `context.Background()` and is marked `GoCallback`; it can use `par` without
-  inventing a parameter.
-- `main` starts with `context.Background()`.
+- `context.Context` is an ordinary Ink parameter and maps to Go
+  `context.Context` 1:1, in any position.
+- There is no `NeedsCtx`, no `_s_Name_ctx` twin and no public wrapper.
+- `main` starts without a context; a handler that needs one derives it with
+  `context.WithTimeout` and passes it explicitly.
+- `go` creates no context and does not observe cancellation.
 
 ### `defer`
 
@@ -284,21 +278,22 @@ defer _s_d.RunTo(0)
 - At normal block exit: `_s_d.RunTo(_s_mark)`.
 - On `return`: `_s_d.RunTo(0)` before the return.
 - On `break`/`continue`: run to the mark of the loop body being left.
-- On `or fail` / `or panic`: same as return/panic.
-- `within` pushes `cancel` onto the same stack.
-- Each `par`/`par for` worker declares its own `_s_d` inside the goroutine and
+- On `or fail`: same as return/panic.
+- Each `go`/`go for` worker declares its own `_s_d` inside the goroutine and
   runs `RunTo(0)` at worker exit. It never touches the enclosing function's
   stack.
 
-### Errors (`or`)
+### Errors (`or`, `on err`)
 
 - `var x = f() or fail;` → `_s_v, _s_err := f(); if _s_err != nil { cleanup; return zero, _s_err }; x := _s_v`
 - For a `void!` function: `return _s_err`.
 - For `T!`: zero value `*new(T)`; a nil result uses `(T)(nil)`.
 - Multiple non-error results: `return a, b, nil`; `return a, b` appends nil;
   `return f()` is a raw pass-through when the arities match.
-- `or err { ... }` → `_s_v, _s_err := f(); if _s_err != nil { err := _s_err; ... }`.
-- `or panic("msg")` → `if _s_err != nil { panic("msg") }`.
+- `expr on err { ... }` → `_s_v, _s_err := f(); if _s_err != nil { err := _s_err; ... }`.
+- A scope listener emits `_s_onerr := func(err error) { ... }` at block entry;
+  `go` joins and detached calls use it. A handler that falls through leaves
+  the bound value at its zero value.
 - Direct call with no assignment and only an error result:
   `if _s_err := f(); _s_err != nil { ... }`.
 - `CallInfo.Results`, `ResultTypes` and `HasError` drive the shape.
@@ -346,59 +341,46 @@ func (ShapeRect) _s_shape() {}
   `break`/`continue`; the statement is emitted as `break _s_loop` or
   `continue _s_loop`. Plain `break` outside a match stays unlabeled.
 
-### `par`
+### `go`
 
 ```go
 var _s_wg sync.WaitGroup
 var _s_pe _s_rt.ParErrors
-_s_ctx, _s_cancel := context.WithCancel(_s_ctx)
 _s_wg.Add(N)
 go func() {
     defer _s_wg.Done()
-    defer func() {
-        if r := recover(); r != nil {
-            _s_pe.Add(ord, _s_rt.NewPanicError(r))
-            _s_cancel()
-        }
-    }()
     var _s_d _s_rt.DeferStack
     defer _s_d.RunTo(0)
     ...
 }()
 _s_wg.Wait()
 if _s_err := _s_pe.First(); _s_err != nil {
-    _s_cancel()
-    return zero, _s_err
+    _s_onerr(_s_err)        // or return zero, _s_err
 }
-_s_cancel()
 ```
 
 - Each top-level statement is its own goroutine and its own scope; `ord` is
   its index. A local declared in one worker is not visible in another.
-- A cancelable context is created even when the body cannot fail statically: a
-  panic in a callee must still cancel the siblings; it is cancelled at block
-  exit.
+- No cancelable context is created and no recovery boundary is installed.
+  Workers run to completion; a panic is a Go panic and aborts the process.
 - Each goroutine has its own `DeferStack` and runs it to zero at worker exit,
-  before reporting an error or panic.
-- `or fail` / `or panic` drain the worker's `DeferStack` first, then add at
-  the worker's ord, cancel and return from the goroutine. `or panic` adds an
-  error (`AsError`), not a Go panic; a panic in a deferred call wins.
-- A recovered panic is added as `*PanicError`; `Wait` completes, then
-  `First()` decides.
-- An error-returning function returns the winner; a `void` function re-panics
-  it at the `par` statement.
-- Writes to globals are rejected in both `par` and `par for`: a global is
+  before reporting an error.
+- `or fail` drains the worker's `DeferStack` first, then adds at the worker's
+  ord and returns from the goroutine.
+- At the join, the winner goes to the block's `_s_onerr` if present; otherwise
+  an error-returning function returns it. A `void` function without a listener
+  and a fallible branch is a sema error.
+- Writes to globals are rejected in both `go` and `go for`: a global is
   shared with the whole program, not only with the other workers.
 
-### `par for`
+### `go for`
 
 - Sema has already rejected `return`/`break`/`continue` that leave the body,
   a map range, and `for ()` in the body.
 - `limit N` default `runtime.GOMAXPROCS(0)`.
-- Each iteration runs in its own goroutine with its own `DeferStack` and the
-  same recovery boundary as `par`.
+- Each iteration runs in its own goroutine with its own `DeferStack`.
 - Iteration variables are captured per iteration. A C-style init with
-  assignment (`par for (i = 0; ...)`) captures `_s_iN := i` per iteration and
+  assignment (`go for (i = 0; ...)`) captures `_s_iN := i` per iteration and
   rewrites body references to the copy; the condition and post use the outer
   variable. A direct write to `i` in the body is rejected.
 - Errors are stored by iteration ordinal; lowest index wins.
@@ -407,17 +389,21 @@ _s_cancel()
   The runtime keeps the `-1` path (first-completed wins, after all
   non-negative indexes) for compatibility.
 
-### `within`
+### `go f(args)`
 
 ```go
-_s_ctx2, _s_cancel := context.WithTimeout(_s_ctx, d)
-_s_d.Push(_s_cancel)
+_a1 := arg1
+go func() {
+    if _s_err := f(_a1); _s_err != nil {
+        _s_onerr(_s_err)
+    }
+}()
 ```
 
-The block's calls use `_s_ctx2`; the mark/run mechanism cancels at exit. Inside
-a worker `_s_ctx` is the `par` cancel context and `_s_d` is the worker's stack,
-so one worker's deadline does not change a sibling's context; cancelling the
-shared `par` context still cancels every worker's `within`.
+- Arguments are evaluated into temps before the goroutine starts; the call
+  returns immediately.
+- With no listener the error is `panic(_s_err)` inside the task goroutine.
+- There is no wait and no handle: the task is owned by the program.
 
 ### Tests
 
@@ -446,14 +432,6 @@ func (d *DeferStack) RunTo(mark int)
 func Assert(ok bool, pos string)
 func AssertEq[T comparable](got, want T, pos string)
 func Has[K comparable, V any](m map[K]V, k K) bool
-
-type PanicError struct {
-    Value any
-    Stack []byte
-}
-func NewPanicError(v any) *PanicError
-func (e *PanicError) Error() string
-func AsError(v any) error
 
 type ParErrors struct{ ... }
 func (p *ParErrors) Add(index int, err error)

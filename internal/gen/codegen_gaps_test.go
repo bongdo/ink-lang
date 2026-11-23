@@ -70,30 +70,23 @@ fn viaEnumMatch(e: E) i32 {
     };
 };
 
-fn viaWithin() i32 {
-    within 1s {
-        return 9;
-    };
-};
-
 fn main() void {
     var fall = fn(n: i32) i32 {
         if (n > 0) {
             return 1;
         };
     };
-    fmt.Println(viaReturn()) or panic();
-    fmt.Println(viaIfElse(1)) or panic();
-    fmt.Println(viaFor()) or panic();
-    fmt.Println(viaTypeMatch(i32(1))) or panic();
-    fmt.Println(viaEnumMatch(E.A)) or panic();
-    fmt.Println(viaWithin()) or panic();
-    fmt.Println(fall(0)) or panic();
+    fmt.Println(viaReturn()) on err { panic("print"); };
+    fmt.Println(viaIfElse(1)) on err { panic("print"); };
+    fmt.Println(viaFor()) on err { panic("print"); };
+    fmt.Println(viaTypeMatch(i32(1))) on err { panic("print"); };
+    fmt.Println(viaEnumMatch(E.A)) on err { panic("print"); };
+    fmt.Println(fall(0)) on err { panic("print"); };
 };
 `,
 	})
 	src := p.source(t, "zz_ink.go")
-	for _, name := range []string{"viaReturn", "viaIfElse", "viaFor", "viaTypeMatch", "viaEnumMatch", "viaWithin"} {
+	for _, name := range []string{"viaReturn", "viaIfElse", "viaFor", "viaTypeMatch", "viaEnumMatch"} {
 		if body := functionBody(t, src, name); strings.HasSuffix(body, "\n\t"+`panic("unreachable")`) {
 			t.Errorf("%s always returns but keeps a trailing panic:\n%s", name, body)
 		}
@@ -114,7 +107,7 @@ fn main() void {
 	if !strings.Contains(stderr, "panic: unreachable") {
 		t.Fatalf("expected panic: unreachable, stderr:\n%s", stderr)
 	}
-	expect(t, stdout, "1\n2\n4\n5\n7\n9\n")
+	expect(t, stdout, "1\n2\n4\n5\n7\n")
 }
 
 func TestStdImportAliasReused(t *testing.T) {
@@ -123,20 +116,19 @@ func TestStdImportAliasReused(t *testing.T) {
 use context;
 
 fn main() void! {
-    var ctx, cancel = context.WithCancel();
+    var ctx, cancel = context.WithCancel(context.Background());
     defer cancel();
     if (ctx != nil[context.Context]) {
         fmt.Println("hello") or fail;
     };
-    within 1s {
-        fmt.Println("within") or fail;
+    {
+        fmt.Println("block") or fail;
     };
 };
 `,
 	})
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "context.WithCancel(")
-	contains(t, src, "context.WithTimeout(")
 	contains(t, src, "fmt.Fprintln(")
 	if n := strings.Count(src, `"fmt"`); n != 1 {
 		t.Fatalf("fmt imported %d times:\n%s", n, src)
@@ -151,7 +143,7 @@ fn main() void! {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
-	expect(t, stdout, "hello\nwithin\n")
+	expect(t, stdout, "hello\nblock\n")
 }
 
 func TestStdImportAliasFollowsUser(t *testing.T) {
@@ -188,7 +180,7 @@ use crypto/sha256;
 fn main() void {
     var key = bytes("k");
     var mac = hmac.New(fn() => sha256.New(), key);
-    fmt.Println(len(mac.Sum(nil))) or panic();
+    fmt.Println(len(mac.Sum(nil))) on err { panic("print"); };
 };
 `,
 	})

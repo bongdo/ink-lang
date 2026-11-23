@@ -67,48 +67,48 @@ fn manualPropagation() i32! {
     return v;
 };
 
-// 6. A map write inside par is always rejected (G5).
-//    Expected: writing to map m inside par.
+// 6. A map write inside go is always rejected (G5).
+//    Expected: writing to map m inside go.
 fn mapParWrite() void {
     var m = map[i32, i32] {};
-    par for (var i = 0; i < 3; i += 1) {
+    go for (var i = 0; i < 3; i += 1) {
         m[i] = i;
     };
 };
 
-// 7. par for cannot iterate a map; collect keys into a slice first.
-//    Expected: map iteration is not allowed in par for; collect keys into a slice first.
-fn parForMap() void {
+// 7. go for cannot iterate a map; collect keys into a slice first.
+//    Expected: map iteration is not allowed in go for; collect keys into a slice first.
+fn goForMap() void {
     var m = map[i32, i32] {};
-    par for (var k, v in m) {
+    go for (var k, v in m) {
         _ = k;
         _ = v;
     };
 };
 
-// 8. A write through a captured pointer inside par is rejected (G6).
-//    Expected: writing to p captured from outside par.
-fn pointerParWrite() void {
+// 8. A write through a captured pointer inside go is rejected (G6).
+//    Expected: writing to p captured from outside go.
+fn pointerGoWrite() void {
     var p = &Foo { x: 1 };
-    par {
+    go {
         p.x = 2;
     };
 };
 
-// 9. break/continue cannot cross a par boundary.
-//    Expected: break cannot leave a par block.
-fn breakPar() void {
+// 9. break/continue cannot cross a go boundary.
+//    Expected: break cannot leave a go block.
+fn breakGo() void {
     for (var i = 0; i < 3; i += 1) {
-        par {
+        go {
             break;
         };
     };
 };
 
-// 10. An unbounded loop inside par cannot be proven to terminate.
-//     Expected: for () is not allowed inside par; use a bounded loop.
-fn parEmptyFor() void {
-    par {
+// 10. An unbounded loop inside go cannot be proven to terminate.
+//     Expected: for () is not allowed inside go; use a bounded loop.
+fn goEmptyFor() void {
+    go {
         for () {
             break;
         };
@@ -180,5 +180,5 @@ fn duplicateDiagnostic() void {
 };
 
 fn main() void {
-    fmt.Println("problems: run `ink check` for diagnostics", strconv.IntSize);
+    _, _ = fmt.Println("problems: run `ink check` for diagnostics", strconv.IntSize);
 };

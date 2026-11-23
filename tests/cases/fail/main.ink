@@ -13,14 +13,14 @@ fn wrapped() i32! {
 
 fn handled() i32! {
     var n = bad()
-        or err {
+        on err {
             fail(err, "handled");
         };
     return n;
 };
 
-fn inPar() i32! {
-    par {
+fn inGo() i32! {
+    go {
         {
             var n = bad()
                 or fail("worker");
@@ -33,20 +33,20 @@ fn inPar() i32! {
 fn main() void! {
     var a = i32(0);
     a = wrapped()
-        or err {
+        on err {
             fmt.Println("wrapped:", err)
                 or fail;
         };
     var b = i32(0);
     b = handled()
-        or err {
+        on err {
             fmt.Println("handled:", err)
                 or fail;
         };
     var c = i32(0);
-    c = inPar()
-        or err {
-            fmt.Println("par:", err)
+    c = inGo()
+        on err {
+            fmt.Println("go:", err)
                 or fail;
         };
     _ = a;

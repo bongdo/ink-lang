@@ -72,7 +72,7 @@ fn mk(ok: bool) *Point! {
 
 fn main() void! {
     var p: *Point = mk(true) or fail;
-    var q: *Point = mk(false) or panic("no");
+    var q: *Point = mk(false) on err { panic("no"); };
     assert(p != nil);
     assert(q == nil);
     return;
@@ -111,7 +111,7 @@ func TestTypedVarForInit(t *testing.T) {
 func TestTypedVarParForInit(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `fn main() void {
-    par for (var i: i32 = 0; i < 3; i += 1) {
+    go for (var i: i32 = 0; i < 3; i += 1) {
         assert(i >= 0);
     };
 };

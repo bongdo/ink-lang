@@ -1,46 +1,11 @@
 # Concurrency limits
 
-These two programs compile and pass `ink check`. They show why the static
-checks are not the whole story. `ink check` is the source of truth for
-compile-time diagnostics; `ink run -race` and `ink test -race` are the
-runtime oracle for data races.
+This program compiles and passes `ink check`. It shows why the static checks
+are not the whole story. `ink check` is the source of truth for compile-time
+diagnostics; `ink run -race` and `ink test -race` are the runtime oracle for
+data races.
 
-## Hidden context stops at package and function-value boundaries
-
-`lib/lib.ink`:
-
-```hare
-fn Work() i32 {
-    within 10s {
-        return 1;
-    };
-    return 0;
-};
-```
-
-`main.ink`:
-
-```hare
-use fmt;
-use ./lib;
-
-fn main() void! {
-    within 1ms {
-        var n = lib.Work();
-        fmt.Println(n)
-            or fail;
-    };
-};
-```
-
-`within 1ms` applies to the caller's context. `lib.Work` is called across a
-package boundary through its public wrapper, which starts from
-`context.Background()`, so its own `within 10s` is not shortened by the caller.
-The same loss happens through a function value, interface dispatch and
-package-level initializers. Inside one package, direct calls and methods keep
-the hidden context.
-
-## Static `par` checks cannot see every write
+## Static `go` checks cannot see every write
 
 ```hare
 fn store(p: *i32, v: i32) void {
@@ -49,7 +14,7 @@ fn store(p: *i32, v: i32) void {
 
 fn main() void {
     var n = i32(0);
-    par {
+    go {
         store(&n, 1);
     };
 };

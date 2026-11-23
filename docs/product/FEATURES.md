@@ -61,7 +61,8 @@ place with status.
 | `void` as a value | — result only |
 | non-void function that can fall off its end | ✅ `missing-return` |
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
-| `T!` with `or fail`, `or err { }`, `or panic(...)` | ✅ |
+| `T!` with `or fail` and `on err { }` | ✅ |
+| `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
 | `error("msg")` fresh error constructor | ✅ |
 | `arena { new/make }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
@@ -76,20 +77,24 @@ place with status.
 
 | Feature | Status |
 |---|---|
-| `par { ... }` — one worker per top-level statement | ✅ |
-| `par for (...) limit N` — one worker per iteration | ✅ |
-| `within D { ... }` | ✅ |
-| panic in a worker becomes an error, cancels siblings | ✅ |
+| `go { ... }` — one worker per top-level statement, joins at the block | ✅ |
+| `go for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
+| `go f(args)` — detached task, program-owned | ✅ |
+| `on err { ... }` — scope listener for unhandled `go` errors | ✅ |
+| `par` | — renamed to `go` |
+| `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |
-| per-worker `defer` and `within` | ✅ |
+| per-worker `defer` | ✅ |
+| no early cancellation; all workers run to completion | ✅ |
 | static captured read/write sets | ✅ |
 | map writes and map ranges rejected | ✅ |
-| `for ()` rejected inside `par` | ✅ |
-| C-style `par for` captures a per-iteration copy | ✅ |
-| hidden context through direct calls and methods | ✅ |
-| hidden context across a package boundary or function value | ◐ resets to `context.Background()` |
+| `for ()` rejected inside `go` | ✅ |
+| C-style `go for` captures a per-iteration copy | ✅ |
+| panic is a Go panic; not caught by `on err`, not recovered | ✅ |
+| hidden context | — removed; `ctx` is an ordinary value |
+| explicit `context.Context`, no `_ctx` wrapper or coloring | ✅ |
 | static race detection | — `ink run -race` / `ink test -race` is the oracle |
-| `chan`, `go`, `select` | — keep them in a Go adapter |
+| `chan`, `select` | — keep them in a Go adapter |
 
 ## E. Go boundary
 
@@ -99,14 +104,14 @@ place with status.
 | multiple results, including `(T, bool)` via two variables | ✅ |
 | Go interfaces implemented by Ink structs | ✅ |
 | Go callbacks passed to Go code | ✅ |
-| Go functions taking `context.Context` first | ✅ hidden context inserted |
+| Go functions taking `context.Context` | ✅ pass an explicit `ctx` value |
 | explicit type arguments on Go generic calls | ✅ |
 | implicit Go generic inference | ◐ Go infers; Ink hover does not show the result type |
 | Go variadic calls with `...` | ✅ |
 | unexported Go API | — Go visibility rules |
 | struct tags for JSON/DB | ○ decision needed |
 | `//go:embed` | ○ decision needed |
-| `context.Context` in a public Ink signature | — hidden only |
+| `context.Context` in an Ink signature | ✅ ordinary value; pass it explicitly |
 
 ## F. Tooling
 
@@ -143,7 +148,7 @@ place with status.
 The canonical list is [`SPEC.md`](SPEC.md) §10. In short: local named
 functions, generic constraints, generic enums, guards and struct patterns,
 lambda parameter inference without an expected type, expression-level `or`,
-user variadics, `discard`, doc comments, and the Go-isms `go`, `chan`,
+user variadics, `discard`, doc comments, and the Go-isms `chan`,
 `select`, `async`, `await`, `try`, `catch`, `?`, `export`, `let`, `:=`,
 attributes, traits, lifetimes, `unsafe`, `switch`, labeled control flow,
 operator overloading, exceptions.

@@ -5,77 +5,65 @@ fn stop() void! {
     return errors.New("boom");
 };
 
-fn withDefer() void {
+fn withDefer() void! {
     defer fmt.Println("defer ran");
-    fmt.Println("body ran");
-};
-
-fn withWithin() void {
-    within 5s {
-        fmt.Println("within ran");
-    };
+    fmt.Println("body ran")
+        or fail;
 };
 
 fn run1() void! {
-    par {
-        withDefer();
+    go {
+        withDefer()
+            or fail;
     };
 };
 
 fn run2() void! {
-    par {
-        withWithin();
+    go for (var i = 0; i < 1; i += 1) {
+        defer fmt.Println("for defer");
+        fmt.Println("for body")
+            or fail;
     };
 };
 
 fn run3() void! {
-    par {
+    go {
         stop()
-            or panic("wrapped");
+            or fail("wrapped");
     };
 };
 
 fn run4() void! {
-    par {
-        stop()
-            or panic();
-    };
-};
-
-fn run5() void! {
-    par for (var i = 0; i < 1; i += 1) {
-        defer fmt.Println("for defer");
-        within 5s {
-            fmt.Println("for within");
+    go {
+        {
+            defer fmt.Println("inner defer");
+            stop()
+                or fail;
         };
     };
 };
 
-fn main() void {
+fn main() void! {
     var c1 = false;
     var c2 = false;
     var c3 = false;
     var c4 = false;
-    var c5 = false;
     run1()
-        or err {
+        on err {
             c1 = true;
         };
     run2()
-        or err {
+        on err {
             c2 = true;
         };
     run3()
-        or err {
+        on err {
             c3 = true;
         };
     run4()
-        or err {
+        on err {
             c4 = true;
         };
-    run5()
-        or err {
-            c5 = true;
-        };
-    fmt.Println(c1, c2, c3, c4, c5);
+    fmt.Println(c1, c2, c3, c4)
+        or fail;
 };

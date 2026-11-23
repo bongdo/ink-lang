@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ink — go и ошибки</title>
+<style>
+  :root {
+    --line: rgba(128,128,128,.35);
+    --line-strong: rgba(128,128,128,.55);
+    --surface: rgba(128,128,128,.10);
+    --surface2: rgba(128,128,128,.18);
+    --accent: #e0713a;
+    --ok: #4f9d6b;
+    --bad: #c0504d;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: transparent; }
+  body {
+    margin: 0;
+    padding: 28px 22px 40px;
+    color: currentColor;
+    font: 15px/1.55 system-ui, -apple-system, Segoe UI, sans-serif;
+    max-width: 1080px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -.02em; }
+  h2 { font-size: 19px; margin: 34px 0 10px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  p { margin: 8px 0; }
+  .lead { opacity: .72; max-width: 70ch; margin-bottom: 22px; }
+  .muted { opacity: .62; }
+  .mono, code, pre { font-family: var(--mono); }
+  code { font-size: .93em; }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 10px 0;
+  }
+  .k { color: var(--accent); }
+  .c { opacity: .55; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 6px; }
+  nav button {
+    font: inherit; font-size: 13px; color: inherit; cursor: pointer;
+    background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 13px;
+  }
+  nav button[aria-selected="true"] { background: var(--surface2); border-color: var(--line-strong); }
+  section[hidden] { display: none; }
+  .grid { display: grid; gap: 12px; }
+  .g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (max-width: 760px) { .g3, .g2 { grid-template-columns: 1fr; } }
+  .card {
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--surface); padding: 14px 15px;
+  }
+  .card h3 { margin-top: 0; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .04em;
+    text-transform: uppercase; opacity: .6; border: 1px solid var(--line);
+    border-radius: 999px; padding: 1px 8px; margin-bottom: 8px;
+  }
+  .ok { color: var(--ok); }
+  .bad { color: var(--bad); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    font: inherit; font-size: 13px; color: inherit; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--line-strong);
+    border-radius: 8px; padding: 6px 12px;
+  }
+  .btn:hover { border-color: currentColor; }
+  .btn.primary { border-color: var(--accent); }
+  .log {
+    font-family: var(--mono); font-size: 12px; line-height: 1.55;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); padding: 10px 12px; height: 150px;
+    overflow: auto; white-space: pre-wrap;
+  }
+  .lane { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface); }
+  .lane-head { display: flex; justify-content: space-between; font-size: 12px; opacity: .7; margin-bottom: 6px; }
+  .track { height: 16px; border-radius: 4px; background: rgba(128,128,128,.14); overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width .08s linear; }
+  .fill.fail { background: var(--bad); }
+  .queue { display: flex; gap: 4px; flex-wrap: wrap; min-height: 22px; }
+  .chip {
+    width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line-strong);
+    font: 10px/16px var(--mono); text-align: center; opacity: .8;
+  }
+  .chip.fail { border-color: var(--bad); color: var(--bad); }
+  .pill { font-size: 12px; opacity: .7; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; opacity: .75; }
+  .small { font-size: 12.5px; }
+  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; align-items: start; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Ink: <span class="mono">go</span>, <span class="mono">on err</span>, <span class="mono">or fail</span></h1>
+<p class="lead">Одно слово для параллельности, два — для ошибок, паника — это паника Go.
+   Никаких скрытых контекстов и «цветных» функций.</p>
+
+<nav>
+  <button data-tab="model" aria-selected="true">Модель</button>
+  <button data-tab="errors">Ошибки</button>
+  <button data-tab="sandbox">Песочница</button>
+  <button data-tab="removed">Что убрали</button>
+  <button data-tab="scenarios">Сценарии</button>
+</nav>
+
+<section id="model">
+  <h2>Три формы одного слова</h2>
+  <div class="grid g3">
+    <div class="card">
+      <span class="tag">блок</span>
+      <h3 class="mono">go { ... };</h3>
+      <p class="small">Ветки — верхнеуровневые операторы. Блок ждёт их и отдаёт первую ошибку.</p>
+<pre><span class="k">go</span> {
+    a = fetchA()
+        <span class="k">or fail</span>;
+    b = fetchB()
+        <span class="k">or fail</span>;
+};</pre>
+    </div>
+    <div class="card">
+      <span class="tag">цикл</span>
+      <h3 class="mono">go for ... limit N</h3>
+      <p class="small">Итерации параллельно, не больше N одновременно. Ждёт в конце.</p>
+<pre><span class="k">go for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
+    rows[y] = shadeRow(y, t);
+};</pre>
+    </div>
+    <div class="card">
+      <span class="tag">задача</span>
+      <h3 class="mono">go f(args);</h3>
+      <p class="small">Отвязанная задача: запустил и пошёл. Живёт с программой, переживает обработчик запроса.</p>
+<pre><span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);
+<span class="c">// вернулись сразу</span></pre>
+    </div>
+  </div>
+
+  <h2>Время жизни</h2>
+  <table>
+    <tr><th>Форма</th><th>Кто владеет</th><th>Ждёт?</th></tr>
+    <tr><td class="mono">go { }</td><td>блок</td><td>да, в конце блока</td></tr>
+    <tr><td class="mono">go for</td><td>цикл</td><td>да, в конце цикла</td></tr>
+    <tr><td class="mono">go f(args)</td><td>программа</td><td>нет</td></tr>
+  </table>
+  <p class="small muted">Правило: есть тело — ждём; нет тела — не ждём.</p>
+
+  <h2>Проверки блока</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3 class="ok">можно</h3>
+      <ul class="small">
+        <li>писать в свой слот: <code>rows[y] = ...</code></li>
+        <li>читать захваченные значения</li>
+        <li>вкладывать <code>go</code> и <code>go for</code></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 class="bad">нельзя</h3>
+      <ul class="small">
+        <li>писать в общий корень из двух веток</li>
+        <li>писать в global или <code>self</code></li>
+        <li><code>break</code>/<code>continue</code> наружу</li>
+        <li><code>for ()</code> внутри задачи</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="errors" hidden>
+  <h2>Два слова и паника</h2>
+  <div class="grid g2">
+    <div class="card">
+      <span class="tag">обработать</span>
+      <h3 class="mono">on err { ... }</h3>
+      <p class="small">На выражении — локально. В начале функции или блока — слушатель для <code>go</code>.</p>
+<pre>var u = loadUser(name)
+    <span class="k">on err</span> {
+        http.Error(w, err.Error(), 500);
+        return;
+    };</pre>
+    </div>
+    <div class="card">
+      <span class="tag">вернуть</span>
+      <h3 class="mono">or fail</h3>
+      <p class="small">Утверждение: функция либо срабатывает, либо падает. С аргументом — оборачивает.</p>
+<pre>db.Exec(q)
+    <span class="k">or fail</span>(<span class="c">"save user"</span>);</pre>
+    </div>
+  </div>
+
+  <h3>Слушатель в скоупе</h3>
+<pre>fn handle(w: http.ResponseWriter, r: *http.Request) void {
+    <span class="k">on err</span> {
+        log(err);
+    };
+
+    <span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);   <span class="c">// ошибка придёт в log</span>
+};</pre>
+  <p class="small muted">Слушатель — замыкание, захваченное задачей. Он может выполниться после выхода из функции:
+     только лог, метрики, паника. <code>fail</code>/<code>return</code> внутри запрещены.</p>
+
+  <h3>Пустой обработчик запрещён</h3>
+  <p class="small">Обработчик, который не выходит и не использует <code>err</code>, — это тихое проглатывание.
+     После обработчика без выхода значение выражения — нулевое, как в Go.</p>
+
+  <h3>Паника</h3>
+  <p class="small"><code>panic(...)</code> — это паника Go. <code>on err</code> её не ловит.
+     <code>go</code> не заворачивает её в ошибку. Паника в любой горутине печатает стек и завершает процесс.</p>
+<pre>os.ReadFile(<span class="c">"assets.bin"</span>)
+    <span class="k">on err</span> { panic(err); };</pre>
+
+  <table>
+    <tr><th>Форма</th><th>Что делает</th></tr>
+    <tr><td class="mono">on err { ... }</td><td>обработать здесь</td></tr>
+    <tr><td class="mono">or fail</td><td>вернуть ошибку</td></tr>
+    <tr><td class="mono">or fail("ctx")</td><td>обернуть и вернуть</td></tr>
+    <tr><td class="mono">fail(err, "ctx")</td><td>внутри обработчика: обернуть и вернуть</td></tr>
+    <tr><td class="mono">error("msg")</td><td>создать ошибку</td></tr>
+    <tr><td class="mono">panic(...)</td><td>Go-паника</td></tr>
+  </table>
+</section>
+
+<section id="sandbox" hidden>
+  <h2>Песочница: очередь, воркеры и слушатель</h2>
+  <p class="small muted">Это JS-модель, не настоящий Ink. Она показывает ровно то, что описывает синтаксис:
+     неограниченная очередь, три воркера, ошибки уходят в <code>on err</code>.</p>
+
+  <div class="split">
+    <div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn primary" id="add">go worker(job)</button>
+        <button class="btn" id="addFail">go worker(bad)</button>
+        <button class="btn" id="burst">go for 8 limit 3</button>
+        <button class="btn" id="reset">сброс</button>
+      </div>
+      <div class="queue" id="queue" style="margin-bottom:12px"></div>
+      <div class="grid" id="lanes"></div>
+      <div class="row" style="margin-top:10px">
+        <span class="pill" id="stats">в очереди: 0 · выполнено: 0 · ошибок: 0</span>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">on err</h3>
+      <div class="log" id="log"><span class="c">// слушатель ждёт ошибок</span></div>
+      <p class="small muted" style="margin-top:8px">Без слушателя ошибка стала бы <span class="bad">panic</span>.</p>
+<pre style="font-size:12px"><span class="k">on err</span> {
+    log(err);
+};
+
+<span class="k">go for</span> (var i = 0; i &lt; 8; i += 1) <span class="k">limit</span> 3 {
+    worker(i)
+        <span class="k">or fail</span>;
+};</pre>
+    </div>
+  </div>
+</section>
+
+<section id="removed" hidden>
+  <h2>Что убрали и почему</h2>
+  <table>
+    <tr><th>Убрано</th><th>Причина</th><th>Замена</th></tr>
+    <tr><td class="mono">par</td><td>одно слово для параллельности</td><td class="mono">go</td></tr>
+    <tr><td class="mono">within</td><td>жил только за счёт скрытого контекста</td><td class="mono">context.WithTimeout</td></tr>
+    <tr><td class="mono">or err</td><td>два способа ловить ошибку</td><td class="mono">on err</td></tr>
+    <tr><td class="mono">or panic</td><td>либо терял ошибку, либо не паниковал</td><td class="mono">panic(...)</td></tr>
+    <tr><td>скрытый ctx</td><td>цветные функции, потеря дедлайна на интерфейсах</td><td><code>ctx</code> — обычное значение</td></tr>
+    <tr><td>пулы и очереди</td><td>горутина дешевле пула; очередь не нужна для трёх сценариев</td><td class="mono">go f(...)</td></tr>
+  </table>
+
+  <h3>Контекст теперь явный</h3>
+<pre>var ctx, cancel = context.WithTimeout(r.Context(), 2s);
+defer cancel();
+
+var rows = db.QueryContext(ctx, <span class="c">"select 1"</span>)
+    <span class="k">on err</span> { ... };</pre>
+  <p class="small muted">Никаких <code>_s_ctx</code>, обёрток и <code>Background</code>-фолбэков. Bubble Tea <code>Update</code> с <code>go</code>
+     удовлетворяет <code>tea.Model</code> без второй функции.</p>
+</section>
+
+<section id="scenarios" hidden>
+  <h2>Три сценария</h2>
+  <div class="grid g3">
+    <div class="card">
+      <h3>Веб-сервер</h3>
+<pre style="font-size:12px"><span class="k">on err</span> { log(err); };
+
+fn handle(w: ResponseWriter, r: *Request) void {
+    <span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);
+    w.Write(bytes(<span class="c">"ok"</span>))
+        <span class="k">on err</span> {};
+};</pre>
+      <p class="small">Фон переживает запрос; ошибки — в слушатель.</p>
+    </div>
+    <div class="card">
+      <h3>Игра: кадр</h3>
+<pre style="font-size:12px"><span class="k">go for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
+    rows[y] = shadeRow(y, t);
+};</pre>
+      <p class="small">Арена даёт строки без GC; <code>go for</code> раздаёт их по ядрам.</p>
+    </div>
+    <div class="card">
+      <h3>Композитор</h3>
+<pre style="font-size:12px">for () {
+    poll();
+    draw();
+    <span class="k">if</span> (quit) { <span class="k">break</span>; };
+};</pre>
+      <p class="small">Один событийный цикл. Ни <code>go</code>, ни каналов не нужно.</p>
+    </div>
+  </div>
+</section>
+
+<p class="small muted" style="margin-top:28px;border-top:1px solid var(--line);padding-top:14px">
+  Проверено <code>./bin/check</code>: сборка, тесты, формат, кейсы, агент.
+  Документы: <a href="product/SPEC.md">SPEC</a> · <a href="product/PAR.md">PAR</a> ·
+  <a href="product/EDGES.md">EDGES</a> · <a href="proposals/concurrency.md">proposal</a>.
+</p>
+
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll('nav button')];
+  const sections = [...document.querySelectorAll('section')];
+  function select(tab) {
+    const b = tabs.find(x => x.dataset.tab === tab);
+    if (!b) return;
+    for (const x of tabs) x.setAttribute('aria-selected', String(x === b));
+    for (const s of sections) s.hidden = s.id !== tab;
+    history.replaceState(null, '', '#' + tab);
+  }
+  for (const b of tabs) b.addEventListener('click', () => select(b.dataset.tab));
+  const initial = location.hash.slice(1);
+  if (initial) select(initial);
+
+  const lanesEl = document.getElementById('lanes');
+  const queueEl = document.getElementById('queue');
+  const logEl = document.getElementById('log');
+  const statsEl = document.getElementById('stats');
+  const WORKERS = 3;
+
+  let lanes = [];
+  let queue = [];
+  let nextId = 1;
+  let done = 0, failed = 0;
+
+  function reset() {
+    queue = [];
+    nextId = 1; done = 0; failed = 0;
+    lanes = Array.from({ length: WORKERS }, (_, i) => ({ id: i, busy: false, job: null, pct: 0 }));
+    lanesEl.innerHTML = '';
+    for (const lane of lanes) {
+      const el = document.createElement('div');
+      el.className = 'lane';
+      el.innerHTML = `<div class="lane-head"><span>worker ${lane.id}</span><span class="state">idle</span></div>
+        <div class="track"><div class="fill"></div></div>`;
+      lanesEl.appendChild(el);
+      lane.el = el;
+      lane.state = el.querySelector('.state');
+      lane.fill = el.querySelector('.fill');
+    }
+    logEl.innerHTML = '<span class="c">// слушатель ждёт ошибок</span>';
+    renderQueue();
+    renderStats();
+  }
+
+  function add(fail) {
+    queue.push({ id: nextId++, fail, dur: 500 + Math.random() * 700 });
+    renderQueue();
+    tick();
+  }
+
+  function renderQueue() {
+    queueEl.innerHTML = '';
+    for (const j of queue) {
+      const c = document.createElement('div');
+      c.className = 'chip' + (j.fail ? ' fail' : '');
+      c.textContent = j.id;
+      queueEl.appendChild(c);
+    }
+  }
+
+  function renderStats() {
+    statsEl.textContent = `в очереди: ${queue.length} · выполнено: ${done} · ошибок: ${failed}`;
+  }
+
+  function log(line, cls) {
+    if (logEl.firstElementChild && logEl.firstElementChild.classList.contains('c')) logEl.innerHTML = '';
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = line;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  let last = performance.now();
+  function tick(now) {
+    now = now || performance.now();
+    const dt = Math.min(120, now - last);
+    last = now;
+
+    for (const lane of lanes) {
+      if (!lane.busy && queue.length) {
+        lane.job = queue.shift();
+        lane.busy = true;
+        lane.pct = 0;
+        lane.state.textContent = `job ${lane.job.id}`;
+        lane.fill.className = 'fill' + (lane.job.fail ? ' fail' : '');
+      }
+      if (lane.busy) {
+        lane.pct += dt / lane.job.dur;
+        lane.fill.style.width = Math.min(100, lane.pct * 100) + '%';
+        if (lane.pct >= 1) {
+          lane.busy = false;
+          const job = lane.job;
+          lane.job = null;
+          lane.state.textContent = 'idle';
+          lane.fill.style.width = '0';
+          if (job.fail) {
+            failed++;
+            log(`on err: job ${job.id}: save failed`, 'bad');
+          } else {
+            done++;
+          }
+        }
+      }
+    }
+    renderQueue();
+    renderStats();
+    requestAnimationFrame(tick);
+  }
+
+  document.getElementById('add').addEventListener('click', () => add(false));
+  document.getElementById('addFail').addEventListener('click', () => add(true));
+  document.getElementById('burst').addEventListener('click', () => {
+    for (let i = 0; i < 8; i++) add(i === 5);
+  });
+  document.getElementById('reset').addEventListener('click', reset);
+
+  reset();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

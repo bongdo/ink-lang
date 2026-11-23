@@ -4,14 +4,15 @@ use net/http;
 
 type M = map[str, i32];
 
-fn main() void {
+fn main() void! {
     var m = M { "B": 2, "A": 1 };
     var keys = str[] {};
     for (var k in m) {
         keys = append(keys, k);
     };
     sort.Strings(keys);
-    fmt.Println(keys);
+    fmt.Println(keys)
+        or fail;
 
     var h = http.Header {};
     h["C"] = str[] { "x" };
@@ -21,5 +22,6 @@ fn main() void {
         hk = append(hk, k);
     };
     sort.Strings(hk);
-    fmt.Println(hk);
+    fmt.Println(hk)
+        or fail;
 };

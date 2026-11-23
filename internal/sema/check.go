@@ -42,6 +42,8 @@ type checker struct {
 	parFrames   []parFrame
 	parLoopBase []int
 	inPar       bool
+	inListener  int
+	listeners   []bool
 	parArenas   []int
 	inArena     int
 	tparams     map[string]bool
@@ -274,13 +276,34 @@ func (c *checker) isArenaExpr(e ast.Expr) bool {
 		return c.inArena > 0
 	case *ast.UnaryExpr:
 		if e.Op == token.Amp {
-			return c.isArenaExpr(e.X)
+			return c.arenaLocation(e.X)
 		}
 	case *ast.CompositeLit:
 		for _, en := range e.Entries {
 			if c.isArenaExpr(en.Value) || (en.KeyExpr != nil && c.isArenaExpr(en.KeyExpr)) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func (c *checker) arenaLocation(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.Ident:
+		if sym := c.lookupLocal(e.Name); sym != nil {
+			return sym.arena
+		}
+		return false
+	case *ast.SelectorExpr:
+		return c.isArenaExpr(e.X) || c.arenaLocation(e.X)
+	case *ast.IndexExpr:
+		return c.isArenaExpr(e.X) || c.arenaLocation(e.X)
+	case *ast.SliceExpr:
+		return c.isArenaExpr(e.X) || c.arenaLocation(e.X)
+	case *ast.UnaryExpr:
+		if e.Op == token.Star {
+			return c.isArenaExpr(e.X) || c.arenaLocation(e.X)
 		}
 	}
 	return false
@@ -367,11 +390,14 @@ func (c *checker) checkArenaCopy(call *ast.CallExpr) {
 }
 
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
+	if c.inListener > 0 {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave an on err listener; log, panic or handle")
+	}
 	if c.fn == nil {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
 		return
 	}
-	if !c.fn.err {
+	if !c.fn.err && !(c.inPar && c.hasListener()) {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail in a function that cannot fail; add ! to the result")
 	}
 	errT := &ast.NamedType{Name: "error", GoName: "error"}
@@ -418,7 +444,7 @@ func terminatesStmt(s ast.Stmt) bool {
 			return false
 		}
 		return !blockBreaks(s.Body)
-	case *ast.WithinStmt:
+	case *ast.OnErrStmt:
 		return terminatesBlock(s.Body)
 	}
 	return false
@@ -487,15 +513,60 @@ func blockBreaks(b *ast.Block) bool {
 	return found
 }
 
+func (c *checker) constLimit(e ast.Expr) (int64, bool) {
+	switch e := unparen(e).(type) {
+	case *ast.BasicLit:
+		if e.Kind != token.Int {
+			return 0, false
+		}
+		n, err := strconv.ParseInt(e.Value, 0, 64)
+		return n, err == nil
+	case *ast.Ident:
+		sym := c.lookup(e.Name)
+		if sym == nil {
+			return 0, false
+		}
+		decl, ok := sym.decl.(*ast.VarDecl)
+		if !ok || !decl.Const || len(decl.Values) != 1 {
+			return 0, false
+		}
+		return c.constLimit(decl.Values[0])
+	case *ast.UnaryExpr:
+		if e.Op == token.Minus {
+			n, ok := c.constLimit(e.X)
+			return -n, ok
+		}
+		if e.Op == token.Plus {
+			return c.constLimit(e.X)
+		}
+	}
+	return 0, false
+}
+
+func (c *checker) hasListener() bool {
+	return len(c.listeners) > 0 && c.listeners[len(c.listeners)-1]
+}
+
 func (c *checker) checkBlock(b *ast.Block) {
 	if b == nil {
 		return
 	}
+	has := c.hasListener()
+	if len(b.Stmts) > 0 {
+		if _, ok := b.Stmts[0].(*ast.OnErrStmt); ok {
+			has = true
+		}
+	}
+	c.listeners = append(c.listeners, has)
 	c.push()
-	for _, s := range b.Stmts {
+	for i, s := range b.Stmts {
+		if _, ok := s.(*ast.OnErrStmt); ok && i != 0 {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "on err must be the first statement of its block")
+		}
 		c.checkStmt(s)
 	}
 	c.pop()
+	c.listeners = c.listeners[:len(c.listeners)-1]
 }
 
 func (p *Program) checkTests() {
@@ -576,7 +647,11 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				c.checkAssign(lhsTypes[i], e)
 			}
 			if len(s.Lhs) == 1 && len(s.Rhs) == 1 {
-				if call, ok := e.(*ast.CallExpr); ok && call.Info != nil && call.Info.Results > 1 {
+				blank := false
+				if id, ok := s.Lhs[0].(*ast.Ident); ok && id.Name == "_" {
+					blank = true
+				}
+				if call, ok := e.(*ast.CallExpr); ok && call.Info != nil && call.Info.Results > 1 && !blank {
 					c.p.errorf(c.fc.file.Path, call.Pos(), "multi-result call needs matching names")
 				}
 			}
@@ -609,6 +684,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.checkMatchValue(s.X)
 		}
 		c.resolveExpr(s.X, true)
+		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.HasError && !isPanicExpr(call) {
+			c.p.errorf(c.fc.file.Path, s.X.Pos(), "fallible result is dropped; use on err or or fail")
+		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
 		c.checkErrGuard(s)
@@ -623,6 +701,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 	case *ast.FailStmt:
 		c.checkFailStmt(s)
 	case *ast.ReturnStmt:
+		if c.inListener > 0 {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave an on err listener; log, panic or handle")
+		}
 		if c.fn == nil {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return outside a function")
 		}
@@ -690,21 +771,21 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 		if c.inPar {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or fail")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a go block; use or fail")
 		}
 	case *ast.BreakStmt:
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "break outside a loop")
 		}
 		if c.crossesPar() {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "break cannot leave a par block")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "break cannot leave a go block")
 		}
 	case *ast.ContinueStmt:
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "continue outside a loop")
 		}
 		if c.crossesPar() {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "continue cannot leave a par block")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "continue cannot leave a go block")
 		}
 	case *ast.DeferStmt:
 		if s.Call == nil {
@@ -718,10 +799,57 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.inArena--
 	case *ast.ParStmt:
 		c.checkPar(s.Body, nil)
-	case *ast.WithinStmt:
-		c.resolveExpr(s.Duration, false)
-		c.needCtx()
-		c.checkBlock(s.Body)
+	case *ast.GoCallStmt:
+		c.checkGoCall(s)
+	case *ast.OnErrStmt:
+		c.checkOnErr(s)
+	}
+}
+
+func (c *checker) checkOnErr(s *ast.OnErrStmt) {
+	if s.Body == nil || len(s.Body.Stmts) == 0 {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "on err must do something")
+	}
+	c.push()
+	c.declare(&symbol{name: "err", kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: s})
+	c.inListener++
+	c.checkBlock(s.Body)
+	c.inListener--
+	c.pop()
+}
+
+func (c *checker) checkGoCall(s *ast.GoCallStmt) {
+	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
+		c.p.errorf(c.fc.file.Path, or.Pos(), "go call cannot have a handler; handle errors inside the function or with on err in the scope")
+		c.resolveExpr(or.X, false)
+		return
+	}
+	call, ok := unparen(s.Call).(*ast.CallExpr)
+	if !ok {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "go expects a call")
+		return
+	}
+	if sel, ok := unparen(call.Fun).(*ast.SelectorExpr); ok && c.inArena > 0 {
+		if c.isArenaExpr(sel.X) || c.arenaLocation(sel.X) {
+			c.p.errorf(c.fc.file.Path, sel.X.Pos(), "arena value cannot leave the arena block; read a field or an index instead")
+		}
+	}
+	switch unparen(call.Fun).(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+	default:
+		c.p.errorf(c.fc.file.Path, call.Fun.Pos(), "go expects a function or method name; no closures")
+		return
+	}
+	t := c.resolveExpr(call, false)
+	if call.Info == nil {
+		return
+	}
+	if call.Info.Results > 0 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "go call must not return a value; use go { ... } to collect results")
+		return
+	}
+	if !call.Info.HasError && t != nil && !isVoidType(t) {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "go call must not return a value; use go { ... } to collect results")
 	}
 }
 
@@ -802,7 +930,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 		f.Range.KeyType = key
 		f.Range.ElemType = elem
 		if f.Par && isMap {
-			c.p.errorf(c.fc.file.Path, f.Range.Pos(), "map iteration is not allowed in par for; collect keys into a slice first")
+			c.p.errorf(c.fc.file.Path, f.Range.Pos(), "map iteration is not allowed in go for; collect keys into a slice first")
 		}
 		switch len(f.Range.Names) {
 		case 1:
@@ -817,9 +945,11 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 		}
 		if f.Limit != nil {
 			c.resolveExpr(f.Limit, false)
+			if n, ok := c.constLimit(f.Limit); ok && n < 1 {
+				c.p.errorf(c.fc.file.Path, f.Limit.Pos(), "limit must be positive")
+			}
 		}
 		if f.Par {
-			c.needCtx()
 			frame := parFrame{iter: iter, loopDecls: map[ast.Node]bool{f.Range: true}}
 			c.parFrames = append(c.parFrames, frame)
 			oldInPar := c.inPar
@@ -840,8 +970,14 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.loopDepth--
 		}
 	} else {
+		if f.Limit != nil {
+			c.resolveExpr(f.Limit, false)
+			if n, ok := c.constLimit(f.Limit); ok && n < 1 {
+				c.p.errorf(c.fc.file.Path, f.Limit.Pos(), "limit must be positive")
+			}
+		}
 		if f.Init == nil && f.Cond == nil && f.Post == nil && (c.inPar || f.Par) {
-			c.p.errorf(c.fc.file.Path, f.Pos(), "for () is not allowed inside par; use a bounded loop")
+			c.p.errorf(c.fc.file.Path, f.Pos(), "for () is not allowed inside go; use a bounded loop")
 		}
 		if f.Init != nil {
 			c.checkStmt(f.Init)
@@ -860,15 +996,15 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			case *ast.DeclStmt:
 			case *ast.AssignStmt:
 				if init.Op != token.Assign {
-					c.p.errorf(c.fc.file.Path, init.Pos(), "par for init must assign simple names")
+					c.p.errorf(c.fc.file.Path, init.Pos(), "go for init must assign simple names")
 				}
 				for _, l := range init.Lhs {
 					if _, ok := l.(*ast.Ident); !ok {
-						c.p.errorf(c.fc.file.Path, l.Pos(), "par for init must assign simple names")
+						c.p.errorf(c.fc.file.Path, l.Pos(), "go for init must assign simple names")
 					}
 				}
 			default:
-				c.p.errorf(c.fc.file.Path, f.Init.Pos(), "par for init must declare or assign simple names")
+				c.p.errorf(c.fc.file.Path, f.Init.Pos(), "go for init must declare or assign simple names")
 			}
 		}
 		if f.Par {
@@ -889,7 +1025,6 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 					}
 				}
 			}
-			c.needCtx()
 			frame := parFrame{iter: iter, loopDecls: loopDecls}
 			c.parFrames = append(c.parFrames, frame)
 			oldInPar := c.inPar
@@ -990,7 +1125,7 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 			switch {
 			case len(call.Info.ResultTypes) == len(v.Names):
 				types = call.Info.ResultTypes
-			case len(v.Names) == 1 && call.Info.Results > 1:
+			case len(v.Names) == 1 && call.Info.Results > 1 && v.Names[0] != "_":
 				c.p.errorf(c.fc.file.Path, call.Pos(), "multi-result call needs matching names")
 			case len(v.Names) > 1:
 				c.p.errorf(c.fc.file.Path, call.Pos(), "wrong number of results: got %d, want %d", len(call.Info.ResultTypes), len(v.Names))
@@ -1045,7 +1180,6 @@ func (c *checker) arenaInWorker() bool {
 }
 
 func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
-	c.needCtx()
 	frame := parFrame{plain: true}
 	c.parFrames = append(c.parFrames, frame)
 	c.parLoopBase = append(c.parLoopBase, c.loopDepth)
@@ -1054,6 +1188,9 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	c.parArenas = append(c.parArenas, c.inArena)
 	c.push()
 	for _, s := range body.Stmts {
+		if _, ok := s.(*ast.OnErrStmt); ok {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "on err must be in a block, not a go branch")
+		}
 		c.push()
 		c.checkStmt(s)
 		c.pop()
@@ -1068,18 +1205,6 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 
 func (c *checker) crossesPar() bool {
 	return c.inPar && len(c.parLoopBase) > 0 && c.loopDepth <= c.parLoopBase[len(c.parLoopBase)-1]
-}
-
-func (c *checker) needCtx() {
-	if c.fn != nil {
-		c.p.needsCtx[c.fn.node()] = true
-		if c.fn.decl != nil {
-			c.p.needsCtx[c.fn.decl] = true
-		}
-		if c.fn.lit != nil {
-			c.p.needsCtx[c.fn.lit] = true
-		}
-	}
 }
 
 func (f *funcInfo) node() ast.Node {
@@ -1264,35 +1389,35 @@ func (c *checker) checkParWrite(w parWrite, stmt int, frame parFrame, writers ma
 	}
 	switch w.id.Ref.Kind {
 	case ast.RefSelf, ast.RefField:
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to self inside par")
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to self inside go")
 	case ast.RefGlobal:
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to global %s inside par", w.id.Name)
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to global %s inside go", w.id.Name)
 	case ast.RefParam, ast.RefLocal:
 		t := c.exprType(w.id)
 		if c.isMapType(t) {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside par", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside go", w.id.Name)
 			return
 		}
 		if c.isPointerType(t) {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
 			return
 		}
 		if w.viaMap {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside par", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside go", w.id.Name)
 			return
 		}
 		if w.viaPtr {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
 			return
 		}
 		if frame.plain && writers[w.id.Name] == 1 {
 			if !parReadByOther(w.id.Name, stmt, readers) {
 				return
 			}
-			c.p.errorf(c.fc.file.Path, w.pos, "read by another par statement: %s", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "read by another go statement: %s", w.id.Name)
 			return
 		}
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
 	}
 }
 
@@ -1456,6 +1581,10 @@ func (w *parWalker) stmt(s ast.Stmt) {
 		}
 		w.stmt(s.Body)
 	case *ast.ParStmt:
+		w.stmt(s.Body)
+	case *ast.GoCallStmt:
+		w.expr(s.Call)
+	case *ast.OnErrStmt:
 		w.stmt(s.Body)
 	case *ast.WithinStmt:
 		w.expr(s.Duration)

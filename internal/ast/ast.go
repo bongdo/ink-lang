@@ -583,6 +583,20 @@ type ParStmt struct {
 
 func (*ParStmt) stmtNode() {}
 
+type GoCallStmt struct {
+	Span
+	Call Expr
+}
+
+func (*GoCallStmt) stmtNode() {}
+
+type OnErrStmt struct {
+	Span
+	Body *Block
+}
+
+func (*OnErrStmt) stmtNode() {}
+
 type WithinStmt struct {
 	Span
 	Duration Expr

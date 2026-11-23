@@ -205,7 +205,7 @@ func (w *writer) call(c *ast.CallExpr) string {
 		}
 		return w.typeStr(target) + "(" + arg + ")"
 	}
-	fun, prefix, handled := w.callTarget(c)
+	fun, prefix, _ := w.callTarget(c)
 	if len(c.TypeArgs) > 0 {
 		parts := make([]string, 0, len(c.TypeArgs))
 		for _, t := range c.TypeArgs {
@@ -216,9 +216,6 @@ func (w *writer) call(c *ast.CallExpr) string {
 	args := append([]string{}, prefix...)
 	for _, a := range c.Args {
 		args = append(args, w.expr(a))
-	}
-	if !handled && w.callNeedsCtx(c) {
-		args = append([]string{w.currentCtx()}, args...)
 	}
 	if c.Ellipsis && len(args) > 0 {
 		args[len(args)-1] += "..."

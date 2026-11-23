@@ -13,8 +13,10 @@ fn f(n: i32, p: *i32) str {
     };
 };
 
-fn main() void {
+fn main() void! {
     var x = i32(1);
-    fmt.Println(f(-1, nil[*i32]));
-    fmt.Println(f(0, &x));
+    fmt.Println(f(-1, nil[*i32]))
+        or fail;
+    fmt.Println(f(0, &x))
+        or fail;
 };

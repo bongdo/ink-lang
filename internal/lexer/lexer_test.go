@@ -58,12 +58,12 @@ func TestOperators(t *testing.T) {
 }
 
 func TestKeywords(t *testing.T) {
-	src := "as fn type struct enum interface var const return if else for in match case par within limit defer break continue or test true false nil map use"
+	src := "as fn type struct enum interface var const return if else for in match case par go on within limit defer break continue or test true false nil map use"
 	want := []token.Kind{
 		token.As, token.Fn, token.Type, token.Struct, token.Enum,
 		token.Interface, token.Var, token.Const, token.Return, token.If, token.Else,
-		token.For, token.In, token.Match, token.Case, token.Par, token.Within,
-		token.Limit, token.Defer, token.Break, token.Continue, token.Or, token.Test,
+		token.For, token.In, token.Match, token.Case, token.Par, token.Go, token.On,
+		token.Within, token.Limit, token.Defer, token.Break, token.Continue, token.Or, token.Test,
 		token.True, token.False, token.Nil, token.Map, token.Use, token.EOF,
 	}
 	toks, _, errs := mustLex(t, src)
@@ -79,7 +79,7 @@ func TestKeywords(t *testing.T) {
 }
 
 func TestGoReservedWordsAreIdentifiers(t *testing.T) {
-	words := strings.Fields("func go chan select switch package import range goto fallthrough default")
+	words := strings.Fields("func chan select switch package import range goto fallthrough default")
 	toks, _, errs := mustLex(t, strings.Join(words, " "))
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)

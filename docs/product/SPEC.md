@@ -203,7 +203,7 @@ So `n = p.X` and `copy(px, row)` work, while `f(p)` and `p.Move()` do not. The
 rule is what makes reuse safe: nothing can read the buffer after the block
 returns it.
 
-`par` is allowed inside an arena. `new` and `make` must run before `par`: a
+`go` is allowed inside an arena. `new` and `make` must run before `go`: a
 worker shares the block's batch, so an allocation inside a worker is an error.
 A worker may write an arena element indexed by its own iteration variable
 (`rows[y] = row`) and may open its own `arena { ... };`.
@@ -272,7 +272,7 @@ const Greeting = "hello";
 | `str(runes_or_bytes)` | conversion to `str` |
 | `make[T](n)`, `make[T](n, cap)` | `[]T` with length and capacity |
 | `error(msg)` | a fresh `error` with that message |
-| `panic(msg)` | abort |
+| `panic(msg)` | Go panic; abort |
 | `assert(cond)`, `assert_eq(got, want)` | checks for tests and code |
 
 String indexing follows Go: `s[i]` is the byte at `i`. Use `runes(s)` when
@@ -352,37 +352,48 @@ fn(i: int, j: int) bool { return i < j; }
 
 ## 6. Errors
 
-`or` is a statement-level postfix operator on a call that returns `T!`.
+`T!`, `(A, B)!` and `void!` mark a fallible result. Two words handle it:
+`on err` handles, `or fail` propagates.
 
 ```hare
 var f = os.Open(path)
     or fail;
 
 var f = os.Open(path)
-    or err { ... };
-
-os.Remove(path)
-    or panic("cannot remove");
+    on err { ... };
 ```
 
 Forms:
 
 - `call() or fail;` — propagate to the caller.
 - `call() or fail("context");` — wrap the error with context and propagate.
-- `call() or err { ... };` — handle here; the name is always `err`.
-  Inside the block, `fail(err, "context");` wraps and returns.
-- `call() or panic("message");` — panic with the message.
-- `call() or panic();` — panic with the error value.
+- `expr on err { ... };` — handle this expression here; the name is always
+  `err`. Inside the block, `fail(err, "context");` wraps and returns.
+- `on err { ... };` as the first statement of a function or block — a scope
+  listener for unhandled errors of `go` constructs (§8). It must be the first
+  statement, must not be empty, and may not use `fail` or `return`.
+- `panic(...)` — Go's panic, not an error handler (§8.5).
 
 The handler always starts on a new line, indented once; `ink fmt` enforces it.
 
-A fresh error is `fail(error("msg"));`. `fail("msg")` alone is not a fresh
-error: it is only the shorthand after `or`, where the call supplies the error
-to wrap. `errors.New` and `fmt.Errorf` still work through Go interop.
+An inline handler may continue instead of leaving the scope; the expression
+then keeps the zero value of its type. A scope listener is captured by each
+task at launch and may run after its scope returns: use it for logging,
+metrics and escalation, not for mutating scope state.
+
+A fresh error is `error("msg")`. `fail(error("msg"));` inside a handler
+constructs it and returns; `fail("msg")` alone is not a fresh error: it is
+only the shorthand after `or`, where the call supplies the error to wrap.
+`errors.New` and `fmt.Errorf` still work through Go interop.
 
 `or` may appear only as the entire initializer of a `var`, the entire right
 side of an assignment, an expression statement, or a `return` operand. It may
 not be nested inside another expression.
+
+A fallible call used as a bare expression statement is a compile error: its
+result would be dropped. Write `call() on err { ... };` or `call() or fail;`;
+`_ = call();` is the explicit discard. The rule also applies inside `go { }`
+and `go for` bodies.
 
 `if (err != nil) { return err; }` (and the multi-result form) is rejected:
 propagation has one canonical spelling, `or fail`. `if err != nil` remains
@@ -441,81 +452,117 @@ else => ...;
 ## 8. Concurrency
 
 ```hare
-par {
+go {
     users = loadUsers(id)
         or fail;
     orders = loadOrders(id)
         or fail;
 };
 
-par for (var i = 0; i < len(urls); i += 1) limit 64 {
+go for (var i = 0; i < len(urls); i += 1) limit 4 {
     sizes[i] = fetchSize(urls[i])
         or fail;
 };
 
-within 30s {
-    par for (var i = 0; i < len(urls); i += 1) {
-        sizes[i] = fetchSize(urls[i])
-            or fail;
-    };
-};
+go saveUser(1, "hello");      // detached task
 ```
 
-- `par` runs its top-level statements as workers and waits at `}`. Statements
-  inside a nested block, `if`, loop, `match`, `within` or function literal run
-  sequentially in the enclosing worker. A nested `par` starts its own workers
-  and error set. Each top-level statement is its own scope; a local declared
-  in one worker is not visible in another.
-- `par for` runs iterations as workers with an optional `limit` (default
-  `GOMAXPROCS`); the whole body is sequential inside one worker.
-- `par for` over a map is forbidden: a map has no ordinal, so the winner would
-  be nondeterministic. Collect keys into a slice first and iterate the slice.
-- `for ()` is forbidden in a `par`/`par for` body: a worker without a
-  guaranteed exit can hang the `par`. Function literals are outside the static
-  analysis.
-- Every `par`/`par for` creates a cancelable context derived from the enclosing
-  one, even when no worker can fail statically. `within D` derives a deadline
-  from the current worker's context.
-- One `ParErrors` per statement. Indexed workers report their ordinal; the
-  lowest ordinal wins.
-- `or fail` in a worker adds the error at its ordinal, cancels the siblings,
-  runs the worker's deferred calls and returns from the worker. After `Wait`
-  the statement returns the winning error, or re-panics it in a `void`
-  function. Inside a worker, `or panic` is an error with the same delivery, not
-  a Go panic.
-- A panic escaping a worker becomes a `PanicError` (value + stack), is added at
-  the worker's ordinal, cancels the siblings, and `Wait` still completes.
-- `defer`, `within` and `or panic` are allowed inside a worker. Each worker has
-  its own `DeferStack`; its deferred calls run LIFO at worker exit and before an
-  error or panic is reported. A top-level `defer` in a `par` body is itself a
-  worker: wrap it in a block when the cleanup belongs to the sibling
-  statements.
-- `return`, `break` and `continue` may not cross a `par`/`par for` boundary.
-  `or fail` and `or panic` are the only ways out of a worker.
-- Plain `par`: a captured root may be written by at most one top-level
+One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
+
+### 8.1 `go { }`
+
+- Each top-level statement of the body is a worker; the block joins them.
+  Statements inside a nested block, `if`, loop, `match` or function literal run
+  sequentially in the enclosing worker. A nested `go { }` starts its own
+  workers and error set. Each top-level statement is its own scope; a local
+  declared in one worker is not visible in another.
+- `defer` inside a worker is allowed and runs LIFO at worker exit.
+- Errors: a worker's unhandled error is collected. At the join the
+  lowest-ordinal error is delivered to the enclosing scope's `on err`, if it
+  has one; otherwise the enclosing function returns it and must be `T!`. In a
+  `void` function without a listener each worker must handle its own errors.
+- No early cancellation: all workers run to completion, then the first error
+  is delivered.
+- Panics are not recovered (§8.5).
+
+### 8.2 `go for`
+
+- One worker per iteration, at most `limit N` at a time. `limit` is optional;
+  the default is `GOMAXPROCS`. The body is sequential inside one worker.
+- `map` range is rejected: a map has no ordinal, so the winning error would be
+  nondeterministic. Collect keys into a slice first and iterate the slice.
+- Errors: same delivery as `go { }`; the lowest iteration index wins.
+- Panics are not recovered.
+
+### 8.3 `go f(args)` — detached task
+
+- `f` must return `void` or `void!`. The call returns immediately.
+- Arguments and the receiver are evaluated before the task starts. There is no
+  closure: a detached task cannot capture locals. State travels through
+  arguments only. For a method call on a value, its address is taken before
+  launch, as in Go, so the task shares that variable; mutating it concurrently
+  is a data race.
+- The task belongs to the program, not to the calling function, so it can
+  outlive a request handler.
+- An unhandled error from `f` goes to the `on err` listener of the scope where
+  the call was written, captured at launch. Without a listener it crashes the
+  program with that error.
+- `or fail` after `go f(...)` is rejected: there is no function return to use.
+- Panics are not recovered.
+
+### 8.4 `on err` and error order
+
+- A scope listener is `on err { ... };` as the first statement of a function
+  or block; its rules are in §6. The nearest lexical listener wins.
+- An inline `expr on err { ... };` handles that expression only. `go`
+  statements have no inline handler.
+- `go` and `go for` deliver only the winning error; the others are dropped.
+  The winner is the lowest spawn ordinal, which is iteration order for
+  `go for`.
+- `return`, `break` and `continue` may not cross a `go` boundary. `or fail` is
+  the way out of a worker.
+
+### 8.5 Panic
+
+- `panic` is Go's panic: not an error, never delivered to `on err`, never
+  recovered or wrapped by `go`.
+- A panic in any worker runs that goroutine's deferred calls, prints the stack
+  and exits the process with status 2. Other goroutines are not unwound.
+
+### 8.6 Write rules
+
+- Plain `go`: a captured root may be written by at most one top-level
   statement, and no other statement may read it. Writes through a captured
   pointer, to a captured map slot, to a global, or to `self` are rejected.
-  Direct aliases
-  (`var q = p`, `q = p`) are attributed to the root.
-- `par for`: writes to captured roots are rejected except disjoint slots
+  Direct aliases (`var q = p`, `q = p`) are attributed to the root.
+- `go for`: writes to captured roots are rejected except disjoint slots
   `base[i]`, `base[i].f` or `base[i][j]` where every base of the index chain is
   a slice or array and the outermost index uses the iteration variable. Map
   writes, pointer writes and `self` writes are always rejected.
-- A C-style `par for` with an assignment init captures a per-iteration copy of
+- A C-style `go for` with an assignment init captures a per-iteration copy of
   each simple-ident LHS; the body sees the copy, while the condition and post
   use the outer variable. A direct write to that variable in the body is
   rejected as a captured write.
-- `context` is invisible in Ink. A function receives a hidden context only
-  when it or its callees need one. Go functions whose first parameter is
-  `context.Context` receive it automatically.
-- On a Go interface boundary, codegen emits a public method with the exact Go
-  signature and an internal context version. The user writes one method; the
-  wrapper lives in `zz_ink.go`.
-- Checks are static. `go build -race` stays the dynamic oracle: writes
-  through a pointer/interface passed to a free or Go function, writes inside
-  function literals, and aliases other than `var q = p` are not tracked as
-  writes. A method call on a captured interface value is conservatively a
-  write.
+- `for ()` is rejected inside a worker without a guaranteed exit. Function
+  literals are outside the static analysis.
+- Checks are static. `ink run -race` and `ink test -race` stay the dynamic
+  oracle: writes through a pointer/interface passed to a free or Go function,
+  writes inside function literals, and aliases other than `var q = p` are not
+  tracked as writes. A method call on a captured interface value is
+  conservatively a write.
+
+### 8.7 Context
+
+- There is no hidden context. `context.Context` is an ordinary value, passed
+  explicitly to the Go APIs that need it. Functions take one only when they
+  pass it to a Go API or derive a deadline; most do not.
+- `go { }` branches capture `ctx` lexically like any other local; nothing is
+  passed implicitly.
+- `go` does not create, cancel or derive a context. Cancelling a deadline does
+  not stop workers; they run to completion.
+- No `_ctx` wrapper and no second function: a function using `go` keeps its
+  exact signature, so Bubble Tea's `Update` with `go` still satisfies
+  `tea.Model`.
 
 ## 9. Tooling
 
@@ -573,7 +620,7 @@ These are not planned, not merely missing:
 - a `discard` builtin; `_` is the only blank/discard construct;
 - doc comments attached to declarations; comments are formatter input only.
 
-`go`, `chan`, `select`, `async`, `await`, `try`, `catch`, `?`, `export`,
+`chan`, `select`, `async`, `await`, `try`, `catch`, `?`, `export`,
 `let`, `:=`, attributes, traits, lifetimes, `unsafe` in application
 code, method declarations outside a type, UFCS, `switch`, labeled control flow,
 operator overloading, exceptions.

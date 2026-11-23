@@ -254,9 +254,7 @@ type User struct {
     };
 
     fn CtxAge() i32 {
-        within 5s {
-            return age;
-        };
+        return age;
     };
 
     fn shadow(self: i32) i32 {
@@ -273,7 +271,7 @@ type User struct {
     };
 
     fn show() void {
-        fmt.Println("age", age);
+        _, _ = fmt.Println("age", age);
     };
 };
 
@@ -328,7 +326,7 @@ fn main() void {
     defer u.show();
     defer u.bump();
     defer u.CtxAge();
-    fmt.Println(u.Greet(), u.age, area(c), area(r), area(e), describe(c), describe(r), describe(e), g.Greet(), u.CtxAge(), u.shadow(2), u.localSelf());
+    _, _ = fmt.Println(u.Greet(), u.age, area(c), area(r), area(e), describe(c), describe(r), describe(e), g.Greet(), u.CtxAge(), u.shadow(2), u.localSelf());
 };
 `,
 	})
@@ -345,10 +343,8 @@ fn main() void {
 	contains(t, src, "type Greeter interface")
 	contains(t, src, "Greeter(u)")
 	contains(t, src, "func (self *User) CtxAge() int32")
-	contains(t, src, "func _s_User_CtxAge_ctx(self *User, _s_ctx _s_context.Context) int32")
 	contains(t, src, "func (_s_self *User) shadow(self int32) int32")
 	contains(t, src, "func (_s_self *User) localSelf() int32")
-	contains(t, src, "_s_ctx := _s_context.Background()")
 	contains(t, src, "_s_d.Push(func() {")
 	stdout, stderr, err := p.run(t)
 	if err != nil {
@@ -392,7 +388,7 @@ fn main() void {
     var p = MakePair(7, "x");
     var xs = i32[] {4, 5};
     var ms = Maybe[i32] {8, 9};
-    fmt.Println(p.First, p.Second, First(xs), First[i32](xs), ms[0], ms[1]);
+    _, _ = fmt.Println(p.First, p.Second, First(xs), First[i32](xs), ms[0], ms[1]);
 };
 `,
 	})
@@ -442,21 +438,21 @@ fn two() i32! {
     return 4, nil[error];
 };
 
-fn boom() void {
-    var x = fetch(-1) or panic("bad");
-    var y = fetch(-1) or panic();
-    fmt.Println(x, y);
+fn boom() void! {
+    var x = fetch(-1) or fail("bad");
+    var y = fetch(-1) or fail("bad");
+    _, _ = fmt.Println(x, y);
 };
 
 fn main() void! {
     var a = fetch(3) or fail;
-    var b = fetch(-1) or err {
+    var b = fetch(-1) on err {
         fmt.Println("got", err) or fail;
         var err = 99;
         fmt.Println("shadow", err) or fail;
     };
     fmt.Println(a, b) or fail;
-    guard(0) or err {
+    guard(0) on err {
         fmt.Println("guard:", err) or fail;
     };
     var v, e = two();
@@ -482,8 +478,6 @@ fn main() void! {
 	contains(t, src, "_s_v")
 	contains(t, src, "_s_err")
 	contains(t, src, "return _s_err")
-	contains(t, src, "panic(\"bad\")")
-	contains(t, src, "panic(_s_err")
 	contains(t, src, "return fetch(n)")
 	contains(t, src, "return guard(n)")
 	contains(t, src, "var v, e = two()")
@@ -512,9 +506,9 @@ fn main() void {
         if (i == 2) {
             break;
         };
-        fmt.Println("body", i);
+        _, _ = fmt.Println("body", i);
     };
-    fmt.Println("done");
+    _, _ = fmt.Println("done");
 };
 `,
 	})
@@ -592,7 +586,7 @@ fn main() void {
         break;
     };
     delete(m, "b");
-    fmt.Println(sum, len(xs), cap(xs), total, len(keys), seen, n, str(copyBuf[0]), s[1:3], has(m, "a"), min(3, 5), max(3, 5), zero == nil[error], len(ys), counter, N, k1 + k2, len(arr), branch, once, len(xs[:2]), len(xs[1:]), len(xs[:]), has(m, "b"), len(rs), rs[0], len(bs), str(rs), shadowParam(9), shadow(1));
+    _, _ = fmt.Println(sum, len(xs), cap(xs), total, len(keys), seen, n, str(copyBuf[0]), s[1:3], has(m, "a"), min(3, 5), max(3, 5), zero == nil[error], len(ys), counter, N, k1 + k2, len(arr), branch, once, len(xs[:2]), len(xs[1:]), len(xs[:]), has(m, "b"), len(rs), rs[0], len(bs), str(rs), shadowParam(9), shadow(1));
 };
 `,
 	})
@@ -611,7 +605,7 @@ fn main() void {
 	expect(t, stdout, "60 3 3 3 2 2 4 A el true 3 5 true 2 5 2 3 2 four 1 2 2 3 false 2 97 2 ab 3 4\n")
 }
 
-func TestParWithin(t *testing.T) {
+func TestGoConcurrency(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 
@@ -622,21 +616,18 @@ fn work(n: int) int {
 fn main() void! {
     var a = 0;
     var b = 0;
-    par {
+    go {
         a = work(1);
         b = work(2);
     };
     var slots = int[4] {};
-    par for (var i = 0; i < 4; i += 1) limit 2 {
+    go for (var i = 0; i < 4; i += 1) limit 2 {
         slots[i] = work(i);
     };
-    var c = 0;
-    within 5s {
-        c = work(3);
-    };
+    var c = work(3);
     var nums = int[] {1, 2, 3};
     var out = int[3] {};
-    par for (var idx, x in nums) {
+    go for (var idx, x in nums) {
         out[idx] = work(x);
     };
     fmt.Println(a + b, slots[0], slots[1], slots[2], slots[3], c, out[0], out[1], out[2]) or fail;
@@ -646,10 +637,8 @@ fn main() void! {
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "_s_sync.WaitGroup")
 	contains(t, src, "make(chan struct{}, 2)")
-	contains(t, src, "_s_context.WithTimeout")
 	contains(t, src, "go func() {")
 	contains(t, src, "_s_i")
-	contains(t, src, "_s_ctx := _s_context.Background()")
 	stdout, stderr, err := p.run(t)
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
@@ -672,13 +661,13 @@ fn maybe(n: int) int! {
 fn main() void! {
     var p1 = 0;
     var p2 = 0;
-    par {
+    go {
         p1 = maybe(1) or fail;
         p2 = maybe(3) or fail;
     };
     fmt.Println(p1, p2) or fail;
     var slots = int[3] {};
-    par for (var i = 0; i < 3; i += 1) {
+    go for (var i = 0; i < 3; i += 1) {
         slots[i] = maybe(i) or fail;
     };
     fmt.Println(slots[0], slots[1], slots[2]) or fail;
@@ -687,7 +676,6 @@ fn main() void! {
 	})
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "var _s_pe")
-	contains(t, src, "_s_context.WithCancel")
 	contains(t, src, ".Add(0, ")
 	contains(t, src, ".Add(1, ")
 	contains(t, src, ".First()")
@@ -701,52 +689,33 @@ fn main() void! {
 	expect(t, stdout, "1 3\n")
 }
 
-func TestParPanic(t *testing.T) {
+func TestGoPanicNotRecovered(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn boom() void {
     panic("boom");
 };
 
-fn stop() void! {
-    return errors.New("fail");
-};
-
-fn runPanic() void! {
-    par {
+fn main() void {
+    go {
         boom();
     };
-};
-
-fn runOrPanic() void! {
-    par {
-        stop() or panic("wrapped");
-    };
-};
-
-fn main() void {
-    var p = false;
-    var o = false;
-    runPanic() or err { p = true; };
-    runOrPanic() or err { o = true; };
-    fmt.Println(p, o);
+    _, _ = fmt.Println("after");
 };
 `,
 	})
 	src := p.source(t, "zz_ink.go")
-	contains(t, src, "recover()")
-	contains(t, src, "_s_rt.NewPanicError(r)")
-	contains(t, src, "_s_rt.AsError(")
+	if strings.Contains(src, "recover()") || strings.Contains(src, "_s_rt.NewPanicError") {
+		t.Fatalf("go still recovers panics:\n%s", src)
+	}
 	stdout, stderr, err := p.run(t)
-	if err != nil {
-		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	if err == nil {
+		t.Fatalf("expected the panic to crash the process, stdout:\n%s", stdout)
 	}
-	if stderr != "" {
-		t.Fatalf("panic reached stderr: %s", stderr)
+	if !strings.Contains(stderr, "panic: boom") {
+		t.Fatalf("expected panic: boom, stderr:\n%s", stderr)
 	}
-	expect(t, stdout, "true true\n")
 }
 
 func TestParForAssignInit(t *testing.T) {
@@ -757,10 +726,10 @@ fn main() void {
     var n = 8;
     var i = 0;
     var out = i32[8] {};
-    par for (i = 0; i < n; i += 1) limit 4 {
+    go for (i = 0; i < n; i += 1) limit 4 {
         out[i] = i32(i * i);
     };
-    fmt.Println(out, i);
+    _, _ = fmt.Println(out, i);
 };
 `,
 	})
@@ -784,9 +753,7 @@ fn stop() void! {
 };
 
 fn tick(n: i32) i32 {
-    within 5s {
-        return n + 1;
-    };
+    return n + 1;
 };
 
 fn main() void {
@@ -803,7 +770,7 @@ test "slice grows" {
     assert(len(xs) == 1);
 };
 
-test "within works" {
+test "tick works" {
     assert_eq(tick(4), 5);
 };
 
@@ -817,7 +784,7 @@ test "imports and or fail" {
 	contains(t, src, "_s_testing \"testing\"")
 	contains(t, src, "func TestAddWorks(t *_s_testing.T)")
 	contains(t, src, "func _s_testAddWorks() error")
-	contains(t, src, "func _s_testWithinWorks(_s_ctx _s_context.Context) error")
+	contains(t, src, "func _s_testTickWorks() error")
 	contains(t, src, "strings \"strings\"")
 	contains(t, src, "t.Fatal(_s_err)")
 	contains(t, src, "_s_rt.AssertEq")
@@ -860,7 +827,7 @@ fn main() void {
     case ed.Blue => "blue";
     };
     var label3 = ed.Pick[ed.Color, str](c2, "blue");
-    fmt.Println(ed.Double(21), ed.Ctx(), label, label2, label3);
+    _, _ = fmt.Println(ed.Double(21), ed.Ctx(), label, label2, label3);
 };
 `,
 		"internal/ed/ed.ink": `type Color enum {
@@ -884,9 +851,7 @@ fn Double(n: i32) i32 {
 };
 
 fn Ctx() i32 {
-    within 5s {
-        return 7;
-    };
+    return 7;
 };
 `,
 	})
@@ -903,23 +868,23 @@ fn Ctx() i32 {
 	expect(t, stdout, "42 7 red blue blue\n")
 }
 
-func TestGoContext(t *testing.T) {
+func TestExplicitContext(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use context;
 use fmt;
 
 fn main() void {
-    var ctx, cancel = context.WithCancel();
+    var ctx, cancel = context.WithCancel(context.Background());
     defer cancel();
     if (ctx != nil[context.Context]) {
-        fmt.Println("ctx");
+        _, _ = fmt.Println("ctx");
     };
 };
 `,
 	})
 	src := p.source(t, "zz_ink.go")
-	contains(t, src, "context.WithCancel(_s_ctx)")
-	contains(t, src, "func _s_main(_s_ctx context.Context)")
+	contains(t, src, "context.WithCancel(context.Background())")
+	contains(t, src, "func _s_main()")
 	stdout, stderr, err := p.run(t)
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
@@ -927,7 +892,7 @@ fn main() void {
 	expect(t, stdout, "ctx\n")
 }
 
-func TestNestedPar(t *testing.T) {
+func TestNestedGo(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 use errors;
@@ -940,11 +905,11 @@ fn maybe(n: i32) i32! {
 };
 
 fn main() void! {
-    par {
-        par {
+    go {
+        go {
             maybe(1) or fail;
         };
-        maybe(2);
+        maybe(2) or fail;
     };
     fmt.Println("after") or fail;
 };
@@ -952,7 +917,6 @@ fn main() void! {
 	})
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "_s_pe")
-	contains(t, src, "_s_context.WithCancel")
 	stdout, stderr, err := p.run(t)
 	if err == nil {
 		t.Fatalf("expected failure, stdout:\n%s", stdout)

@@ -440,6 +440,7 @@ type writer struct {
 	err        bool
 	renames    map[string]rename
 	scratch    map[*ast.CallExpr]string
+	onErr      string
 	self       string
 }
 
@@ -497,6 +498,7 @@ func (w *writer) sub() *writer {
 		err:     w.err,
 		renames: make(map[string]rename),
 		scratch: w.scratch,
+		onErr:   w.onErr,
 		self:    w.self,
 	}
 	for k, v := range w.renames {

@@ -5,7 +5,7 @@ var xs = i32[] { 3, 1, 2 };
 
 fn less(i: int, j: int) bool {
     var dummy = i32[1] {};
-    par {
+    go {
         dummy[0] = 0;
     };
     return xs[i] < xs[j];
@@ -16,7 +16,7 @@ type Doubler struct {
 
     fn Double() i32 {
         var out = i32[1] {};
-        par {
+        go {
             out[0] = n * 2;
         };
         return out[0];
@@ -26,7 +26,7 @@ type Doubler struct {
 type Stringer struct {
     fn String() str {
         var out = u8[1] {};
-        par {
+        go {
             out[0] = 1;
         };
         return "stringer";
@@ -41,10 +41,13 @@ fn apply(d: Doer) i32 {
     return d.Double();
 };
 
-fn main() void {
+fn main() void! {
     sort.Slice(xs, less);
-    fmt.Println(xs);
+    fmt.Println(xs)
+        or fail;
     var d = Doubler { n: 21 };
-    fmt.Println(apply(&d));
-    fmt.Println(&Stringer {});
+    fmt.Println(apply(&d))
+        or fail;
+    fmt.Println(&Stringer {})
+        or fail;
 };

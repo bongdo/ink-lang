@@ -15,14 +15,14 @@ fn main() void! {
         or fail;
     var w = i32(0);
     w = load(false)
-        or err {
+        on err {
             fmt.Println("caught:", err)
-                or panic("print");
+                or fail("print");
         };
     fmt.Println(w)
         or fail;
     var z = load(true)
-        or panic("unreachable");
+        or fail("unreachable");
     fmt.Println(z)
         or fail;
 };

@@ -193,7 +193,7 @@ fn emit(w: Writer) int! {
 
 fn main() void {
     var b = Buffer {};
-    emit(b);
+    _, _ = emit(b);
     var w = Writer(b);
     _ = w;
 };
@@ -243,14 +243,14 @@ fn main() void {
 	}
 }
 
-func TestIfaceHiddenCtx(t *testing.T) {
+func TestIfaceGoNoHiddenCtx(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Writer interface {
     Write(p: u8[]) int!;
 };
 
 type Good struct {
     fn Write(p: u8[]) int! {
-        par { };
+        go { };
         return len(p);
     };
 };
@@ -266,8 +266,8 @@ fn main() void! {
 };
 `})
 	noErrors(t, p)
-	if d := p.Main.Types["Good"]; d == nil || len(d.Methods) == 0 || !d.Methods[0].NeedsCtx {
-		t.Fatal("Write must need a context")
+	if d := p.Main.Types["Good"]; d == nil || len(d.Methods) == 0 || d.Methods[0].NeedsCtx {
+		t.Fatal("go must not add a context")
 	}
 }
 

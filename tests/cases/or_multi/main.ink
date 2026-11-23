@@ -37,7 +37,7 @@ fn main() void! {
         or fail;
 
     var e, f = p.Split(-1)
-        or err {
+        on err {
             fmt.Println("handled")
                 or fail;
             return;

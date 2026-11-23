@@ -500,3 +500,78 @@ buffer a fixed-size arena in a loop is the intended shape.
 имеет и аллоцирует каждый вызов; тогда цикл надо держать снаружи или брать
 постоянный буфер. Арена внутри вложенного цикла освобождается после внутреннего,
 то есть переиспользуется в пределах внутреннего цикла.
+
+## 2026-11-23 — `par` renamed to `go`
+
+**Контекст:** `par { }`, `par for` and `par f()` made one keyword carry three
+shapes, and the user wanted one word for concurrency.
+**Решение:** `par { }` → `go { }`, `par for` → `go for`, `par f(...)` →
+detached `go f(...)`. `par` is rejected with a diagnostic pointing at `go`.
+**Почему:** `go` reads as "start this", and the shape (block, loop, call)
+disambiguates without a second keyword.
+**Что отвергли:** `spawn`, `queue`, a separate `parallel for`.
+**Цена:** every `par` snippet and diagnostic code renamed once (`par-*` →
+`go-*`).
+
+## 2026-11-23 — `within` and hidden context removed; explicit `ctx`
+
+**Контекст:** hidden context coloured functions across the FFI boundary, reset
+at package and function-value boundaries, and forced `_ctx` wrappers. `within`
+only cancelled calls that observed the context anyway.
+**Решение:** there is no hidden context. `context.Context` is an ordinary value
+passed explicitly; `within D` becomes
+`var ctx, cancel = context.WithTimeout(parent, D); defer cancel();`. `go` does
+not create, cancel or derive a context, and cancelling one does not stop
+workers.
+**Почему:** the user chose option 1: it is visible where `ctx` came from, with
+no colouring and no wrapper functions.
+**Что отвергли:** hidden context with a `Background()` fallback; passing `ctx`
+through every function by default.
+**Цена:** functions that need a deadline take `ctx` explicitly; the price is
+one parameter on the facade methods that pass it to Go. A deadline no longer
+cancels workers.
+
+## 2026-11-23 — Errors are `on err` and `or fail`
+
+**Контекст:** `or err { }` overloaded `or` with handling, `on fail` was the
+scope-handler candidate, and `or panic` mixed panic into the error channel.
+**Решение:** `on err { }` handles: inline after an expression, or as the first
+statement of a function/block as a scope listener for unhandled `go` errors.
+`or fail` / `or fail("ctx")` propagate; `fail(...)` stays inside a handler.
+`or err`, `on fail` and `or panic` are rejected. The listener cannot be empty
+or use `fail`/`return`. A fallible call as a bare statement is rejected;
+`_ = f();` is the explicit discard.
+**Почему:** two words, one direction each; the user asked for maximal
+unification and a listener attached to a scope, not to the program.
+**Что отвергли:** `on fail` for propagation, `or panic`, a global handler.
+**Цена:** `or err` snippets were rewritten; the listener is captured at launch
+and may run after its scope returns.
+
+## 2026-11-23 — Panic is Go's panic, not an error
+
+**Контекст:** `or panic` and the worker recovery boundary turned a panic into
+`PanicError`, cancelled siblings and delivered it as an error. The user said
+panic must fly where Go sends it.
+**Решение:** `panic(...)` is a Go panic. `on err` never receives it, `go` does
+not recover or wrap it, and there is no `PanicError` or `AsError`. A panic in
+any goroutine prints the stack and exits the process with status 2.
+**Почему:** one failure channel per mechanism; wrapping hid the stack and gave
+`void` functions recovery behaviour Go does not have.
+**Что отвергли:** `or panic`, worker recovery, `PanicError`.
+**Цена:** a panic in a worker kills the process; cleanup must use `defer`, not
+`on err`.
+
+## 2026-11-23 — Detached `go f(args)`
+
+**Контекст:** `par` only joined, so a background job (metrics, save, work that
+outlives a request) had no Ink form and needed a Go adapter.
+**Решение:** `go f(args);` starts `f` as a detached task. `f` returns `void` or
+`void!`; arguments are evaluated before the task starts; there is no closure.
+The task is owned by the program. An unhandled error goes to the scope's
+`on err` captured at launch, otherwise it crashes the program. `or fail` after
+the call is rejected.
+**Почему:** one keyword covers join and detach; the user wanted the whole
+project in Ink without a Go adapter for background work.
+**Что отвергли:** pools, queues, handles and `send`.
+**Цена:** state travels through arguments only; there is no `wait`, so shutdown
+and coordination stay in a Go binding.

@@ -17,12 +17,12 @@ pero main.ink        # open with the LSP and .ink highlighting
 
 Sections in the tour: imports, `const`/`var`, aliases, structs and implicit
 `self`, enums and exhaustive `match`, interfaces, generics, multiple results,
-fallible results (`or return`, `or err`, `or panic`), block-scoped `defer`,
+fallible results (`or fail`, `on err`), block-scoped `defer`,
 `if`/`for`/`match`, `any` type patterns, negative and `nil` patterns, typed vars
-and bare `nil`, `par`, `par for ... limit`, `within`, builtins, Go interop and
+and bare `nil`, `go`, `go for ... limit`, `go f()`, builtins, Go interop and
 `test` blocks.
 
-## `frame/` — arena and `par` with raylib
+## `frame/` — arena and `go for` with raylib
 
 `frame/main.ink` rasterizes a frame into an arena-allocated row buffer, shades
 rows in parallel, copies them into one persistent buffer and uploads it once per
@@ -38,9 +38,8 @@ positions; `tests/run.sh` runs it as an intentional-failure oracle.
 
 ## `limits/` — concurrency boundaries
 
-`limits/README.md` explains G10 (hidden context stops at package and
-function-value boundaries) and G11 (static `par` checks cannot see every
-alias). `ink run -race` / `ink test -race` are the dynamic oracle.
+`limits/README.md` explains why the static `go` checks cannot see every write,
+and why `ink run -race` / `ink test -race` are the dynamic oracle.
 
 ## Editor highlighting and LSP
 

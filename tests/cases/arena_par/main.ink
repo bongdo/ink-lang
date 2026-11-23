@@ -17,7 +17,7 @@ fn main() void! {
     var out = make[i32](RowLen * 4);
     arena {
         var rows = make[Row](4);
-        par for (var y = i32(0); y < i32(4); y += 1) limit 2 {
+        go for (var y = i32(0); y < i32(4); y += 1) limit 2 {
             rows[y] = fillRow(y);
         };
         for (var y = 0; y < 4; y += 1) {

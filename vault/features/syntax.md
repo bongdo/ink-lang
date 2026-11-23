@@ -14,7 +14,8 @@ id: syntax
 - ошибка в сигнатуре: `fn load(p: str) Config!`;
 - несколько результатов: `(A, B)!`;
 - без значения: `void!`;
-- обработчик ошибки: `or fail`, `or fail("ctx")`, `or err { }`, `or panic(...)`;
+- обработчик ошибки: `or fail`, `or fail("ctx")`, `on err { }`; `panic(...)` —
+  Go panic, не обработчик;
 - `or` всегда с новой строки, с отступом на уровень;
 - импорт: `use fmt;`, `use encoding/json;`, `use ./lib as lib;` — без кавычек;
 - литерал: `Config { Port: 8080 }`, `map[str, i32] { "a": 1 }`.

@@ -2,7 +2,6 @@ package inkrt
 
 import (
 	"fmt"
-	"runtime/debug"
 	"sync"
 )
 
@@ -52,26 +51,6 @@ func Has[K comparable, V any](m map[K]V, k K) bool {
 type ParError struct {
 	Index int
 	Err   error
-}
-
-type PanicError struct {
-	Value any
-	Stack []byte
-}
-
-func NewPanicError(v any) *PanicError {
-	return &PanicError{Value: v, Stack: debug.Stack()}
-}
-
-func (e *PanicError) Error() string {
-	return fmt.Sprintf("panic: %v\n%s", e.Value, e.Stack)
-}
-
-func AsError(v any) error {
-	if err, ok := v.(error); ok {
-		return err
-	}
-	return fmt.Errorf("%v", v)
 }
 
 type ParErrors struct {

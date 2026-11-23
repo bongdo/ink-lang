@@ -171,20 +171,6 @@ fn main() void {
 			want: true,
 		},
 		{
-			name: "within returns",
-			src: `fn f() i32 {
-    within 1s {
-        return 1;
-    };
-};
-
-fn main() void {
-    _ = f();
-};
-`,
-			want: false,
-		},
-		{
 			name: "error only",
 			src: `fn f() void! {
 };

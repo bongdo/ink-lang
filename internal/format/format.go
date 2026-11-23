@@ -461,7 +461,15 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.expr(s.Call)
 		p.write(";")
 	case *ast.ParStmt:
-		p.write("par ")
+		p.write("go ")
+		p.block(s.Body)
+		p.write(";")
+	case *ast.GoCallStmt:
+		p.write("go ")
+		p.expr(s.Call)
+		p.write(";")
+	case *ast.OnErrStmt:
+		p.write("on err ")
 		p.block(s.Body)
 		p.write(";")
 	case *ast.WithinStmt:
@@ -500,7 +508,7 @@ func (p *printer) elsePart(s ast.Stmt) {
 
 func (p *printer) forStmt(f *ast.ForStmt) {
 	if f.Par {
-		p.write("par ")
+		p.write("go ")
 	}
 	p.write("for (")
 	switch {
@@ -708,27 +716,28 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 		p.line()
 		p.indent++
 		p.ind()
-		p.write("or ")
-		switch e.Mode {
-		case ast.OrReturn:
-			p.write("return")
-		case ast.OrPanic:
-			p.write("panic(")
-			if e.PanicArg != nil {
-				p.expr(e.PanicArg)
-			}
-			p.write(")")
-		case ast.OrFail:
-			p.write("fail")
-			if e.FailArg != nil {
-				p.write("(")
-				p.expr(e.FailArg)
-				p.write(")")
-			}
-		case ast.OrHandle:
-			p.write(e.Name)
-			p.write(" ")
+		if e.Mode == ast.OrHandle {
+			p.write("on err ")
 			p.block(e.Block)
+		} else {
+			p.write("or ")
+			switch e.Mode {
+			case ast.OrReturn:
+				p.write("return")
+			case ast.OrPanic:
+				p.write("panic(")
+				if e.PanicArg != nil {
+					p.expr(e.PanicArg)
+				}
+				p.write(")")
+			case ast.OrFail:
+				p.write("fail")
+				if e.FailArg != nil {
+					p.write("(")
+					p.expr(e.FailArg)
+					p.write(")")
+				}
+			}
 		}
 		p.indent--
 	default:

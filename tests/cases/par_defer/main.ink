@@ -6,7 +6,7 @@ fn stop() void! {
 };
 
 fn work() void! {
-    par {
+    go {
         {
             defer fmt.Println("cleanup");
             stop()
@@ -20,7 +20,7 @@ fn work() void! {
 };
 
 fn main() void! {
-    par {
+    go {
         {
             defer fmt.Println("d1");
             defer fmt.Println("d2");
@@ -30,7 +30,7 @@ fn main() void! {
     };
     var caught = 0;
     work()
-        or err {
+        on err {
             caught = 1;
         };
     fmt.Println("caught", caught)

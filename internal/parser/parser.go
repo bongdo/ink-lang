@@ -191,12 +191,10 @@ func goOnlyMsg(t token.Token) string {
 		return "functions are declared with fn, not func"
 	case "switch":
 		return "switch does not exist; use if or match"
-	case "go":
-		return "go does not exist; use par { ... };"
 	case "chan":
 		return "chan does not exist; keep channels in a Go adapter"
 	case "select":
-		return "select does not exist; use par or a Go adapter"
+		return "select does not exist; use go or a Go adapter"
 	case "goto":
 		return "goto does not exist; use for, break and continue"
 	case "fallthrough":
@@ -741,10 +739,23 @@ func (p *parser) parseStmt() ast.Stmt {
 		return p.parseIfStmt()
 	case token.For:
 		return p.parseForStmt(false, p.tok().Pos)
+	case token.Go:
+		return p.parseGoStmt()
+	case token.On:
+		return p.parseOnErrStmt()
 	case token.Par:
-		return p.parseParStmt()
+		p.errorf(p.tok().Pos, "par was renamed to go")
+		return p.parseGoStmt()
 	case token.Within:
-		return p.parseWithinStmt()
+		pos := p.tok().Pos
+		p.errorf(pos, "within was removed; use context.WithTimeout")
+		p.next()
+		p.parseExprNoLit()
+		if p.at(token.LBrace) {
+			p.parseBlock()
+		}
+		p.consumeSemi()
+		return nil
 	case token.Return:
 		return p.parseReturnStmt()
 	case token.Break:
@@ -939,11 +950,30 @@ func (p *parser) parseRangeClause() *ast.RangeClause {
 	return rc
 }
 
-func (p *parser) parseParStmt() ast.Stmt {
+func (p *parser) parseGoStmt() ast.Stmt {
 	start := p.tok().Pos
 	p.next()
 	if p.at(token.For) {
 		return p.parseForStmt(true, start)
+	}
+	if p.at(token.LBrace) {
+		body := p.parseBlock()
+		p.consumeSemi()
+		return &ast.ParStmt{Span: p.fin(start), Body: body}
+	}
+	call := p.parseExprNoOr()
+	p.consumeSemi()
+	return &ast.GoCallStmt{Span: p.fin(start), Call: call}
+}
+
+func (p *parser) parseOnErrStmt() ast.Stmt {
+	start := p.tok().Pos
+	p.next()
+	if !p.at(token.Ident) || p.tok().Lit != "err" {
+		p.errorf(p.tok().Pos, "expected 'err' after 'on'")
+	}
+	if p.at(token.Ident) {
+		p.next()
 	}
 	var body *ast.Block
 	if p.at(token.LBrace) {
@@ -952,7 +982,7 @@ func (p *parser) parseParStmt() ast.Stmt {
 		p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
 	}
 	p.consumeSemi()
-	return &ast.ParStmt{Span: p.fin(start), Body: body}
+	return &ast.OnErrStmt{Span: p.fin(start), Body: body}
 }
 
 func (p *parser) parseWithinStmt() ast.Stmt {
@@ -1036,6 +1066,8 @@ func (p *parser) parseSimpleStmt(requireSemi bool) ast.Stmt {
 		assign = &ast.AssignStmt{Lhs: lhs, Op: op, Rhs: p.parseExprList(true)}
 	} else if len(lhs) == 1 && p.at(token.Or) {
 		expr = p.parseOr(lhs[0])
+	} else if len(lhs) == 1 && p.at(token.On) {
+		expr = p.parseOn(lhs[0])
 	} else if len(lhs) > 1 {
 		p.errorf(lhs[1].Pos(), "multiple expressions require an assignment")
 		expr = lhs[0]
@@ -1102,6 +1134,9 @@ func (p *parser) parseExpr() ast.Expr {
 	if p.at(token.Or) {
 		return p.parseOr(x)
 	}
+	if p.at(token.On) {
+		return p.parseOn(x)
+	}
 	return x
 }
 
@@ -1143,7 +1178,17 @@ func (p *parser) parseOr(x ast.Expr) ast.Expr {
 		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail, FailArg: arg}
 	case token.Ident:
 		name := p.next()
-		if name.Lit == "panic" {
+		switch name.Lit {
+		case "err":
+			p.errorf(name.Pos, "use 'on err { ... }' instead of 'or err { ... }'")
+			if !p.at(token.LBrace) {
+				p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
+				return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail}
+			}
+			block := p.parseBlock()
+			return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrHandle, Name: "err", Block: block}
+		case "panic":
+			p.errorf(name.Pos, "or panic was removed; use on err { panic(...) } or or fail")
 			var arg ast.Expr
 			if p.at(token.LParen) {
 				p.next()
@@ -1151,25 +1196,34 @@ func (p *parser) parseOr(x ast.Expr) ast.Expr {
 					arg = p.parseExprNoOr()
 				}
 				p.expect(token.RParen)
-			} else {
-				p.errorf(p.tok().Pos, "expected '(', found %s", describe(p.tok()))
 			}
-			return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrPanic, PanicArg: arg}
+			return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail, FailArg: arg}
+		default:
+			p.errorf(name.Pos, "expected 'fail' after 'or'")
+			return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail}
 		}
-		if name.Lit != "err" {
-			p.errorf(name.Pos, "the error in an or block is always named err")
-		}
-		var block *ast.Block
-		if p.at(token.LBrace) {
-			block = p.parseBlock()
-		} else {
-			p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
-		}
-		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrHandle, Name: "err", Block: block}
 	default:
-		p.errorf(p.tok().Pos, "expected 'return', 'fail', 'panic' or 'err {' after 'or'")
-		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrReturn}
+		p.errorf(p.tok().Pos, "expected 'fail' after 'or'")
+		return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrFail}
 	}
+}
+
+func (p *parser) parseOn(x ast.Expr) ast.Expr {
+	p.next()
+	start := x.Pos()
+	if !p.at(token.Ident) || p.tok().Lit != "err" {
+		p.errorf(p.tok().Pos, "expected 'err' after 'on'")
+	}
+	if p.at(token.Ident) {
+		p.next()
+	}
+	var block *ast.Block
+	if p.at(token.LBrace) {
+		block = p.parseBlock()
+	} else {
+		p.errorf(p.tok().Pos, "expected '{', found %s", describe(p.tok()))
+	}
+	return &ast.OrExpr{Span: p.fin(start), X: x, Mode: ast.OrHandle, Name: "err", Block: block}
 }
 
 func (p *parser) parseExprList(top bool) []ast.Expr {

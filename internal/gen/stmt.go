@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"go/types"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,18 @@ func (w *writer) bodyContents(b *ast.Block, mark bool) {
 	if mark && w.deferStack && !blockTerminates(b) {
 		markName = w.next("mark")
 		w.linef("%s := _s_d.Mark()", markName)
+	}
+	savedOnErr := w.onErr
+	if len(b.Stmts) > 0 {
+		if oe, ok := b.Stmts[0].(*ast.OnErrStmt); ok {
+			w.onErr = w.onErrClosure(oe.Body)
+			w.genStmts(b.Stmts[1:])
+			w.onErr = savedOnErr
+			if markName != "" {
+				w.linef("_s_d.RunTo(%s)", markName)
+			}
+			return
+		}
 	}
 	w.genStmts(b.Stmts)
 	if markName != "" {
@@ -80,6 +93,9 @@ func (w *writer) stmt(s ast.Stmt) {
 		w.deferStmt(s)
 	case *ast.ParStmt:
 		w.parStmt(s)
+	case *ast.GoCallStmt:
+		w.goCallStmt(s)
+	case *ast.OnErrStmt:
 	case *ast.WithinStmt:
 		w.withinStmt(s)
 	}
@@ -155,6 +171,12 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 	}
 	names := strings.Join(d.Names, ", ")
 	if allBlank(d.Names) && d.Type == nil {
+		if len(d.Values) == 1 {
+			if call, ok := unparen(d.Values[0]).(*ast.CallExpr); ok {
+				w.linef("%s = %s", blanks(discardCount(call)), values[0])
+				return
+			}
+		}
 		if len(values) == 1 {
 			w.linef("_ = %s", values[0])
 		} else {
@@ -163,6 +185,20 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 		return
 	}
 	w.linef("%s %s%s = %s", prefix, names, typePart, strings.Join(values, ", "))
+}
+
+func discardCount(call *ast.CallExpr) int {
+	if call == nil || call.Info == nil {
+		return 1
+	}
+	n := call.Info.Results
+	if call.Info.HasError {
+		n++
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
 }
 
 func allBlank(names []string) bool {
@@ -186,6 +222,13 @@ func (w *writer) assignStmt(s *ast.AssignStmt) {
 				return
 			}
 			w.linef("%s = %s", strings.Join(lhs, ", "), strings.Join(values, ", "))
+			return
+		}
+	}
+	if allBlank(lhs) && len(s.Rhs) == 1 {
+		if call, ok := unparen(s.Rhs[0]).(*ast.CallExpr); ok {
+			rhs := w.expr(s.Rhs[0])
+			w.linef("%s = %s", blanks(discardCount(call)), rhs)
 			return
 		}
 	}
@@ -413,29 +456,137 @@ func (w *writer) orError(or *ast.OrExpr, errName string) {
 		w.propagateParError(target)
 		w.indent--
 		w.line("}")
-	case ast.OrPanic:
-		arg := errName
-		if or.PanicArg != nil {
-			arg = w.expr(or.PanicArg)
+	}
+}
+
+func (w *writer) onErrClosure(body *ast.Block) string {
+	name := w.next("onerr")
+	w.linef("%s := func(err error) {", name)
+	w.indent++
+	if body != nil {
+		w.bodyContents(body, hasDirectDefer(body.Stmts))
+	}
+	w.indent--
+	w.line("}")
+	w.linef("_ = %s", name)
+	return name
+}
+
+func (w *writer) goCallStmt(s *ast.GoCallStmt) {
+	call, ok := unparen(s.Call).(*ast.CallExpr)
+	if !ok {
+		return
+	}
+	var args []string
+	for _, a := range call.Args {
+		if isConstExpr(a) {
+			args = append(args, w.expr(a))
+			continue
 		}
-		w.linef("if %s != nil {", errName)
-		w.indent++
-		if w.par != nil {
-			if w.deferStack {
-				w.line("_s_d.RunTo(0)")
-			}
-			w.f.needPkg("rt")
-			w.linef("%s.Add(%s, _s_rt.AsError(%s))", w.par.pe, w.par.ord, arg)
-			if w.par.cancel != "" {
-				w.linef("%s()", w.par.cancel)
-			}
-			w.line("return")
+		name := w.next("a")
+		w.linef("%s := %s", name, w.expr(a))
+		args = append(args, name)
+	}
+	if call.Ellipsis && len(args) > 0 {
+		args[len(args)-1] += "..."
+	}
+	fun := ""
+	switch f := unparen(call.Fun).(type) {
+	case *ast.SelectorExpr:
+		if isPackageExpr(f.X) {
+			fun = w.expr(f)
+			break
+		}
+		recv := w.next("r")
+		rt := w.f.g.p.ExprTypes[f.X]
+		if isPointerType(rt) || isInterfaceType(w, rt) || !isAddressable(f.X) {
+			w.linef("%s := %s", recv, w.expr(f.X))
 		} else {
-			w.linef("panic(%s)", arg)
+			w.linef("%s := &%s", recv, w.expr(f.X))
+		}
+		fun = recv + "." + f.Name
+	case *ast.Ident:
+		if f.Ref != nil && f.Ref.Func == nil && f.Ref.Kind != ast.RefPackage {
+			name := w.next("f")
+			w.linef("%s := %s", name, w.expr(f))
+			fun = name
+		} else {
+			fun = w.expr(f)
+		}
+	default:
+		fun = w.expr(call.Fun)
+	}
+	if len(call.TypeArgs) > 0 {
+		parts := make([]string, len(call.TypeArgs))
+		for i, t := range call.TypeArgs {
+			parts[i] = w.typeStr(t)
+		}
+		fun += "[" + strings.Join(parts, ", ") + "]"
+	}
+	callStr := fun + "(" + strings.Join(args, ", ") + ")"
+	w.line("go func() {")
+	w.indent++
+	if call.Info != nil && call.Info.HasError {
+		errName := w.next("err")
+		w.linef("if %s := %s; %s != nil {", errName, callStr, errName)
+		w.indent++
+		if w.onErr != "" {
+			w.linef("%s(%s)", w.onErr, errName)
+		} else {
+			w.linef("panic(%s)", errName)
 		}
 		w.indent--
 		w.line("}")
+	} else {
+		w.line(callStr)
 	}
+	w.indent--
+	w.line("}()")
+}
+
+func isConstExpr(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.BasicLit, *ast.NilLit:
+		return true
+	case *ast.UnaryExpr:
+		return isConstExpr(e.X)
+	}
+	return false
+}
+
+func isInterfaceType(w *writer, t ast.Type) bool {
+	if n, ok := t.(*ast.NamedType); ok {
+		if n.Package == "" && (n.Name == "any" || n.Name == "error") {
+			return true
+		}
+		if n.Decl != nil && n.Decl.Kind == ast.TypeInterface {
+			return true
+		}
+	}
+	if gt := w.f.g.p.GoTypeOf(t); gt != nil {
+		_, ok := gt.Underlying().(*types.Interface)
+		return ok
+	}
+	return false
+}
+
+func isAddressable(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.Ident:
+		return e.Ref == nil || e.Ref.Kind != ast.RefPackage
+	case *ast.SelectorExpr:
+		return isAddressable(e.X)
+	case *ast.IndexExpr:
+		return true
+	case *ast.UnaryExpr:
+		return e.Op == token.Star
+	}
+	return false
+}
+
+func isPackageExpr(e ast.Expr) bool {
+	id, ok := unparen(e).(*ast.Ident)
+	return ok && id.Ref != nil && id.Ref.Kind == ast.RefPackage
 }
 
 func (w *writer) propagateParError(errName string) {
@@ -445,9 +596,6 @@ func (w *writer) propagateParError(errName string) {
 		}
 		if w.par.pe != "" {
 			w.linef("%s.Add(%s, %s)", w.par.pe, w.par.ord, errName)
-		}
-		if w.par.cancel != "" {
-			w.linef("%s()", w.par.cancel)
 		}
 		w.line("return")
 		return
@@ -508,6 +656,16 @@ func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 		w.linef("%s.Release()", name)
 	}
 	w.scratch = saved
+}
+
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
 }
 
 func arenaSites(body *ast.Block) []*ast.CallExpr {
@@ -589,7 +747,7 @@ func (w *writer) deferStmt(s *ast.DeferStmt) {
 		}
 		callStr = w.builtinCall(name, c, args)
 	} else {
-		fun, prefix, handled := w.callTarget(c)
+		fun, prefix, _ := w.callTarget(c)
 		if len(c.TypeArgs) > 0 {
 			parts := make([]string, 0, len(c.TypeArgs))
 			for _, t := range c.TypeArgs {
@@ -604,11 +762,6 @@ func (w *writer) deferStmt(s *ast.DeferStmt) {
 		for _, p := range prefix {
 			tmp := w.next("x")
 			w.linef("%s := %s", tmp, p)
-			pre = append(pre, tmp)
-		}
-		if len(prefix) == 0 && !handled && w.callNeedsCtx(c) {
-			tmp := w.next("x")
-			w.linef("%s := %s", tmp, w.currentCtx())
 			pre = append(pre, tmp)
 		}
 		args = append(args, pre...)
@@ -976,29 +1129,23 @@ func (w *writer) parStmt(s *ast.ParStmt) {
 	w.line("{")
 	w.indent++
 	wg := w.next("wg")
-	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
-	ctx := w.next("ctx")
-	cancel := w.next("cancel")
 	pe := w.next("pe")
-	w.linef("%s, %s := %s.WithCancel(%s)", ctx, cancel, w.f.std("context"), w.currentCtx())
-	w.linef("_ = %s", ctx)
+	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
 	w.linef("var %s _s_rt.ParErrors", pe)
 	w.f.needPkg("rt")
 	w.linef("%s.Add(%d)", wg, len(s.Body.Stmts))
 	for i, st := range s.Body.Stmts {
 		sub := w.sub()
-		sub.ctx = ctx
 		sub.results = nil
 		sub.err = false
 		sub.deferStack = true
-		sub.par = &parRef{pe: pe, ord: strconv.Itoa(i), cancel: cancel}
+		sub.par = &parRef{pe: pe, ord: strconv.Itoa(i)}
 		sub.line("var _s_d _s_rt.DeferStack")
 		sub.line("defer _s_d.RunTo(0)")
 		sub.stmt(st)
 		w.line("go func() {")
 		w.indent++
 		w.linef("defer %s.Done()", wg)
-		w.linef("defer func() { if r := recover(); r != nil { %s.Add(%s, _s_rt.NewPanicError(r)); %s() } }()", pe, sub.par.ord, cancel)
 		w.buf.WriteString(sub.buf.String())
 		w.indent--
 		w.line("}()")
@@ -1007,13 +1154,19 @@ func (w *writer) parStmt(s *ast.ParStmt) {
 	errName := w.next("err")
 	w.linef("if %s := %s.First(); %s != nil {", errName, pe, errName)
 	w.indent++
-	w.linef("%s()", cancel)
+	w.unhandled(errName)
+	w.indent--
+	w.line("}")
+	w.indent--
+	w.line("}")
+}
+
+func (w *writer) unhandled(errName string) {
+	if w.onErr != "" {
+		w.linef("%s(%s)", w.onErr, errName)
+		return
+	}
 	w.propagateParError(errName)
-	w.indent--
-	w.line("}")
-	w.linef("%s()", cancel)
-	w.indent--
-	w.line("}")
 }
 
 func (w *writer) parForStmt(s *ast.ForStmt) {
@@ -1030,11 +1183,7 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 		limit = w.f.std("runtime") + ".GOMAXPROCS(0)"
 	}
 	w.linef("%s := make(chan struct{}, %s)", sem, limit)
-	ctx := w.next("ctx")
-	cancel := w.next("cancel")
 	pe := w.next("pe")
-	w.linef("%s, %s := %s.WithCancel(%s)", ctx, cancel, w.f.std("context"), w.currentCtx())
-	w.linef("_ = %s", ctx)
 	w.linef("var %s _s_rt.ParErrors", pe)
 	w.f.needPkg("rt")
 	isMap := s.Range != nil && s.Range.IsMap
@@ -1125,15 +1274,15 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	if !isMap {
 		ordName = w.next("ord")
 		w.linef("%s := %s", ordName, ord)
+		w.linef("_ = %s", ordName)
 		w.linef("%s++", ord)
 	}
 	w.linef("%s.Add(1)", wg)
 	sub := w.sub()
-	sub.ctx = ctx
 	sub.results = nil
 	sub.err = false
 	sub.deferStack = true
-	sub.par = &parRef{pe: pe, ord: ordName, cancel: cancel}
+	sub.par = &parRef{pe: pe, ord: ordName}
 	sub.line("var _s_d _s_rt.DeferStack")
 	sub.line("defer _s_d.RunTo(0)")
 	if s.Body != nil {
@@ -1146,7 +1295,6 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	w.indent++
 	w.linef("defer %s.Done()", wg)
 	w.linef("defer func() { <-%s }()", sem)
-	w.linef("defer func() { if r := recover(); r != nil { %s.Add(%s, _s_rt.NewPanicError(r)); %s() } }()", pe, ordName, cancel)
 	w.buf.WriteString(sub.buf.String())
 	w.indent--
 	w.line("}()")
@@ -1156,11 +1304,9 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	errName := w.next("err")
 	w.linef("if %s := %s.First(); %s != nil {", errName, pe, errName)
 	w.indent++
-	w.linef("%s()", cancel)
-	w.propagateParError(errName)
+	w.unhandled(errName)
 	w.indent--
 	w.line("}")
-	w.linef("%s()", cancel)
 	w.indent--
 	w.line("}")
 	for _, name := range scratch {

@@ -10,7 +10,7 @@ circle 2
 7 true
 8 true
 8
-or err: handled requested failure
+on err: handled requested failure
 -1
 7
 fallback requested failure
@@ -33,4 +33,4 @@ nil set
 [1 2 3]
 7 7
 [2 4 6 8]
-within 7
+scope 7

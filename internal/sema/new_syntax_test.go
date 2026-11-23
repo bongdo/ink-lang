@@ -112,3 +112,96 @@ fn main() void {
 `})
 	noErrors(t, p)
 }
+
+func TestGoCallRules(t *testing.T) {
+	cases := map[string]struct {
+		src  string
+		want string
+	}{
+		"returns value": {
+			src: `
+fn f() i32 { return 1; };
+fn main() void { go f(); };
+`,
+			want: "go call must not return a value",
+		},
+		"not a call": {
+			src: `
+fn main() void { go 1; };
+`,
+			want: "go expects a call",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := checkSrc(t, map[string]string{".": c.src})
+			if !hasError(p, c.want) {
+				t.Fatalf("want error containing %q, got %v", c.want, p.Errors)
+			}
+		})
+	}
+}
+
+func TestOnErrListenerRules(t *testing.T) {
+	cases := map[string]struct {
+		src  string
+		want string
+	}{
+		"empty": {
+			src:  `fn main() void { on err {}; };`,
+			want: "on err must do something",
+		},
+		"not first": {
+			src: `
+fn main() void {
+    var x = 1;
+    on err { _ = x; };
+};
+`,
+			want: "on err must be the first statement",
+		},
+		"return": {
+			src: `
+fn f() void! { on err { return; }; };
+fn main() void {};
+`,
+			want: "return cannot leave an on err listener",
+		},
+		"fail": {
+			src: `
+fn f() void! { on err { fail(error("x")); }; };
+fn main() void {};
+`,
+			want: "fail cannot leave an on err listener",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := checkSrc(t, map[string]string{".": c.src})
+			if !hasError(p, c.want) {
+				t.Fatalf("want error containing %q, got %v", c.want, p.Errors)
+			}
+		})
+	}
+}
+
+func TestOnErrListenerCatchesGoError(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `
+fn boom() void! { fail(error("x")); };
+fn main() void! {
+    on err { panic(err); };
+    go { boom() or fail; };
+};
+`})
+	noErrors(t, p)
+}
+
+func TestDroppedFallibleRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `
+fn f() i32! { return 1; };
+fn main() void { f(); };
+`})
+	if !hasError(p, "fallible result is dropped") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}

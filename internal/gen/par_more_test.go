@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestParDeferPanicWins(t *testing.T) {
+func TestGoDeferPanicCrashes(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use errors;
 
@@ -18,7 +18,7 @@ fn stop() void! {
 };
 
 fn main() void! {
-    par {
+    go {
         {
             defer boom();
             stop() or fail;

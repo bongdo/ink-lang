@@ -142,8 +142,10 @@ fn exists(path: str) bool! {
 
 - `call() or fail;` propagates.
 - `call() or fail("context");` wraps and propagates.
-- `call() or err { ... };` handles the error here; the name is always `err`.
-- `call() or panic("message");` aborts.
+- `call() on err { ... };` handles the error here; the name is always `err`.
+- `on err { ... };` as the first statement of a function or block listens for
+  unhandled `go` errors. It cannot be empty and cannot use `fail` or `return`.
+- `panic("message");` is a Go panic: `on err` does not catch it.
 - The handler always starts on a new line, indented once.
 
 ## Tests
@@ -162,11 +164,12 @@ passed through, so `ink test -race` runs the suite under Go's race detector.
 
 ```hare
 fn load(id: i32) i32! { ... };
+fn save(id: i32) void! { ... };
 
 fn main() void! {
     var users = 0;
     var orders = 0;
-    par {
+    go {
         users = load(1)
             or fail;
         orders = load(2)
@@ -175,22 +178,31 @@ fn main() void! {
 
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
-    par for (var i = 0; i < len(xs); i += 1) limit 2 {
+    go for (var i = 0; i < len(xs); i += 1) limit 2 {
         out[i] = xs[i] * 2;
     };
 
-    within 30s {
-        out[0] = load(3)
-            or fail;
-    };
+    go save(3);        // detached task, owned by the program
 };
 ```
 
 Captured state may be read concurrently. Writes must go to a slot indexed by
-the iteration variable or be the only writer of that variable inside `par`.
-`par`/`within` errors cancel the remaining work. The checks are static;
-`ink run -race` and `ink test -race` are the dynamic oracle. Hidden
-context stops at package and function-value boundaries, and aliases or
+the iteration variable or be the only writer of that variable inside `go`.
+`go` and `go for` wait for all workers and never cancel early; the
+lowest-ordinal unhandled error is delivered at the join — to the scope's
+`on err`, or returned from the function. A panic is a Go panic and aborts the
+process.
+
+To bound work by time, pass a context explicitly:
+
+```hare
+var ctx, cancel = context.WithTimeout(r.Context(), 30s);
+defer cancel();
+```
+
+There is no hidden context and no coloring: `go` does not create, cancel or
+derive a context, and a deadline does not stop workers. The checks are static;
+`ink run -race` and `ink test -race` are the dynamic oracle, and aliases or
 escapes the static pass cannot see are covered only by `-race`; see
 [`examples/limits`](../../examples/limits/README.md).
 

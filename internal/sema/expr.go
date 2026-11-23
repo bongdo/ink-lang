@@ -317,10 +317,6 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 				info = funcTypeInfo(ft)
 				params = ft.Params
 				result = firstResult(ft.Results)
-				if ft.NeedsCtx {
-					c.needCtx()
-					info.NeedsCtx = true
-				}
 			}
 		}
 	case *ast.SelectorExpr:
@@ -428,7 +424,7 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 		return nil
 	}
 	if c.arenaInWorker() {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside go; allocate before the go block")
 	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}
@@ -453,7 +449,7 @@ func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {
 		return nil
 	}
 	if c.arenaInWorker() {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside go; allocate before the go block")
 	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}
@@ -672,7 +668,7 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 	case ast.OrFail:
 		if c.fn == nil {
 			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail outside a function")
-		} else if !c.fn.err {
+		} else if !c.fn.err && !(c.inPar && c.hasListener()) {
 			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail in a function that cannot fail; add ! to the result")
 		}
 		if or.FailArg != nil {
@@ -683,6 +679,9 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 	case ast.OrPanic:
 		c.resolveExpr(or.PanicArg, false)
 	case ast.OrHandle:
+		if or.Block == nil || len(or.Block.Stmts) == 0 {
+			c.p.errorf(c.fc.file.Path, or.Pos(), "on err must do something")
+		}
 		c.push()
 		c.declare(&symbol{name: or.Name, kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: or})
 		c.checkBlock(or.Block)
@@ -863,9 +862,13 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 	}
 	savedFn := c.fn
 	savedInPar, savedLoop := c.inPar, c.loopDepth
+	savedListener := c.inListener
+	savedListeners := c.listeners
 	c.fn = fi
 	c.inPar = false
 	c.loopDepth = 0
+	c.inListener = 0
+	c.listeners = nil
 	c.push()
 	for i, p := range lit.Params {
 		c.declare(&symbol{name: p.Name, kind: ast.RefParam, typ: p.Type, goType: c.goTypeOf(p.Type), decl: p})
@@ -892,6 +895,8 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 	c.fn = savedFn
 	c.inPar = savedInPar
 	c.loopDepth = savedLoop
+	c.inListener = savedListener
+	c.listeners = savedListeners
 	ft := &ast.FuncType{Span: lit.Span, Params: lit.ParamTypes, Results: results, Err: lit.Err}
 	return ft
 }
@@ -1164,12 +1169,7 @@ func elemType(t ast.Type) ast.Type {
 func (c *checker) goCallInfo(sig *types.Signature, pos token.Pos) (*ast.CallInfo, ast.Type, types.Type) {
 	info := &ast.CallInfo{Kind: ast.CallFunc}
 	n := sig.Params().Len()
-	start := 0
-	if n > 0 && isContextType(sig.Params().At(0).Type()) {
-		info.NeedsCtx = true
-		start = 1
-	}
-	for i := start; i < n; i++ {
+	for i := 0; i < n; i++ {
 		pt := sig.Params().At(i).Type()
 		if sig.Variadic() && i == n-1 {
 			if sl, ok := pt.(*types.Slice); ok {
@@ -1202,9 +1202,6 @@ func (c *checker) goCallInfo(sig *types.Signature, pos token.Pos) (*ast.CallInfo
 			info.ResultTypes = append(info.ResultTypes, c.mapGoType(results.At(i).Type(), pos))
 		}
 	}
-	if info.NeedsCtx {
-		c.needCtx()
-	}
 	return info, result, goResult
 }
 
@@ -1227,12 +1224,7 @@ func (c *checker) mapGoType(t types.Type, pos token.Pos) ast.Type {
 	}
 	if sig, ok := t.(*types.Signature); ok {
 		ft := &ast.FuncType{Span: ast.Span{Start: pos, End: pos}}
-		start := 0
-		if sig.Params().Len() > 0 && isContextType(sig.Params().At(0).Type()) {
-			ft.NeedsCtx = true
-			start = 1
-		}
-		for i := start; i < sig.Params().Len(); i++ {
+		for i := 0; i < sig.Params().Len(); i++ {
 			pt := sig.Params().At(i).Type()
 			if sig.Variadic() && i == sig.Params().Len()-1 {
 				if sl, ok := pt.(*types.Slice); ok {

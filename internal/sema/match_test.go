@@ -61,7 +61,7 @@ fn load() str! {
 };
 
 fn f() str! {
-    var s = load() or err {
+    var s = load() on err {
         match (1) {
         case 1 => { return "one"; };
         else => { return "other"; };
