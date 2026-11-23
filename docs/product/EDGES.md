@@ -39,7 +39,7 @@ not re-file.
 | A worker writes arena elements indexed by its own iteration variable. | `par` proves disjoint slots through the loop variable; an index from another loop is rejected as a captured write. |
 | `new` and `make` inside `par` inside `arena` are rejected. | A worker shares the block's batch with the loop, so allocate before `par` and let workers fill the memory. |
 | A worker may open its own `arena { ... };`. | The block starts and ends inside the worker, so its batch is local to that goroutine. |
-| Arena memory stays reserved for its block. | The buffer is reused, not freed; a block keeps its high-water mark for the life of the program. |
+| Arena memory is released after the enclosing loop. | Reuse inside the loop needs the buffer to outlive one execution; a one-shot arena releases at block exit. A program-long loop keeps its buffer until it ends. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | `new` and `make` are builtin names. | Go parity; a user function with either name is rejected and must be renamed. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block. |

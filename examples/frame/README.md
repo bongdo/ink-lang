@@ -26,9 +26,9 @@ rl.UpdateTexture(tex, px);
 ```
 
 `rows` comes from a per-type scratch buffer: the first frame allocates it, every
-next frame reuses the same memory, cleared and handed out again. Nothing is
-freed, nothing reaches the GC, and the block starts zeroed. So the frame loop
-stops allocating after the first frame.
+next frame reuses the same memory, cleared and handed out again. Nothing reaches
+the GC while the loop runs, and the block starts zeroed. The buffer is released
+after the loop ends. So the frame loop stops allocating after the first frame.
 
 Why else this shape:
 

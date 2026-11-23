@@ -186,9 +186,13 @@ arena {
 Inside the block `new[T]()` and `make[T](n)` or `(n, cap)` take memory from a
 per-type scratch buffer; outside they are ordinary Go allocations. The buffer is
 reused by the next execution of the same block, so a loop allocates only until
-its high-water mark and then does not allocate at all. Memory is not returned to
-the GC: each block keeps its buffer reserved. Every execution starts zeroed, so
-`new` and `make` keep their Go semantics.
+its high-water mark and then does not allocate at all. Every execution starts
+zeroed, so `new` and `make` keep their Go semantics.
+
+The buffer lives as long as the arena can run again. An arena outside a loop
+releases its buffer at block exit; an arena inside a loop keeps it for the loop
+and releases it after the loop ends. Releasing drops the buffer to the GC, so
+memory comes back once the arena cannot be entered again.
 
 Arena memory never leaves the block. Sema rejects assigning it to a captured
 variable, returning it, passing it as a call argument or receiver, deferring a

@@ -95,3 +95,19 @@ func TestScratchConcurrent(t *testing.T) {
 	close(release)
 	done.Wait()
 }
+
+func TestScratchReleaseDropsBuffers(t *testing.T) {
+	var s Scratch[int32]
+	b := s.Begin()
+	b.Slice(8, 8)
+	s.End(b)
+
+	s.Release()
+
+	b = s.Begin()
+	xs := b.Slice(4, 4)
+	if cap(xs) != 4 {
+		t.Fatalf("released buffer reused: cap=%d", cap(xs))
+	}
+	s.End(b)
+}

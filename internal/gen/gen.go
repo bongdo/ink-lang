@@ -222,40 +222,19 @@ func (g *generator) writeLineDirective(w *writer, n ast.Node) {
 	w.buf.WriteByte('\n')
 }
 
-type scratchVar struct {
-	name string
-	typ  string
-}
-
 type fileGen struct {
-	g             *generator
-	pkg           *sema.Package
-	body          strings.Builder
-	need          map[string]bool
-	used          map[string]bool
-	stdAliases    map[string]string
-	goPkgs        map[string]string
-	extra         map[string]importSpec
-	scratch       []scratchVar
-	scratchByType map[string]string
+	g          *generator
+	pkg        *sema.Package
+	body       strings.Builder
+	need       map[string]bool
+	used       map[string]bool
+	stdAliases map[string]string
+	goPkgs     map[string]string
+	extra      map[string]importSpec
 }
 
 func (f *fileGen) needPkg(alias string) {
 	f.need[alias] = true
-}
-
-func (f *fileGen) scratchVar(typ string) string {
-	if f.scratchByType == nil {
-		f.scratchByType = make(map[string]string)
-	}
-	if name, ok := f.scratchByType[typ]; ok {
-		return name
-	}
-	name := "_s_scr" + strconv.Itoa(len(f.scratch)+1)
-	f.scratch = append(f.scratch, scratchVar{name: name, typ: typ})
-	f.scratchByType[typ] = name
-	f.needPkg("rt")
-	return name
 }
 
 func (f *fileGen) std(key string) string {
@@ -432,16 +411,6 @@ func (f *fileGen) assemble(path string) ([]byte, error) {
 			b.WriteByte('\n')
 		}
 		b.WriteString(")\n\n")
-	}
-	for _, s := range f.scratch {
-		b.WriteString("var ")
-		b.WriteString(s.name)
-		b.WriteString(" _s_rt.Scratch[")
-		b.WriteString(s.typ)
-		b.WriteString("]\n")
-	}
-	if len(f.scratch) > 0 {
-		b.WriteString("\n")
 	}
 	b.WriteString(f.body.String())
 	src := []byte(b.String())

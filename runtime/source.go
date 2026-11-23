@@ -168,3 +168,9 @@ func (s *Scratch[T]) End(b *Batch[T]) {
 	s.free = append(s.free, b)
 	s.mu.Unlock()
 }
+
+func (s *Scratch[T]) Release() {
+	s.mu.Lock()
+	s.free = nil
+	s.mu.Unlock()
+}

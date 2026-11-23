@@ -469,20 +469,30 @@ func (w *writer) failStmt(s *ast.FailStmt) {
 func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 	sites := arenaSites(s.Body)
 	saved := w.scratch
+	var local []string
+	for _, call := range sites {
+		if _, ok := w.scratch[call]; ok {
+			continue
+		}
+		if w.scratch == nil {
+			w.scratch = make(map[*ast.CallExpr]string)
+		}
+		name := w.next("scr")
+		w.linef("var %s %s.Scratch[%s]", name, w.f.std("rt"), w.typeStr(call.TypeArgs[0]))
+		w.scratch[call] = name
+		local = append(local, name)
+	}
 	mark := ""
-	if len(sites) > 0 {
-		w.scratch = make(map[*ast.CallExpr]string, len(sites))
-		if !blockTerminates(s.Body) {
-			mark = w.next("mark")
-			w.linef("%s := _s_d.Mark()", mark)
-		}
-		for _, call := range sites {
-			scratch := w.f.scratchVar(w.typeStr(call.TypeArgs[0]))
-			batch := w.next("b")
-			w.linef("%s := %s.Begin()", batch, scratch)
-			w.linef("_s_d.Push(func() { %s.End(%s) })", scratch, batch)
-			w.scratch[call] = batch
-		}
+	if len(sites) > 0 && !blockTerminates(s.Body) {
+		mark = w.next("mark")
+		w.linef("%s := _s_d.Mark()", mark)
+	}
+	for _, call := range sites {
+		scratch := w.scratch[call]
+		batch := w.next("b")
+		w.linef("%s := %s.Begin()", batch, scratch)
+		w.linef("_s_d.Push(func() { %s.End(%s) })", scratch, batch)
+		w.scratch[call] = batch
 	}
 	w.writeIndent()
 	w.buf.WriteString("{\n")
@@ -493,6 +503,9 @@ func (w *writer) arenaStmt(s *ast.ArenaStmt) {
 	w.buf.WriteString("}\n")
 	if mark != "" {
 		w.linef("_s_d.RunTo(%s)", mark)
+	}
+	for _, name := range local {
+		w.linef("%s.Release()", name)
 	}
 	w.scratch = saved
 }
@@ -515,6 +528,38 @@ func arenaSites(body *ast.Block) []*ast.CallExpr {
 		return true
 	})
 	return out
+}
+
+func (w *writer) loopScratch(body *ast.Block) []string {
+	if body == nil {
+		return nil
+	}
+	if w.scratch == nil {
+		w.scratch = make(map[*ast.CallExpr]string)
+	}
+	byType := make(map[string]string)
+	var names []string
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.ForStmt, *ast.ParStmt:
+			return false
+		case *ast.ArenaStmt:
+			for _, call := range arenaSites(n.Body) {
+				typ := w.typeStr(call.TypeArgs[0])
+				name, ok := byType[typ]
+				if !ok {
+					name = w.next("scr")
+					byType[typ] = name
+					names = append(names, name)
+					w.linef("var %s %s.Scratch[%s]", name, w.f.std("rt"), typ)
+				}
+				w.scratch[call] = name
+			}
+			return false
+		}
+		return true
+	})
+	return names
 }
 
 func (w *writer) deferStmt(s *ast.DeferStmt) {
@@ -744,6 +789,7 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 		w.line(label + ":")
 	}
 	w.loopLabels = append(w.loopLabels, label)
+	scratch := w.loopScratch(s.Body)
 	if s.Range != nil {
 		w.rangeHead(s.Range)
 	} else {
@@ -788,6 +834,9 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 	if typed != nil {
 		w.indent--
 		w.line("}")
+	}
+	for _, name := range scratch {
+		w.linef("%s.Release()", name)
 	}
 }
 
@@ -968,6 +1017,7 @@ func (w *writer) parStmt(s *ast.ParStmt) {
 }
 
 func (w *writer) parForStmt(s *ast.ForStmt) {
+	scratch := w.loopScratch(s.Body)
 	w.line("{")
 	w.indent++
 	wg := w.next("wg")
@@ -1113,6 +1163,9 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	w.linef("%s()", cancel)
 	w.indent--
 	w.line("}")
+	for _, name := range scratch {
+		w.linef("%s.Release()", name)
+	}
 }
 
 func (w *writer) withinStmt(s *ast.WithinStmt) {

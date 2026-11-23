@@ -100,8 +100,9 @@ fn pair() i32, bool { return 1, true; };
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
   block exit. Inside it `new[Point]()` and `make[i32](n)` use the buffer;
   outside they are ordinary Go allocations. The buffer is reused by the next
-  execution, so a hot loop stops allocating after its high-water mark; memory
-  stays reserved for that block and each execution starts zeroed. Arena memory
+  execution, so a hot loop stops allocating after its high-water mark; the
+  buffer is released at block exit outside a loop, and after the enclosing loop
+  when it is inside one. Every execution starts zeroed. Arena memory
   never leaves the block: no assignment to a captured variable, no return, no
   `&T{}`, no call argument or receiver. Read fields and indices, copy structs
   and arrays that hold no references, and `copy` bytes out. `par` is allowed;
