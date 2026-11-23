@@ -7,6 +7,8 @@ here or is a feature in [`FEATURES.md`](FEATURES.md).
 **open** — needs a fix or an explicit decision · **accepted** — we keep it, do
 not re-file.
 
+Варианты решения по каждому открытому краю — [`../proposals/edges.md`](../proposals/edges.md).
+
 ## Open
 
 | # | Symptom | Today | Workaround |
