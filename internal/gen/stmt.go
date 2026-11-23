@@ -450,7 +450,7 @@ func (w *writer) orError(or *ast.OrExpr, errName string) {
 		if or.FailArg != nil {
 			w.f.needPkg("fmt")
 			name := w.next("e")
-			w.linef("%s := fmt.Errorf(\"%%s: %%w\", %s, %s)", name, w.expr(or.FailArg), errName)
+			w.linef("%s := %s.Errorf(\"%%s: %%w\", %s, %s)", name, w.f.std("fmt"), w.expr(or.FailArg), errName)
 			target = name
 		}
 		w.propagateParError(target)
@@ -608,7 +608,7 @@ func (w *writer) failStmt(s *ast.FailStmt) {
 	if s.Msg != nil {
 		w.f.needPkg("fmt")
 		name := w.next("e")
-		w.linef("%s := fmt.Errorf(\"%%s: %%w\", %s, %s)", name, w.expr(s.Msg), errExpr)
+		w.linef("%s := %s.Errorf(\"%%s: %%w\", %s, %s)", name, w.f.std("fmt"), w.expr(s.Msg), errExpr)
 		errExpr = name
 	}
 	w.propagateParError(errExpr)

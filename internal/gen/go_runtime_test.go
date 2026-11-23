@@ -162,3 +162,23 @@ fn main() void {
 	}
 	expect(t, stdout, "one x\n")
 }
+
+func TestWrapErrorWithoutFmtImport(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `fn f() void! {
+    fail(error("x"));
+};
+
+fn main() void! {
+    f()
+        or fail("ctx");
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, `_s_fmt "fmt"`)
+	contains(t, src, `_s_fmt.Errorf`)
+	if _, stderr, err := p.run(t); err == nil {
+		t.Fatalf("expected failure, got success\nstderr:\n%s", stderr)
+	}
+}
