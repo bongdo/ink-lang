@@ -412,7 +412,8 @@ Forms:
   `err`. Inside the block, `fail(err, "context");` wraps and returns.
 - `on err { ... };` as the first statement of a function or block — a scope
   listener for unhandled errors of `go` constructs (§8). It must be the first
-  statement, must not be empty, and may not use `fail` or `return`.
+  statement, must not be empty, and may not use `return`; `fail` sends the
+  error to the enclosing function.
 - `panic(...)` — Go's panic, not an error handler (§8.5).
 
 The handler always starts on a new line, indented once; `ink fmt` enforces it.
@@ -422,10 +423,11 @@ then keeps the zero value of its type. A scope listener is captured by each
 task at launch and may run after its scope returns: use it for logging,
 metrics and escalation, not for mutating scope state.
 
-A fresh error is `error("msg")`. `fail(error("msg"));` inside a handler
-constructs it and returns; `fail("msg")` alone is not a fresh error: it is
-only the shorthand after `or`, where the call supplies the error to wrap.
-`errors.New` and `fmt.Errorf` still work through Go interop.
+A fresh error is `errors.New("msg")` (`use errors;`). `fail(errors.New("msg"));`
+inside a handler constructs it and returns; `fail("msg")` alone is not a fresh
+error: it is only the shorthand after `or`, where the call supplies the error to
+wrap. `fmt.Errorf` and other Go error constructors still work through interop.
+`error("msg")` is rejected: `error` is a type, not a constructor.
 
 `or` may appear only as the entire initializer of a `var`, the entire right
 side of an assignment, an expression statement, or a `return` operand. It may
@@ -549,6 +551,8 @@ One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
   the call was written, captured at launch. Without a listener it crashes the
   program with that error.
 - `or fail` after `go f(...)` is rejected: there is no function return to use.
+- A scope listener that `fail`s escalates to the enclosing function. In a
+  detached task there is nothing to return to, so it panics.
 - Panics are not recovered.
 
 ### 8.4 `on err` and error order

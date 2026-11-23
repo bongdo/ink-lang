@@ -45,8 +45,9 @@ fn main() void {
 
 func TestGoVoidOrFailWithListener(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
+use errors;
 
-fn f() i32! { fail(error("x")); };
+fn f() i32! { fail(errors.New("x")); };
 
 fn handler() void {
     on err {

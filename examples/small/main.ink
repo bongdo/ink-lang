@@ -87,7 +87,7 @@ fn pair() i32, bool {
 
 fn mayFail(ok: bool) i32! {
     if (!ok) {
-        return error("nope");
+        return errors.New("nope");
     };
     return 7;
 };

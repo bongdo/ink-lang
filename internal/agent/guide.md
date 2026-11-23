@@ -81,10 +81,11 @@ fn pair() i32, bool { return 1, true; };
   `or` always starts a new line, indented once.
 - `on err { ... };` as the first statement of a function or block is a scope
   listener for unhandled `go` errors. It must be non-empty and cannot use
-  `fail` or `return`.
+  `return`; `fail` sends the error to the enclosing function.
 - The handler error is always `err`. Inside it, `fail(err, "context");` wraps
   and returns. Manual `if err != nil { return err; }` propagation is rejected.
-- A fresh error is `fail(error("msg"));`. `fail("msg")` is only the
+- A fresh error is `errors.New("msg")` (`use errors;`); `fail(errors.New("msg"));`
+  inside a handler constructs it and returns. `fail("msg")` is only the
   shorthand after `or`; it wraps the call error, it does not create one.
 - A fallible call as a bare statement (`f();`) is a compile error. Use
   `f() on err { ... };` or `f() or fail;`; `_ = f();` discards deliberately.
@@ -105,8 +106,8 @@ fn pair() i32, bool { return 1, true; };
 - `for (var i, x in xs)`, `for (var k, v in m)`, `for (var x in xs)` and
   `for ()`; the index is `int`. `var v, ok = m[k]` reads presence without
   `has`.
-- `make[i32](n)` or `make[i32](n, cap)` makes a slice; `error("msg")` makes a
-  fresh error.
+- `make[i32](n)` or `make[i32](n, cap)` makes a slice; `errors.New("msg")`
+  makes a fresh error and `error` is only a type.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
   block exit. Inside it `new[Point]()` and `make[i32](n)` use the buffer;
   outside they are ordinary Go allocations. The buffer is reused by the next
@@ -140,10 +141,11 @@ go save(1, "hello");            // detached, program-owned
   task is owned by the program and may outlive the caller. A method call on a
   value takes its address, so the task shares that variable.
 - `on err { ... };` first in a function or block listens for unhandled errors
-  of `go` constructs. A scope listener cannot be empty or use `fail`/`return`;
-  log, record or `panic`. An inline `expr on err { ... };` handles one
-  expression, may fall through, and leaves the value at its zero value; it may
-  `fail`, `return` or `panic`.
+  of `go` constructs. A scope listener cannot be empty or use `return`; `fail`
+  escalates the error to the enclosing function, and panics inside a detached
+  `go f()` task. An inline `expr on err { ... };` handles one expression, may
+  fall through, and leaves the value at its zero value; it may `fail`, `return`
+  or `panic`.
 - Maps: no range in `go for`, no writes in `go`. Collect keys, write locally.
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
   APIs that need it. `go` never creates or cancels a context.
@@ -162,6 +164,7 @@ go save(1, "hello");            // detached, program-owned
 | `import-simple` | write `use fmt;` without quotes |
 | `import-alias` | add `as name` to a versioned import (`/v2`, `/v3`) |
 | `err-manual` | replace manual propagation with `or fail` |
+| `error-ctor` | write `errors.New("msg")`; `error` is a type |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |
 | `par-removed` | write `go { ... };` |

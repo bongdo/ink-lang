@@ -34,6 +34,7 @@ var rules = []struct {
 	{"const-local", "const is only allowed at package level", "var N = 3;", false},
 	{"const-type", "const cannot have a type", "const N = 3;", false},
 	{"err-manual", "use or fail instead", "var v = f() or fail;", false},
+	{"error-ctor", "error is a type, not a constructor", "write errors.New(\"msg\")", false},
 	{"nil-untyped", "cannot infer type of nil", "var p: *T = nil; or nil[T]", false},
 	{"void-value", "void is not a value", "void is a result only; use a value-returning call", false},
 	{"result-bang", "fallible results are marked", "write T! instead of T or error", false},

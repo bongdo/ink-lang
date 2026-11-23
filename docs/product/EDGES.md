@@ -37,7 +37,7 @@ not re-file.
 | `go { }` and `go for` join and never cancel early. | All workers run to completion, then the lowest ordinal error is delivered. A deadline does not stop them. |
 | A scope `on err` listener is captured at launch and may run after its scope returns. | It is an error listener, not a continuation: use it for logging, metrics and escalation, not for mutating scope state. |
 | A panic is a Go panic. | `on err` never receives it and `go` does not recover it; the process exits with status 2. This is the Go contract, not a gap. |
-| `on err` cannot `fail` or `return`. | The listener must not leave the scope it belongs to; log, record or `panic`. |
+| `on err` cannot `return`, but it can `fail`. | `fail` escalates the error to the enclosing function. Inside a detached `go f(...)` task there is nothing to return to, so the same `fail` panics. |
 | An empty `on err { }` is an error. | A silent handler would swallow the error with no trace; write `_ = err;` to swallow deliberately. |
 | The value bound after an inline `on err` falls through is the zero value. | The handler may continue instead of leaving the scope, and the expression still needs a value. |
 | A fallible call cannot be a bare statement. | `f();` would drop the error; `_ = f();` is the explicit discard. The rule also applies inside `go` branches. |

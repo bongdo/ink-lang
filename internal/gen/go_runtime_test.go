@@ -67,9 +67,10 @@ fn main() void! {
 func TestGoListenerCatchesVoidWorker(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
+use errors;
 
 fn f() i32! {
-    fail(error("x"));
+    fail(errors.New("x"));
 };
 
 fn handler() void {
@@ -165,8 +166,10 @@ fn main() void {
 
 func TestWrapErrorWithoutFmtImport(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.ink": `fn f() void! {
-    fail(error("x"));
+		"main.ink": `use errors;
+
+fn f() void! {
+    fail(errors.New("x"));
 };
 
 fn main() void! {
@@ -181,4 +184,30 @@ fn main() void! {
 	if _, stderr, err := p.run(t); err == nil {
 		t.Fatalf("expected failure, got success\nstderr:\n%s", stderr)
 	}
+}
+
+func TestGoScopeListenerFailEscalates(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+use errors;
+
+fn boom() void! {
+    return errors.New("boom");
+};
+
+fn inner() void! {
+    on err { fail(err, "join"); };
+    go { boom() or fail; };
+};
+
+fn main() void! {
+    inner() on err { fmt.Println(err) or fail; };
+};
+`,
+	})
+	stdout, stderr, err := p.run(t)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	}
+	expect(t, stdout, "join: boom\n")
 }

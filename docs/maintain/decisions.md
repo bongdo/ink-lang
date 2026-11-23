@@ -593,3 +593,34 @@ field tags and over one big `contracts` block.
 `store`/`doc`/`policy`, top-level blocks, generated view types.
 **Цена:** named views are package-local and encode-only; generic structs are
 rejected; map views lose declaration order.
+
+## 2026-11-23 — `fail` in a scope listener escalates
+
+**Контекст:** a scope listener could only log, record or `panic`; `fail` was
+rejected, so a handler that wanted to escalate had to swallow its own errors or
+panic. The generated closure also had no return value, and an `or fail` inside a
+listener reached `go build` as "too many return values".
+**Решение:** the listener closure returns `error`; `fail(err, "ctx")` inside it
+wraps and returns to the enclosing function. `return` stays rejected. In a
+detached `go f(...)` task there is no caller to return to, so a failing listener
+panics.
+**Почему:** the owner reads `fail` as "pass the error up", which is what a
+listener needs; the nearest lexical listener already owns escalation.
+**Что отвергли:** keeping the ban, panicking instead of escalating, adding a
+listener handle.
+**Цена:** the generated listener closure has a return value; a detached task's
+listener can only panic.
+
+## 2026-11-23 — `errors.New` is the only error constructor
+
+**Контекст:** `error("msg")` compiled to `errors.New("msg")` and duplicated the
+Go constructor under the name of the type. `error` is also a type, so
+`error(x)` read as a conversion that does not exist.
+**Решение:** `error("msg")` is rejected with `error-ctor` and the hint
+`write errors.New("msg")`; `errors.New` is the canonical constructor. The code
+generator keeps emitting `errors.New` for the rejected form so the diagnostic is
+the only error.
+**Почему:** one way per intent; the owner picked `errors.New` when asked which
+of the two to keep.
+**Что отвергли:** keeping both, removing `errors.New` in favour of a builtin.
+**Цена:** every error needs `use errors;`; the short form is gone from the tour.

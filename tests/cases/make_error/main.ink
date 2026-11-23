@@ -1,4 +1,5 @@
 use fmt;
+use errors;
 
 type Point struct {
     X: i32,
@@ -17,7 +18,7 @@ fn mk(n: i32) i32[] {
 };
 
 fn bad() void! {
-    fail(error("boom"));
+    fail(errors.New("boom"));
 };
 
 fn main() void! {

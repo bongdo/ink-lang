@@ -305,6 +305,7 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 		switch fun.Ref.Kind {
 		case ast.RefType:
 			if fun.Name == "error" && builtinError(fun.Ref.TypeVal) && len(call.Args) == 1 {
+				c.p.errorf(c.fc.file.Path, call.Pos(), "error is a type, not a constructor")
 				return c.resolveErrorCall(call)
 			}
 			info = &ast.CallInfo{Kind: ast.CallConversion, Results: 1, ResultTypes: []ast.Type{fun.Ref.TypeVal}}

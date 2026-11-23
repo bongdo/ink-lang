@@ -63,7 +63,7 @@ place with status.
 | `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
 | `T!` with `or fail` and `on err { }` | ✅ |
 | `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
-| `error("msg")` fresh error constructor | ✅ |
+| `errors.New("msg")` fresh error; `error("msg")` rejected | ✅ |
 | `arena { new/make }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
 | manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
@@ -80,7 +80,7 @@ place with status.
 | `go { ... }` — one worker per top-level statement, joins at the block | ✅ |
 | `go for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
 | `go f(args)` — detached task, program-owned | ✅ |
-| `on err { ... }` — scope listener for unhandled `go` errors | ✅ |
+| `on err { ... }` — scope listener for unhandled `go` errors; `fail` escalates | ✅ |
 | `par` | — renamed to `go` |
 | `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |

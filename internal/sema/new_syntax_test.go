@@ -167,13 +167,6 @@ fn main() void {};
 `,
 			want: "return cannot leave an on err listener",
 		},
-		"fail": {
-			src: `
-fn f() void! { on err { fail(error("x")); }; };
-fn main() void {};
-`,
-			want: "fail cannot leave an on err listener",
-		},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -186,8 +179,8 @@ fn main() void {};
 }
 
 func TestOnErrListenerCatchesGoError(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `
-fn boom() void! { fail(error("x")); };
+	p := checkSrc(t, map[string]string{".": `use errors;
+fn boom() void! { fail(errors.New("x")); };
 fn main() void! {
     on err { panic(err); };
     go { boom() or fail; };
@@ -202,6 +195,26 @@ fn f() i32! { return 1; };
 fn main() void { f(); };
 `})
 	if !hasError(p, "fallible result is dropped") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestOnErrListenerFailNeedsFallibleFunction(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use errors;
+fn f() void { on err { fail(errors.New("x")); }; };
+fn main() void {};
+`})
+	if !hasError(p, "fail in a function that cannot fail") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestErrorConstructorRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use errors;
+fn f() void! { fail(error("x")); };
+fn main() void! { f() or fail; };
+`})
+	if !hasError(p, "error is a type, not a constructor") {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }

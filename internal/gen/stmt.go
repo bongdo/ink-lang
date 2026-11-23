@@ -461,11 +461,18 @@ func (w *writer) orError(or *ast.OrExpr, errName string) {
 
 func (w *writer) onErrClosure(body *ast.Block) string {
 	name := w.next("onerr")
-	w.linef("%s := func(err error) {", name)
+	w.linef("%s := func(err error) error {", name)
 	w.indent++
+	savedResults, savedErr := w.results, w.err
+	savedPar, savedDefer := w.par, w.deferStack
+	w.results, w.err = nil, true
+	w.par, w.deferStack = nil, false
 	if body != nil {
-		w.bodyContents(body, hasDirectDefer(body.Stmts))
+		w.bodyContents(body, false)
 	}
+	w.results, w.err = savedResults, savedErr
+	w.par, w.deferStack = savedPar, savedDefer
+	w.line("return nil")
 	w.indent--
 	w.line("}")
 	w.linef("_ = %s", name)
@@ -531,7 +538,12 @@ func (w *writer) goCallStmt(s *ast.GoCallStmt) {
 		w.linef("if %s := %s; %s != nil {", errName, callStr, errName)
 		w.indent++
 		if w.onErr != "" {
-			w.linef("%s(%s)", w.onErr, errName)
+			e := w.next("e")
+			w.linef("if %s := %s(%s); %s != nil {", e, w.onErr, errName, e)
+			w.indent++
+			w.linef("panic(%s)", e)
+			w.indent--
+			w.line("}")
 		} else {
 			w.linef("panic(%s)", errName)
 		}
@@ -1163,7 +1175,12 @@ func (w *writer) parStmt(s *ast.ParStmt) {
 
 func (w *writer) unhandled(errName string) {
 	if w.onErr != "" {
-		w.linef("%s(%s)", w.onErr, errName)
+		e := w.next("e")
+		w.linef("if %s := %s(%s); %s != nil {", e, w.onErr, errName, e)
+		w.indent++
+		w.propagateParError(e)
+		w.indent--
+		w.line("}")
 		return
 	}
 	w.propagateParError(errName)

@@ -390,9 +390,6 @@ func (c *checker) checkArenaCopy(call *ast.CallExpr) {
 }
 
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
-	if c.inListener > 0 {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave an on err listener; log, panic or handle")
-	}
 	if c.fn == nil {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
 		return
