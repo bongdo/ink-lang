@@ -33,11 +33,11 @@ not re-file.
 | Contract blocks on generic structs are rejected. | A scope cut for this version; generic receiver methods are legal Go, so this can be lifted without changing the syntax. |
 | `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
 | `par` is rejected and `within` is removed. | The concurrency keyword is `go`; a deadline is `context.WithTimeout`, passed as an ordinary value. |
-| `go f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; an unhandled error goes to the `on err` listener captured at launch, or crashes the program. |
+| `go f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `go f(...) on err { ... };` at the launch site. |
 | `go { }` and `go for` join and never cancel early. | All workers run to completion, then the lowest ordinal error is delivered. A deadline does not stop them. |
-| A scope `on err` listener is captured at launch and may run after its scope returns. | It is an error listener, not a continuation: use it for logging, metrics and escalation, not for mutating scope state. |
+| A detached task's `on err` handler runs in the task, not in the launching scope. | It sees `err` and package-level names only; locals of the launcher are rejected at compile time, so the handler cannot race with the caller. |
 | A panic is a Go panic. | `on err` never receives it and `go` does not recover it; the process exits with status 2. This is the Go contract, not a gap. |
-| `on err` cannot `return`, but it can `fail`. | `fail` escalates the error to the enclosing function. Inside a detached `go f(...)` task there is nothing to return to, so the same `fail` panics. |
+| A scope `on err` cannot `return` but can `fail`; a task handler can do neither. | The scope listener escalates to its function. A detached task has no caller, so its handler only logs, records or panics. |
 | An empty `on err { }` is an error. | A silent handler would swallow the error with no trace; write `_ = err;` to swallow deliberately. |
 | The value bound after an inline `on err` falls through is the zero value. | The handler may continue instead of leaving the scope, and the expression still needs a value. |
 | A fallible call cannot be a bare statement. | `f();` would drop the error; `_ = f();` is the explicit discard. The rule also applies inside `go` branches. |

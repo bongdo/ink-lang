@@ -176,10 +176,11 @@ write to `c`.
   call. There is no closure; captured locals are not available.
 - The task belongs to the program. It may outlive the calling function, a
   request handler or a `go { }` block that launched it.
-- Error delivery: an unhandled error from `f` is passed to the `on err`
-  listener of the scope where the call was written, captured at launch. Without
-  a listener it crashes the program with that error. The listener may run after
-  the scope returned.
+- Error delivery: the task has no caller to return to, so a fallible call
+  carries its own handler at the launch site: `go f(args) on err { ... };`.
+  A `void!` call without a handler is rejected. The handler runs in the task,
+  sees `err` and package-level names only, and cannot `fail` or `return`.
+  A scope `on err` listener never receives a detached task error.
 - `or fail` after `go f(...)` is rejected: there is no function return to use.
 - Panics are not recovered (§3).
 

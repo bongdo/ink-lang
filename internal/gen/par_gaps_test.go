@@ -155,29 +155,22 @@ fn main() void! {
 	}
 }
 
-func TestGoDetachedCallListener(t *testing.T) {
+func TestGoDetachedCallHandler(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 use errors;
 use sync;
 
 fn job(wg: *sync.WaitGroup) void! {
+    defer wg.Done();
     return errors.New("boom");
 };
 
 fn main() void! {
-    var caught = false;
     var wg = sync.WaitGroup {};
-    {
-        on err {
-            caught = true;
-            wg.Done();
-        };
-        wg.Add(1);
-        go job(&wg);
-        wg.Wait();
-    };
-    fmt.Println("caught", caught) or fail;
+    wg.Add(1);
+    go job(&wg) on err { _ = fmt.Println("caught"); };
+    wg.Wait();
 };
 `,
 	})
@@ -188,7 +181,7 @@ fn main() void! {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
-	expect(t, stdout, "caught true\n")
+	expect(t, stdout, "caught\n")
 }
 
 func TestGoScopeListenerCatches(t *testing.T) {

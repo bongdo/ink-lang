@@ -507,7 +507,8 @@ go for (var i = 0; i < len(urls); i += 1) limit 4 {
         or fail;
 };
 
-go saveUser(1, "hello");      // detached task
+go saveUser(1, "hello")       // detached task
+    on err { log(err); };
 ```
 
 One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
@@ -547,12 +548,16 @@ One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
   is a data race.
 - The task belongs to the program, not to the calling function, so it can
   outlive a request handler.
-- An unhandled error from `f` goes to the `on err` listener of the scope where
-  the call was written, captured at launch. Without a listener it crashes the
-  program with that error.
+- A fallible task carries its own handler: `go f(args) on err { ... };`. The
+  handler runs in the task, after the call, and receives `err`. Without it a
+  `void!` call is rejected: on a detached task there is no caller to return to,
+  so the error must be handled where it happens.
+- The handler body may use `err`, package-level names and its own locals; it
+  cannot read locals of the launching function, `fail` or `return`. It may
+  `panic`.
 - `or fail` after `go f(...)` is rejected: there is no function return to use.
-- A scope listener that `fail`s escalates to the enclosing function. In a
-  detached task there is nothing to return to, so it panics.
+- A scope `on err` listener never receives a detached task error; it belongs to
+  `go { }` and `go for` in its own scope.
 - Panics are not recovered.
 
 ### 8.4 `on err` and error order

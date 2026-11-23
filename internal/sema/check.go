@@ -34,19 +34,21 @@ type parFrame struct {
 }
 
 type checker struct {
-	p           *Program
-	fc          *fileCtx
-	fn          *funcInfo
-	scopes      []*scope
-	loopDepth   int
-	parFrames   []parFrame
-	parLoopBase []int
-	inPar       bool
-	inListener  int
-	listeners   []bool
-	parArenas   []int
-	inArena     int
-	tparams     map[string]bool
+	p             *Program
+	fc            *fileCtx
+	fn            *funcInfo
+	scopes        []*scope
+	loopDepth     int
+	parFrames     []parFrame
+	parLoopBase   []int
+	inPar         bool
+	inListener    int
+	inTaskHandler int
+	inTaskCapture map[*symbol]bool
+	listeners     []bool
+	parArenas     []int
+	inArena       int
+	tparams       map[string]bool
 }
 
 func (c *checker) push() {
@@ -390,6 +392,9 @@ func (c *checker) checkArenaCopy(call *ast.CallExpr) {
 }
 
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
+	if c.inTaskHandler > 0 {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave a go task; log or panic")
+	}
 	if c.fn == nil {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
 		return
@@ -701,6 +706,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		if c.inListener > 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave an on err listener; log, panic or handle")
 		}
+		if c.inTaskHandler > 0 {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a go task; log or panic")
+		}
 		if c.fn == nil {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return outside a function")
 		}
@@ -816,12 +824,18 @@ func (c *checker) checkOnErr(s *ast.OnErrStmt) {
 }
 
 func (c *checker) checkGoCall(s *ast.GoCallStmt) {
+	var handler *ast.Block
+	expr := s.Call
 	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
-		c.p.errorf(c.fc.file.Path, or.Pos(), "go call cannot have a handler; handle errors inside the function or with on err in the scope")
-		c.resolveExpr(or.X, false)
-		return
+		if or.Mode != ast.OrHandle || or.Block == nil {
+			c.p.errorf(c.fc.file.Path, or.Pos(), "go call takes on err, not or fail; there is no caller to return to")
+			c.resolveExpr(or.X, false)
+			return
+		}
+		handler = or.Block
+		expr = or.X
 	}
-	call, ok := unparen(s.Call).(*ast.CallExpr)
+	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "go expects a call")
 		return
@@ -847,7 +861,39 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 	}
 	if !call.Info.HasError && t != nil && !isVoidType(t) {
 		c.p.errorf(c.fc.file.Path, call.Pos(), "go call must not return a value; use go { ... } to collect results")
+		return
 	}
+	if call.Info.HasError && handler == nil {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "go call can fail; handle it in the task")
+		return
+	}
+	if handler != nil {
+		if !call.Info.HasError {
+			c.p.errorf(c.fc.file.Path, handler.Pos(), "on err on a call that cannot fail")
+		}
+		c.checkTaskHandler(handler)
+	}
+}
+
+func (c *checker) checkTaskHandler(b *ast.Block) {
+	if b == nil || len(b.Stmts) == 0 {
+		c.p.errorf(c.fc.file.Path, b.Pos(), "on err must do something")
+	}
+	captured := make(map[*symbol]bool)
+	for _, sc := range c.scopes {
+		for _, sym := range sc.names {
+			captured[sym] = true
+		}
+	}
+	saved := c.inTaskCapture
+	c.inTaskCapture = captured
+	c.inTaskHandler++
+	c.push()
+	c.declare(&symbol{name: "err", kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: b})
+	c.checkBlock(b)
+	c.pop()
+	c.inTaskHandler--
+	c.inTaskCapture = saved
 }
 
 func (c *checker) checkErrGuard(s *ast.IfStmt) {

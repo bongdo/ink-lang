@@ -79,8 +79,9 @@ place with status.
 |---|---|
 | `go { ... }` — one worker per top-level statement, joins at the block | ✅ |
 | `go for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
-| `go f(args)` — detached task, program-owned | ✅ |
-| `on err { ... }` — scope listener for unhandled `go` errors; `fail` escalates | ✅ |
+| `go f(args)` — detached task, program-owned; `void!` needs `on err` on the call | ✅ |
+| `on err { ... }` — scope listener for `go`/`go for` errors; `fail` escalates | ✅ |
+| `go f(...) on err { ... };` — task-local handler, no captures, no `fail` | ✅ |
 | `par` | — renamed to `go` |
 | `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |

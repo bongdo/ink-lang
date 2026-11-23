@@ -182,7 +182,8 @@ fn main() void! {
         out[i] = xs[i] * 2;
     };
 
-    go save(3);        // detached task, owned by the program
+    go save(3)
+        on err { _ = fmt.Println(err); };   // detached task
 };
 ```
 

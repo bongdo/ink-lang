@@ -624,3 +624,23 @@ the only error.
 of the two to keep.
 **Что отвергли:** keeping both, removing `errors.New` in favour of a builtin.
 **Цена:** every error needs `use errors;`; the short form is gone from the tour.
+
+## 2026-11-23 — A detached task owns its errors
+
+**Контекст:** `go f(args)` delivered errors to the `on err` listener of the scope
+where the call was written, captured at launch, and crashed the program without
+one. The owner rejected both the crash and a program-root listener: a background
+`go longsort()` must not put `main` under a panic threat. Making `void!` illegal
+in `go f()` was rejected as the start of coloured concurrency.
+**Решение:** the call takes its own handler: `go f(args) on err { ... };`. A
+`void!` call without one is rejected. The handler runs in the task, sees only
+`err` and package-level names, and cannot `fail` or `return`. The scope listener
+never receives a detached task error. Any signature is accepted, so `go` stays
+colour-blind.
+**Почему:** this is the Go pattern — `go func(){ if err := f(); err != nil { log } }()`
+— expressed with the handler the language already has, and it keeps the
+"no silently dropped error" rule without a runtime root slot.
+**Что отвергли:** panic as the only path, a program-root listener, a `void`-only
+rule, silent discard, `errgroup`-like handles.
+**Цена:** a background failure can only be logged or escalated from inside the
+task; supervision stays in a Go adapter.

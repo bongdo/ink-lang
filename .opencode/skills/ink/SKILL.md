@@ -144,12 +144,15 @@ go save(1, "hello");            // detached, program-owned
   Arguments and the receiver are evaluated first and there is no closure; the
   task is owned by the program and may outlive the caller. A method call on a
   value takes its address, so the task shares that variable.
+- A fallible task needs its own handler: `go f(a) on err { log(err); };`.
+  `void!` without one is a compile error. The handler runs in the task, sees
+  only `err` and package names, and cannot `fail` or `return`; the scope
+  listener never receives a detached task error.
 - `on err { ... };` first in a function or block listens for unhandled errors
   of `go` constructs. A scope listener cannot be empty or use `return`; `fail`
-  escalates the error to the enclosing function, and panics inside a detached
-  `go f()` task. An inline `expr on err { ... };` handles one expression, may
-  fall through, and leaves the value at its zero value; it may `fail`, `return`
-  or `panic`.
+  escalates the error to the enclosing function. An inline
+  `expr on err { ... };` handles one expression, may fall through, and leaves
+  the value at its zero value; it may `fail`, `return` or `panic`.
 - Maps: no range in `go for`, no writes in `go`. Collect keys, write locally.
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
   APIs that need it. `go` never creates or cancels a context.

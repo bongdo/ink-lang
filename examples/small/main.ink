@@ -375,10 +375,13 @@ fn main() void! {
     fmt.Println(left, right, out)
         or fail;
 
-    // Detached task: program-owned, joined explicitly through a WaitGroup.
+    // Detached task: program-owned, its own error handler, explicit join.
     var wg = sync.WaitGroup {};
     wg.Add(1);
-    go detached(3, &wg);
+    go detached(3, &wg)
+        on err {
+            _ = fmt.Println("task:", err);
+        };
     wg.Wait();
 
     // Arena: scratch memory reused, nothing escapes the block.

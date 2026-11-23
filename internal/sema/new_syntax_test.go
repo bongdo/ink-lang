@@ -131,6 +131,58 @@ fn main() void { go 1; };
 `,
 			want: "go expects a call",
 		},
+		"fallible without handler": {
+			src: `
+fn f() void! { return; };
+fn main() void! { go f(); };
+`,
+			want: "go call can fail",
+		},
+		"or fail": {
+			src: `
+fn f() void! { return; };
+fn main() void! { go f() or fail; };
+`,
+			want: "go call takes on err, not or fail",
+		},
+		"handler on a void call": {
+			src: `
+fn f() void { return; };
+fn main() void { go f() on err { _ = err; }; };
+`,
+			want: "on err on a call that cannot fail",
+		},
+		"handler captures a local": {
+			src: `
+fn f() void! { return; };
+fn main() void! {
+    var x = 1;
+    go f() on err { _ = x; };
+};
+`,
+			want: "go task handler cannot capture locals",
+		},
+		"handler fails": {
+			src: `
+fn f() void! { return; };
+fn main() void! { go f() on err { fail(err); }; };
+`,
+			want: "fail cannot leave a go task",
+		},
+		"handler returns": {
+			src: `
+fn f() void! { return; };
+fn main() void! { go f() on err { return; }; };
+`,
+			want: "return cannot leave a go task",
+		},
+		"handler empty": {
+			src: `
+fn f() void! { return; };
+fn main() void! { go f() on err {}; };
+`,
+			want: "on err must do something",
+		},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

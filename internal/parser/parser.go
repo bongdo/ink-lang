@@ -1104,7 +1104,7 @@ func (p *parser) parseGoStmt() ast.Stmt {
 		p.consumeSemi()
 		return &ast.ParStmt{Span: p.fin(start), Body: body}
 	}
-	call := p.parseExprNoOr()
+	call := p.parseExpr()
 	p.consumeSemi()
 	return &ast.GoCallStmt{Span: p.fin(start), Call: call}
 }

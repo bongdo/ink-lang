@@ -134,6 +134,9 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 		c.p.errorf(c.fc.file.Path, id.Pos(), "undefined: %s", id.Name)
 		return nil
 	}
+	if c.inTaskCapture[sym] {
+		c.p.errorf(c.fc.file.Path, id.Pos(), "go task handler cannot capture locals; pass data as arguments")
+	}
 	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path}
 	id.Ref = ref
 	if sym.kind == ast.RefPackage {
@@ -878,11 +881,15 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 	savedInPar, savedLoop := c.inPar, c.loopDepth
 	savedListener := c.inListener
 	savedListeners := c.listeners
+	savedTaskHandler := c.inTaskHandler
+	savedTaskCapture := c.inTaskCapture
 	c.fn = fi
 	c.inPar = false
 	c.loopDepth = 0
 	c.inListener = 0
 	c.listeners = nil
+	c.inTaskHandler = 0
+	c.inTaskCapture = nil
 	c.push()
 	for i, p := range lit.Params {
 		c.declare(&symbol{name: p.Name, kind: ast.RefParam, typ: p.Type, goType: c.goTypeOf(p.Type), decl: p})
@@ -911,6 +918,8 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 	c.loopDepth = savedLoop
 	c.inListener = savedListener
 	c.listeners = savedListeners
+	c.inTaskHandler = savedTaskHandler
+	c.inTaskCapture = savedTaskCapture
 	ft := &ast.FuncType{Span: lit.Span, Params: lit.ParamTypes, Results: results, Err: lit.Err}
 	return ft
 }

@@ -480,7 +480,13 @@ func (w *writer) onErrClosure(body *ast.Block) string {
 }
 
 func (w *writer) goCallStmt(s *ast.GoCallStmt) {
-	call, ok := unparen(s.Call).(*ast.CallExpr)
+	expr := s.Call
+	var handler *ast.Block
+	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
+		handler = or.Block
+		expr = or.X
+	}
+	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok {
 		return
 	}
@@ -534,18 +540,18 @@ func (w *writer) goCallStmt(s *ast.GoCallStmt) {
 	w.line("go func() {")
 	w.indent++
 	if call.Info != nil && call.Info.HasError {
-		errName := w.next("err")
-		w.linef("if %s := %s; %s != nil {", errName, callStr, errName)
+		w.linef("if err := %s; err != nil {", callStr)
 		w.indent++
-		if w.onErr != "" {
-			e := w.next("e")
-			w.linef("if %s := %s(%s); %s != nil {", e, w.onErr, errName, e)
-			w.indent++
-			w.linef("panic(%s)", e)
-			w.indent--
-			w.line("}")
+		if handler != nil {
+			savedResults, savedErr := w.results, w.err
+			savedPar, savedDefer, savedOnErr := w.par, w.deferStack, w.onErr
+			w.results, w.err = nil, false
+			w.par, w.deferStack, w.onErr = nil, false, ""
+			w.bodyContents(handler, false)
+			w.results, w.err = savedResults, savedErr
+			w.par, w.deferStack, w.onErr = savedPar, savedDefer, savedOnErr
 		} else {
-			w.linef("panic(%s)", errName)
+			w.line("panic(err)")
 		}
 		w.indent--
 		w.line("}")

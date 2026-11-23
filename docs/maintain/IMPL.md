@@ -394,15 +394,17 @@ if _s_err := _s_pe.First(); _s_err != nil {
 ```go
 _a1 := arg1
 go func() {
-    if _s_err := f(_a1); _s_err != nil {
-        _s_onerr(_s_err)
+    if err := f(_a1); err != nil {
+        // handler body from `on err { ... }`
     }
 }()
 ```
 
 - Arguments are evaluated into temps before the goroutine starts; the call
   returns immediately.
-- With no listener the error is `panic(_s_err)` inside the task goroutine.
+- A fallible call without a handler is rejected by sema, so the `nil` branch is
+  the only place an error can go. `panic(err)` is emitted only for a handler
+  that is missing, which sema already rejects.
 - There is no wait and no handle: the task is owned by the program.
 
 ### Tests
