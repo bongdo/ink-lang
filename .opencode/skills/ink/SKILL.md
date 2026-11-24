@@ -150,9 +150,12 @@ fn pair() i32, bool { return 1, true; };
   `json.Unmarshal(data, &u)`, `rows.Scan(&name)`.
 - `xs[i]` indexes; `xs[a:b]`, `xs[:b]`, `xs[a:]`, `xs[:]` slice and share
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
+- A package used only for its side effects is a blank import:
+  `use modernc.org/sqlite as _;` before `sql.Open`, otherwise the binary fails
+  at run time with `unknown driver`.
 - A Go named type whose underlying type is a map, slice or array is used like
-  that type: `r.URL.Query()` is `map[str, str[]]`, so `q["done"]` and
-  `var v, ok = q["done"]` work.
+  that type and keeps its methods: `r.URL.Query().Get("done")` is a `str`,
+  `q["done"]` is a `str[]`.
 - Assignment and arguments copy the value: structs and arrays copy, while a
   slice shares its backing array until `append` grows past `cap`; a map,
   pointer and interface share. Map iteration order is unspecified, so collect
@@ -190,7 +193,7 @@ fn pair() i32, bool { return 1, true; };
 if (x > 0) { ... } else if (x == 0) { ... } else { ... };
 if (i < k && i < len(xs)) { ... };   // conditions use && || !
 for (var i = 0; i < n; i += 1) { ... };
-for (; cond; ) { ... };          // there is no while
+for (; cond; ) { ... };          // no while and no for (cond)
 for (var i, x in xs) { ... };
 {
     defer closeIt();

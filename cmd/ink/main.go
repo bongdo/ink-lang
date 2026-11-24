@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/bongdo/ink/internal/agent"
@@ -18,8 +19,20 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-	cmd := os.Args[1]
-	args := os.Args[2:]
+	args := os.Args[1:]
+	if len(args) >= 2 && args[0] == "-C" {
+		if err := os.Chdir(args[1]); err != nil {
+			fmt.Fprintln(os.Stderr, "ink:", err)
+			os.Exit(2)
+		}
+		args = args[2:]
+	}
+	if len(args) == 0 {
+		usage()
+		os.Exit(2)
+	}
+	cmd := args[0]
+	args = args[1:]
 	switch cmd {
 	case "build":
 		os.Exit(build(args))
@@ -54,6 +67,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `ink — the Ink compiler
 
 usage:
+  ink [-C dir] <command> ...
   ink build [-o output] [-embed dir] [go build flags]
   ink run [--race] [-embed dir] [-- program args]
   ink check [--json] [--fast] [--race]
@@ -227,6 +241,11 @@ func check(args []string) int {
 		fmt.Fprintln(os.Stderr, "ink:", err)
 		return 1
 	}
+	if !*fast && !p.HasErrors() {
+		if _, err := os.Stat(filepath.Join(p.Root, "zz_ink.go")); err == nil {
+			_ = p.Generate(false)
+		}
+	}
 	if *asJSON {
 		if err := p.WriteJSON(os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "ink:", err)
@@ -237,9 +256,16 @@ func check(args []string) int {
 				return 1
 			}
 		}
+		if *fast {
+			fmt.Fprintln(os.Stderr, "ink: fast check is clean; the generated-Go typecheck and go vet were skipped, run ink check to finish")
+		}
 		return 0
 	}
-	return finish(p)
+	status := finish(p)
+	if status == 0 && *fast {
+		fmt.Fprintln(os.Stderr, "ink: fast check is clean; the generated-Go typecheck and go vet were skipped, run ink check to finish")
+	}
+	return status
 }
 
 func test(args []string) int {

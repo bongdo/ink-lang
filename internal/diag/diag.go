@@ -60,6 +60,8 @@ var rules = []struct {
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
+	{"for-cond", "condition-only loop", "write for (; cond; ): for (; rows.Next(); ) { ... }", false},
+	{"import-path", "is not in std", "use the full Go path: path/filepath, net/http, encoding/json, database/sql", false},
 	{"var-value", "var needs a value", "every var has a value: var n = 0; var p: *T = nil;", false},
 	{"method-outside-type", "declared at file scope", "declare it inside the type body: type T struct { fn M(...) ... };", false},
 	{"copy-lock", "copies lock value", "use a pointer: var srv = &http.Server { ... }", false},
@@ -97,7 +99,7 @@ func Typecheck(msg string) Info {
 		info.Code = "go-type"
 	}
 	if info.Code == "go-type" && info.Hint == "" {
-		info.Hint = "go-types: []byte is u8[], string is str, int32 is i32; convert at the boundary with str(x) or i32(x)"
+		info.Hint = "the generated-Go typecheck rejected this: []byte is u8[], string is str, int32 is i32; convert or index at the boundary"
 	}
 	return info
 }

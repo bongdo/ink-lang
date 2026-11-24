@@ -1078,18 +1078,30 @@ func (p *parser) parseForStmt(par bool, start token.Pos) *ast.ForStmt {
 		if p.rangeAhead() {
 			fs.Range = p.parseRangeClause()
 		} else {
+			condOnly := false
 			if p.at(token.Semi) {
 				p.next()
 			} else {
 				fs.Init = p.parseSimpleStmt(false)
-				p.consumeSemi()
+				if p.at(token.RParen) {
+					p.errorf(fs.Init.Pos(), "a condition-only loop is written for (; cond; ): for (; rows.Next(); ) { ... }")
+					if es, ok := fs.Init.(*ast.ExprStmt); ok {
+						fs.Cond = es.X
+						fs.Init = nil
+						condOnly = true
+					}
+				} else {
+					p.consumeSemi()
+				}
 			}
-			if !p.at(token.Semi) {
+			if fs.Cond == nil && !p.at(token.Semi) && !p.at(token.RParen) {
 				fs.Cond = p.parseExprNoOr()
 			}
-			p.consumeSemi()
-			if !p.at(token.RParen) {
-				fs.Post = p.parseSimpleStmt(false)
+			if !condOnly {
+				p.consumeSemi()
+				if !p.at(token.RParen) {
+					fs.Post = p.parseSimpleStmt(false)
+				}
 			}
 		}
 	}
