@@ -55,6 +55,7 @@ var rules = []struct {
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
+	{"str-number", "string of one rune", "format numbers with strconv.Itoa, strconv.FormatFloat or fmt.Sprint", false},
 	{"go-capture-write", "captured from outside go", "copy the value into a local and collect the result", false},
 	{"go-break", "cannot leave a go block", "return a value or set a local flag", false},
 	{"go-loop", "for () is not allowed inside go", "use a bounded loop", false},
@@ -86,6 +87,14 @@ func Typecheck(msg string) Info {
 	info := Classify(msg)
 	if info.Code == "semantic" || info.Code == "syntax" {
 		info.Code = "go-type"
+	}
+	return info
+}
+
+func Vet(msg string) Info {
+	info := Classify(msg)
+	if info.Code == "semantic" {
+		info.Code = "go-vet"
 	}
 	return info
 }

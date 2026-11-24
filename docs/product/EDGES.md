@@ -20,7 +20,6 @@ not re-file.
 | 9 | `ink check` re-type-checks every package on each run. | Results are cached in the process, keyed by the whole project; errors under the root are cached now, outside the root are not. | `--fast` for rename-level feedback. |
 | 10 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
 | 12 | Writing to a nil map panics at run time; `ink check` stays clean. | `nil` is a valid map value; only writes need storage. | Reads, `len`, `has`, `delete` and `for` are safe on nil. Start with `map[K, V] {}`. |
-| 13 | `str(42)` is `"*"`, the rune, not `"42"`; no builtin formats a number. | `str` keeps Go's rune/byte conversion, and `rune` is an alias of `i32`. | Use `strconv.Itoa`, `strconv.FormatFloat` or `fmt.Sprint`. Needs a decision. |
 
 ## Accepted
 

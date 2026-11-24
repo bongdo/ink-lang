@@ -131,6 +131,7 @@ place with status.
 | LSP code actions and quick fixes | ✅ |
 | formatter, idempotent, trailing comments | ✅ |
 | formatter line wrapping | ○ |
+| `go vet` in the full `check` | ✅ catches `str(42)` as `str-number`; not run in `--fast` or LSP |
 | unused locals / vet-style diagnostics as an Ink pass | ◐ comes from the Go typecheck |
 | `ink run -race`, `ink test -race` | ✅ |
 

@@ -261,6 +261,8 @@ go save(1, "hello");            // detached, program-owned
 | `init-cycle` | break the cycle: initialize in `main` or in a function |
 | `map-addressable` | copy out, mutate, write back: `var p = m[k]; p.F = v; m[k] = p;` |
 | `conformance-unchecked` | warning: the method set is not nameable; `go build` is the backstop |
+| `str-number` | `str(n)` is a rune; format numbers with `strconv.Itoa`, `strconv.FormatFloat` or `fmt.Sprint` |
+| `go-vet` | `go vet` finding in generated code; fix the Ink line it points at |
 | `unused-import` | remove the import or use it |
 | `unused-var` | use the variable or replace it with `_` |
 | `syntax` / `go-type` | read `message` and `hint` |

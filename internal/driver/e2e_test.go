@@ -154,6 +154,31 @@ func TestGoTypeSpanSnapsToToken(t *testing.T) {
 	}
 }
 
+func TestCheckRunsVet(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/vet\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "use fmt;\n\nfn main() void! {\n    fmt.Println(str(42))\n        or fail;\n    return;\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Typecheck: true}); err != nil {
+		t.Fatal(err)
+	}
+	diags := p.Diagnostics()
+	if len(diags) != 1 {
+		t.Fatalf("diags: %+v", diags)
+	}
+	if d := diags[0]; d.Code != "str-number" || d.Line != 4 {
+		t.Fatalf("diag: %+v", d)
+	}
+}
+
 func TestMissingReturnDiagnostic(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/ret\n\ngo 1.27\n"), 0o644); err != nil {

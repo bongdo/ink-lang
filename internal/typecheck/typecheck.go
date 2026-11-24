@@ -3,9 +3,11 @@ package typecheck
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -28,12 +30,14 @@ type Options struct {
 	Module string
 	Tests  bool
 	Race   bool
+	Vet    bool
 }
 
 type Error struct {
 	Path string
 	Pos  token.Pos
 	Msg  string
+	Vet  bool
 }
 
 var (
@@ -81,8 +85,123 @@ func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Er
 		return errs
 	}
 	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests, opt.Race)
+	if len(out) == 0 && opt.Vet {
+		out = vet(opt.Root, module, generated)
+	}
 	cachePut(opt.Root, key, out)
 	return out
+}
+
+func importPath(root, module, rel string) string {
+	if rel == "." {
+		return module
+	}
+	return module + "/" + filepath.ToSlash(rel)
+}
+
+func patternsOf(root, module string, files []gen.File) []string {
+	seen := make(map[string]bool)
+	var patterns []string
+	for _, f := range files {
+		path, err := filepath.Abs(f.Path)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(root, filepath.Dir(path))
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		pattern := "."
+		if rel != "." {
+			pattern = "./" + filepath.ToSlash(rel)
+		}
+		if !seen[pattern] {
+			seen[pattern] = true
+			patterns = append(patterns, pattern)
+		}
+	}
+	sort.Strings(patterns)
+	return patterns
+}
+
+func vet(root, module string, files []gen.File) []Error {
+	dir, err := os.MkdirTemp("", "ink-vet")
+	if err != nil {
+		return nil
+	}
+	defer os.RemoveAll(dir)
+	replace := make(map[string]string, len(files)+1)
+	for i, f := range files {
+		path, err := filepath.Abs(f.Path)
+		if err != nil {
+			continue
+		}
+		backing := filepath.Join(dir, "f"+strconv.Itoa(i)+".go")
+		if err := os.WriteFile(backing, absoluteLineDirectives(f.Src, filepath.Dir(path)), 0o644); err != nil {
+			return nil
+		}
+		replace[filepath.Clean(path)] = backing
+	}
+	runtimePath := filepath.Join(root, ".ink", "runtime", "runtime.go")
+	runtimeBacking := filepath.Join(dir, "runtime.go")
+	if err := os.WriteFile(runtimeBacking, inkrt.Source, 0o644); err != nil {
+		return nil
+	}
+	replace[filepath.Clean(runtimePath)] = runtimeBacking
+	overlay, err := json.Marshal(map[string]any{"Replace": replace})
+	if err != nil {
+		return nil
+	}
+	overlayPath := filepath.Join(dir, "overlay.json")
+	if err := os.WriteFile(overlayPath, overlay, 0o644); err != nil {
+		return nil
+	}
+	cmd := exec.Command("go", append([]string{"vet", "-overlay=" + overlayPath}, patternsOf(root, module, files)...)...)
+	cmd.Dir = root
+	cmd.Env = typecheckEnv()
+	out, _ := cmd.CombinedOutput()
+	return vetErrors(root, string(out))
+}
+
+var vetLineRE = regexp.MustCompile(`^(.+\.ink):(\d+)(?::(\d+))?: (.+)$`)
+
+func vetErrors(root, out string) []Error {
+	var errs []Error
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		m := vetLineRE.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		lineNo, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		col := 1
+		if m[3] != "" {
+			if n, err := strconv.Atoi(m[3]); err == nil {
+				col = n
+			}
+		}
+		path := m[1]
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(root, filepath.FromSlash(path))
+		}
+		if !underRoot(root, path) {
+			continue
+		}
+		errs = append(errs, Error{Path: filepath.Clean(path), Pos: token.Pos{Line: lineNo, Col: col}, Msg: m[4], Vet: true})
+	}
+	return errs
+}
+
+var lineDirectiveRE = regexp.MustCompile(`//line (\S+):`)
+
+func absoluteLineDirectives(src []byte, dir string) []byte {
+	return []byte(lineDirectiveRE.ReplaceAllStringFunc(string(src), func(m string) string {
+		path := strings.TrimSuffix(strings.TrimPrefix(m, "//line "), ":")
+		return "//line " + filepath.Join(dir, path) + ":"
+	}))
 }
 
 func knownFiles(files map[string][]*ast.File) map[string]bool {
@@ -164,8 +283,6 @@ func cachePut(root, key string, errs []Error) {
 func load(root, module string, files []gen.File, known map[string]bool, tests, race bool) []Error {
 	overlay := make(map[string][]byte, len(files)+1)
 	importDirs := make(map[string]string, len(files))
-	seen := make(map[string]bool)
-	var patterns []string
 	for _, f := range files {
 		path, err := filepath.Abs(f.Path)
 		if err != nil {
@@ -177,19 +294,9 @@ func load(root, module string, files []gen.File, known map[string]bool, tests, r
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue
 		}
-		pattern := "."
-		importPath := module
-		if rel != "." {
-			pattern = "./" + filepath.ToSlash(rel)
-			importPath = module + "/" + filepath.ToSlash(rel)
-		}
-		importDirs[importPath] = filepath.Dir(path)
-		if !seen[pattern] {
-			seen[pattern] = true
-			patterns = append(patterns, pattern)
-		}
+		importDirs[importPath(root, module, rel)] = filepath.Dir(path)
 	}
-	sort.Strings(patterns)
+	patterns := patternsOf(root, module, files)
 	if len(patterns) == 0 {
 		return []Error{{Path: root, Msg: "typecheck: no generated packages"}}
 	}

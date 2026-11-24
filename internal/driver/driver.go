@@ -82,6 +82,11 @@ func sourceError(path string, pos, end token.Pos, msg string, warning bool) Erro
 	return Error{Path: path, Pos: pos, End: spanEnd(pos, end), Msg: msg, Warning: warning, Code: info.Code, Hint: info.Hint}
 }
 
+func vetError(path string, pos token.Pos, msg string) Error {
+	info := diag.Vet(msg)
+	return Error{Path: path, Pos: pos, Msg: msg, Code: info.Code, Hint: info.Hint}
+}
+
 func typecheckError(path string, pos token.Pos, msg string) Error {
 	info := diag.Typecheck(msg)
 	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: msg, Code: info.Code, Hint: info.Hint}
@@ -225,7 +230,11 @@ func (p *Project) Check(opt CheckOptions) error {
 		return err
 	}
 	if opt.Typecheck && !opt.Fast && !p.HasErrors() {
-		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race}) {
+		for _, e := range typecheck.Check(p.Program, p.Parsed, typecheck.Options{Root: p.Root, Module: p.Module, Tests: true, Race: opt.Race, Vet: true}) {
+			if e.Vet {
+				p.Errors = append(p.Errors, vetError(e.Path, e.Pos, e.Msg))
+				continue
+			}
 			p.Errors = append(p.Errors, typecheckError(e.Path, e.Pos, e.Msg))
 		}
 	}
@@ -691,7 +700,7 @@ func (p *Project) Diagnostics() []JSONError {
 			code, hint = info.Code, info.Hint
 		}
 		pos := e.Pos
-		if code == "go-type" {
+		if snappable(code) {
 			if snapped := p.snapStart(e.Path, e.Pos, 8); snapped.Valid() {
 				pos = snapped
 				line, col = snapped.Line, snapped.Col
@@ -785,6 +794,14 @@ func (p *Project) snapStart(path string, pos token.Pos, limit int) token.Pos {
 		return token.Pos{}
 	}
 	return best
+}
+
+func snappable(code string) bool {
+	switch code {
+	case "go-type", "go-vet", "str-number":
+		return true
+	}
+	return false
 }
 
 func spanHas(start, end, pos token.Pos) bool {
