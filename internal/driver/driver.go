@@ -101,8 +101,33 @@ func vetError(path string, pos token.Pos, msg string) Error {
 }
 
 func typecheckError(path string, pos token.Pos, msg string) Error {
+	msg = sanitizeMessage(msg)
 	info := diag.Typecheck(msg)
 	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: msg, Code: info.Code, Hint: info.Hint}
+}
+
+func sanitizeMessage(msg string) string {
+	for _, name := range []string{"_s_v", "_s_err", "_s_tmp", "_s_x"} {
+		i := 0
+		for {
+			j := strings.Index(msg[i:], name)
+			if j < 0 {
+				break
+			}
+			j += i
+			k := j + len(name)
+			for k < len(msg) && msg[k] >= '0' && msg[k] <= '9' {
+				k++
+			}
+			if k > j+len(name) {
+				msg = msg[:j] + "value" + msg[k:]
+				i = j + len("value")
+				continue
+			}
+			i = k
+		}
+	}
+	return msg
 }
 
 func spanEnd(pos, end token.Pos) token.Pos {

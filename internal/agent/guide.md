@@ -73,6 +73,8 @@ test "load fails on bad json" {
 - `test "name" { ... };` at package level in any `.ink` file. The file name has
   no special meaning, and a `Test*` function is an ordinary function, not a
   test. Blocks are generated into `zz_ink_test.go` and run by `ink test`.
+- A test lives in the package of its own directory: a test in `store/` uses
+  `store`'s names directly and must not `use ./store;`.
 - `assert(cond)` and `assert_eq(got, want)` fail with `file:line`. A failed
   assertion or panic fails only that test; the remaining tests still run.
 - `fail("msg")` exists only as the shorthand after `or`; a new error is

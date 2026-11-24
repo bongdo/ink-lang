@@ -625,3 +625,15 @@ func TestBuildEmbedWritesAssetsFile(t *testing.T) {
 		t.Fatalf("assets file:\n%s", src)
 	}
 }
+
+func TestSanitizeGeneratedNames(t *testing.T) {
+	cases := map[string]string{
+		"cannot use _s_v8 (variable of type int64) as int value in assignment": "cannot use value (variable of type int64) as int value in assignment",
+		"cannot use b (variable of type int) as int64 value":                   "cannot use b (variable of type int) as int64 value",
+	}
+	for in, want := range cases {
+		if got := sanitizeMessage(in); got != want {
+			t.Fatalf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}

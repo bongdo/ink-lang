@@ -130,7 +130,7 @@ and adds a feature without rewriting it. This is the common agent case.
 |---|---|---|---|
 | edit-store (CLI + lib) | 9/10 | 9/10 | 2, zero code fixes |
 | edit-web (HTTP service) | 8/10 | 9/10 | 1, zero code fixes |
-| sqlite (from scratch, retest) | 7 → 8 → 8 | retest in flight | 1–3 |
+| sqlite (from scratch, retest) | 7 → 8 → 8 | 9 | 3 |
 
 ### Fixed from round 3
 
@@ -150,6 +150,11 @@ and adds a feature without rewriting it. This is the common agent case.
 - `ink -C dir <command>` works like `go -C`.
 - `ink check` refreshes `zz_ink.go` when it already exists, so an on-disk
   generated file cannot go stale behind the agent's back.
+- Generated names never leak into diagnostics: `_s_v8` in a Go message is
+  rewritten to `value`.
+- A reserved word as a variable or in an expression is a `reserved` error, not
+  a cascade; the guide says a test uses its own package's names and must not
+  import its own directory.
 
 ### Still open
 

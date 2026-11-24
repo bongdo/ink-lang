@@ -906,6 +906,13 @@ func (p *parser) parseVarDecl(requireSemi bool) *ast.VarDecl {
 	start := p.tok().Pos
 	vd := &ast.VarDecl{Const: p.kind() == token.Const}
 	p.next()
+	if !p.at(token.Ident) {
+		if word := p.kind().String(); isWordToken(word) {
+			p.errorf(p.tok().Pos, "%s is a reserved word; rename it", word)
+			vd.Names = append(vd.Names, word)
+			p.next()
+		}
+	}
 	for p.at(token.Ident) {
 		vd.Names = append(vd.Names, p.next().Lit)
 		if !p.at(token.Comma) {
@@ -1752,6 +1759,11 @@ func (p *parser) parsePrimary() ast.Expr {
 		end := p.expect(token.RParen)
 		return &ast.ParenExpr{Span: ast.Span{Start: start, End: end}, X: x}
 	default:
+		if word := t.Kind.String(); isWordToken(word) {
+			p.errorf(t.Pos, "%s is a reserved word; rename it", word)
+			p.next()
+			return &ast.Ident{Span: spanOf(t), Name: word}
+		}
 		p.errorf(t.Pos, "expected expression, found %s", describe(t))
 		return nil
 	}
