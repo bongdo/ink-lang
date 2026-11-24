@@ -147,10 +147,12 @@ fn pair() i32, bool { return 1, true; };
 - `for (var i, x in xs)`, `for (var k, v in m)`, `for (var x in xs)` and
   `for ()`; the index is `int`. `var v, ok = m[k]` reads presence without
   `has`.
-- `make[i32](n)` or `make[i32](n, cap)` makes a slice; `errors.New("msg")`
+- A slice type is its constructor: `i32[](n)` is n zeros, `i32[](cap: n)` is
+  empty with capacity, `i32[](n, cap: m)` sizes both. `size:` and `cap:` are
+  the only labels; `i32[](size: n)` equals `i32[](n)`. `errors.New("msg")`
   makes a fresh error and `error` is only a type.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
-  block exit. Inside it `new[Point]()` and `make[i32](n)` use the buffer;
+  block exit. Inside it `new[Point]()` and `i32[](n)` use the buffer;
   outside they are ordinary Go allocations. The buffer is reused by the next
   execution, so a hot loop stops allocating after its high-water mark; the
   buffer is released at block exit outside a loop, and after the enclosing loop
@@ -158,8 +160,8 @@ fn pair() i32, bool { return 1, true; };
   never leaves the block: no assignment to a captured variable, no return, no
   `&T{}`, no call argument or receiver. Read fields and indices, copy structs
   and arrays that hold no references, and `copy` bytes out. `go` is allowed;
-  `new`/`make` must run before `go`, a worker may write `rows[y]` and open its
-  own `arena { ... };`.
+  `new`/`i32[](n)` must run before `go`, a worker may write `rows[y]` and open
+  its own `arena { ... };`.
 - `//` comments only; `void` is a result only.
 
 ## Statements and values

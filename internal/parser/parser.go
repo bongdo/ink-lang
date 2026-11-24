@@ -1629,6 +1629,14 @@ func (p *parser) parsePrimary() ast.Expr {
 			if x := p.tryComposite(); x != nil {
 				return x
 			}
+			if p.peek(1) == token.LBracket {
+				if x := p.trySliceCtor(); x != nil {
+					return x
+				}
+			}
+		}
+		if t.Lit == "make" && p.peek(1) == token.LBracket {
+			p.errorf(t.Pos, "make was removed; use T[](n), e.g. i32[](3)")
 		}
 		p.next()
 		return &ast.Ident{Span: spanOf(t), Name: t.Lit}
@@ -1679,6 +1687,73 @@ func (p *parser) tryComposite() ast.Expr {
 		return nil
 	}
 	return p.parseCompositeLit(typ)
+}
+
+func (p *parser) trySliceCtor() ast.Expr {
+	save := p.i
+	saveErrs := len(p.errs)
+	p.silent++
+	typ := p.parseType()
+	ok := typ != nil && p.at(token.LParen)
+	p.silent--
+	p.errs = p.errs[:saveErrs]
+	p.i = save
+	if !ok {
+		return nil
+	}
+	typ = p.parseType()
+	slice, isSlice := typ.(*ast.SliceType)
+	if !isSlice || !p.at(token.LParen) {
+		p.i = save
+		return nil
+	}
+	return p.parseSliceCtor(slice.Elem)
+}
+
+func (p *parser) parseSliceCtor(elem ast.Type) ast.Expr {
+	start := elem.Pos()
+	p.expect(token.LParen)
+	call := &ast.CallExpr{
+		Slice:    true,
+		Fun:      &ast.Ident{Span: ast.Span{Start: start, End: elem.EndPos()}, Name: "make"},
+		TypeArgs: []ast.Type{elem},
+	}
+	named := false
+	for !p.at(token.RParen) && !p.at(token.EOF) {
+		if p.at(token.Ident) && p.peek(1) == token.Colon {
+			label := p.next()
+			p.next()
+			value := p.parseExprNoOr()
+			switch label.Lit {
+			case "size":
+				if call.Size != nil {
+					p.errorf(label.Pos, "size given twice")
+				}
+				call.Size = value
+			case "cap":
+				if call.Cap != nil {
+					p.errorf(label.Pos, "cap given twice")
+				}
+				call.Cap = value
+			default:
+				p.errorf(label.Pos, "unknown slice argument %s; use size or cap", label.Lit)
+			}
+			named = true
+		} else {
+			if named || call.Size != nil {
+				p.errorf(p.tok().Pos, "one size comes first, then cap: or size:")
+			}
+			call.Size = p.parseExprNoOr()
+		}
+		if p.at(token.Comma) {
+			p.next()
+			continue
+		}
+		break
+	}
+	end := p.expect(token.RParen)
+	call.Span = ast.Span{Start: start, End: end}
+	return call
 }
 
 func (p *parser) parseCompositeLit(typ ast.Type) ast.Expr {

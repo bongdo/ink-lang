@@ -21,7 +21,7 @@ fn main() void! {
     fmt.Println("grow", c[0], d[0], len(c), len(d))
         or fail;
 
-    var m = make[i32](2, 4);
+    var m = i32[](2, cap: 4);
     m[0] = 1;
     m[1] = 2;
     var n = append(m, 3);

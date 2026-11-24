@@ -5,7 +5,7 @@ import "testing"
 func TestArenaAllowsParOnPreallocated(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
-        var xs = make[i32](16);
+        var xs = i32[](16);
         go for (var y = i32(0); y < i32(16); y += 1) limit 4 {
             xs[y] = y * 2;
         };
@@ -71,10 +71,10 @@ fn main() void {};
 func TestArenaAllowsWorkerArena(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
-        var outer = make[i32](4);
+        var outer = i32[](4);
         go {
             arena {
-                var tmp = make[i32](4);
+                var tmp = i32[](4);
                 tmp[0] = outer[0];
             };
         };
@@ -90,9 +90,9 @@ func TestArenaAllowsNested(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() i32 {
     var n = i32(0);
     arena {
-        var xs = make[i32](4);
+        var xs = i32[](4);
         arena {
-            var ys = make[i32](4);
+            var ys = i32[](4);
             ys[1] = 5;
             n = ys[1];
         };
@@ -157,7 +157,7 @@ func TestArenaAllowsPureBuiltins(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() i32 {
     var n = i32(0);
     arena {
-        var xs = make[i32](4, 8);
+        var xs = i32[](4, cap: 8);
         n = len(xs) + cap(xs);
     };
     return n;
@@ -179,7 +179,7 @@ fn consume(h: Holder) void { _ = h; };
 
 fn f() void {
     arena {
-        var hs = make[Holder](2);
+        var hs = Holder[](2);
         var h = hs[0];
         consume(h);
     };
@@ -197,7 +197,7 @@ fn consume(v: Vec) void { _ = v; };
 
 fn f() void {
     arena {
-        var vs = make[Vec](2);
+        var vs = Vec[](2);
         var v = vs[0];
         consume(v);
     };
@@ -243,11 +243,12 @@ fn main() void {};
 
 func TestArenaRejectsCopyOfPointers(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+type PointPtr = *Point;
 
 fn f() void {
-    var out = make[*Point](2);
+    var out = PointPtr[](2);
     arena {
-        var xs = make[*Point](2);
+        var xs = PointPtr[](2);
         copy(out, xs);
     };
 };

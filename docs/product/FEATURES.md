@@ -53,7 +53,8 @@ place with status.
 | `&x` for variables, fields, literals; `*p` read/write | ✅ |
 | slicing, shared storage | ✅ |
 | `s[i]` on a string is a `byte`; `runes(s)` for code points | ✅ |
-| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `make`, `new` | ✅ |
+| `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `new` | ✅ |
+| `T[](n)`, `T[](n, cap: m)`, `T[](cap: m)` — slice constructor | ✅ `make` removed |
 | `if`, all `for` forms, `match` statement/expression | ✅ |
 | `break`/`continue`, including inside a `match` case | ✅ |
 | user labels, `goto` | — |
@@ -64,7 +65,7 @@ place with status.
 | `T!` with `or fail` and `on err { }` | ✅ |
 | `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
 | `errors.New("msg")` fresh error; `error("msg")` rejected | ✅ |
-| `arena { new/make }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
+| `arena { new/T[](n) }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
 | manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |

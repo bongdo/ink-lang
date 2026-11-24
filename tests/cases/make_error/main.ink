@@ -12,7 +12,7 @@ fn mkPoint() *Point {
 };
 
 fn mk(n: i32) i32[] {
-    var xs = make[i32](n);
+    var xs = i32[](n);
     xs[0] = 1;
     return xs;
 };

@@ -389,7 +389,7 @@ fn main() void! {
     arena {
         var ap = new[User]();
         ap.Name = "arena";
-        var made = make[i32](2);
+        var made = i32[](2);
         made[0] = 4;
         made[1] = 5;
         arenaSum = i32(len(ap.Name)) + made[0] + made[1];

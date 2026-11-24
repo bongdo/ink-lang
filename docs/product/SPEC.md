@@ -219,16 +219,16 @@ An alias does not create a new Go type.
 arena {
     var p = new[Point]();
     p.X = 1;
-    var xs = make[i32](8);
+    var xs = i32[](8);
     xs[0] = 2;
 };
 ```
 
-Inside the block `new[T]()` and `make[T](n)` or `(n, cap)` take memory from a
+Inside the block `new[T]()` and `T[](n)` or `T[](n, cap: m)` take memory from a
 per-type scratch buffer; outside they are ordinary Go allocations. The buffer is
 reused by the next execution of the same block, so a loop allocates only until
 its high-water mark and then does not allocate at all. Every execution starts
-zeroed, so `new` and `make` keep their Go semantics.
+zeroed, so `new` and the slice constructor keep their Go semantics.
 
 The buffer lives as long as the arena can run again. An arena outside a loop
 releases its buffer at block exit; an arena inside a loop keeps it for the loop
@@ -244,7 +244,7 @@ So `n = p.X` and `copy(px, row)` work, while `f(p)` and `p.Move()` do not. The
 rule is what makes reuse safe: nothing can read the buffer after the block
 returns it.
 
-`go` is allowed inside an arena. `new` and `make` must run before `go`: a
+`go` is allowed inside an arena. `new` and `T[](n)` must run before `go`: a
 worker shares the block's batch, so an allocation inside a worker is an error.
 A worker may write an arena element indexed by its own iteration variable
 (`rows[y] = row`) and may open its own `arena { ... };`.
@@ -311,7 +311,7 @@ const Greeting = "hello";
 | `runes(s)` | `str` to `rune[]` |
 | `bytes(s)` | `str` to `u8[]` |
 | `str(runes_or_bytes)` | conversion to `str` |
-| `make[T](n)`, `make[T](n, cap)` | `[]T` with length and capacity |
+| `T[](n)`, `T[](n, cap: m)`, `T[](cap: m)` | `[]T` with length and capacity |
 | `error(msg)` | a fresh `error` with that message |
 | `panic(msg)` | Go panic; abort |
 | `assert(cond)`, `assert_eq(got, want)` | checks for tests and code |

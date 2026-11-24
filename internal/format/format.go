@@ -641,6 +641,24 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 		p.write(".")
 		p.write(e.Name)
 	case *ast.CallExpr:
+		if e.Slice {
+			if len(e.TypeArgs) == 1 {
+				p.typ(&ast.SliceType{Elem: e.TypeArgs[0]})
+			}
+			p.write("(")
+			if e.Size != nil {
+				p.expr(e.Size)
+				if e.Cap != nil {
+					p.write(", ")
+				}
+			}
+			if e.Cap != nil {
+				p.write("cap: ")
+				p.expr(e.Cap)
+			}
+			p.write(")")
+			return
+		}
 		p.exprPrec(e.Fun, precPostfix)
 		if len(e.TypeArgs) > 0 {
 			p.write("[")

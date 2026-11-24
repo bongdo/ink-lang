@@ -35,7 +35,7 @@ fn work(p: *Point) void { _ = p; };
 
 fn main() void {
     arena {
-        var ps = make[Point](4);
+        var ps = Point[](4);
         work(&ps[0]);
     };
 };
@@ -91,7 +91,7 @@ func TestArenaReceiverInDetachedGo(t *testing.T) {
 
 fn main() void {
     arena {
-        var ps = make[Point](4);
+        var ps = Point[](4);
         go ps[0].Touch();
     };
 };

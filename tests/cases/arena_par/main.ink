@@ -14,9 +14,9 @@ fn fillRow(y: i32) Row {
 
 fn main() void! {
     var sum = i32(0);
-    var out = make[i32](RowLen * 4);
+    var out = i32[](RowLen * 4);
     arena {
-        var rows = make[Row](4);
+        var rows = Row[](4);
         go for (var y = i32(0); y < i32(4); y += 1) limit 2 {
             rows[y] = fillRow(y);
         };
@@ -27,7 +27,7 @@ fn main() void! {
             sum += out[i];
         };
         arena {
-            var tmp = make[i32](2);
+            var tmp = i32[](2);
             tmp[0] = 7;
             sum += tmp[0];
         };

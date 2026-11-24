@@ -2,6 +2,7 @@ package sema
 
 import (
 	"go/types"
+	"strconv"
 	"strings"
 
 	"github.com/bongdo/ink/internal/ast"
@@ -302,6 +303,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	var goCall bool
 	var goResult types.Type
 	var goSig *types.Signature
+	if call.Slice {
+		return c.resolveMake(call)
+	}
 	switch fun := call.Fun.(type) {
 	case *ast.Ident:
 		c.resolveExpr(fun, false)
@@ -440,7 +444,7 @@ func (c *checker) resolveErrorCall(call *ast.CallExpr) ast.Type {
 
 func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 	if len(call.TypeArgs) != 1 {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "make needs one element type: make[i32](n)")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "a slice needs one element type: i32[](3)")
 		return nil
 	}
 	if c.arenaInWorker() {
@@ -449,8 +453,34 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}
 	c.p.rejectVoid(c.fc, elem, call.Pos())
-	if len(call.Args) < 1 || len(call.Args) > 2 {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "make takes a length and an optional capacity")
+	size, capacity := call.Size, call.Cap
+	if !call.Slice {
+		switch len(call.Args) {
+		case 0:
+			c.p.errorf(c.fc.file.Path, call.Pos(), "a slice needs a size or a cap")
+		case 1:
+			size = call.Args[0]
+		default:
+			size, capacity = call.Args[0], call.Args[1]
+		}
+	}
+	if size == nil && capacity == nil {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "a slice needs a size or a cap")
+	}
+	if size == nil && capacity != nil {
+		size = &ast.BasicLit{Span: call.Span, Kind: token.Int, Value: "0"}
+	}
+	if s, ok := intLiteral(size); ok {
+		if n, ok := intLiteral(capacity); ok && n < s {
+			c.p.errorf(c.fc.file.Path, call.Pos(), "cap %d is smaller than size %d", n, s)
+		}
+	}
+	call.Args = nil
+	if size != nil {
+		call.Args = append(call.Args, size)
+	}
+	if capacity != nil {
+		call.Args = append(call.Args, capacity)
 	}
 	intT := &ast.NamedType{Name: "int", GoName: "int"}
 	for _, a := range call.Args {
@@ -461,6 +491,15 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 	res := &ast.SliceType{Elem: elem}
 	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 1, ResultTypes: []ast.Type{res}, Builtin: "make"}
 	return res
+}
+
+func intLiteral(e ast.Expr) (int, bool) {
+	lit, ok := unparen(e).(*ast.BasicLit)
+	if !ok || lit.Kind != token.Int {
+		return 0, false
+	}
+	n, err := strconv.Atoi(lit.Value)
+	return n, err == nil
 }
 
 func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {

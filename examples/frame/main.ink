@@ -36,14 +36,14 @@ fn main() void {
     rl.UnloadImage(blank);
     defer rl.UnloadTexture(tex);
 
-    var px = make[u8](RowLen * H);
+    var px = u8[](RowLen * H);
     var t0 = rl.GetTime();
     var workers = i32(runtime.GOMAXPROCS(0));
 
     for (var frame = 0; rl.WindowShouldClose() == false; frame += 1) {
         var t = (rl.GetTime() - t0) * 0.2;
         arena {
-            var rows = make[Row](H);
+            var rows = Row[](H);
             go for (var y = i32(0); y < i32(H); y += 1) limit workers {
                 rows[y] = shadeRow(y, t);
             };

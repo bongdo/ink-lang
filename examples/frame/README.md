@@ -14,7 +14,7 @@ The per-frame part:
 
 ```ink
 arena {
-    var rows = make[Row](H);                     // Row = u8[480*4]
+    var rows = Row[](H);                         // Row = u8[480*4]
     go for (var y = i32(0); y < i32(H); y += 1) limit workers {
         rows[y] = shadeRow(y, t);                // each worker owns its row
     };
@@ -36,7 +36,7 @@ Why else this shape:
   crosses a function boundary.
 - `rows[y]` is indexed by the loop variable, the one write shape `go` can prove
   disjoint. Writing into a captured `px` from a worker is rejected.
-- `new` and `make` run before `go`; a worker shares the block's batch.
+- `new` and `Row[](n)` run before `go`; a worker shares the block's batch.
 - raylib is called only on the main goroutine, because it is single-threaded.
 
 The pixel buffer `px` stays outside the arena: it lives across frames and is

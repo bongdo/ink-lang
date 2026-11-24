@@ -749,6 +749,9 @@ func (p *Project) nodeEnd(path string, pos token.Pos) token.Pos {
 				if !spanHas(n.Pos(), n.EndPos(), pos) {
 					return true
 				}
+				if n.Pos().Line == n.EndPos().Line && n.Pos().Col == n.EndPos().Col {
+					return true
+				}
 				if best == nil || spanSize(n.Pos(), n.EndPos()) < spanSize(best.Pos(), best.EndPos()) {
 					best = n
 				}

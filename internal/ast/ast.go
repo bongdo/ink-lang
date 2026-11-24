@@ -331,6 +331,9 @@ type CallExpr struct {
 	Args     []Expr
 	Ellipsis bool
 	Info     *CallInfo
+	Slice    bool
+	Size     Expr
+	Cap      Expr
 }
 
 func (*CallExpr) exprNode() {}

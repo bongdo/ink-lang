@@ -1521,19 +1521,25 @@ func TestGoOnlySyntaxHints(t *testing.T) {
 	}
 }
 
-func TestParseMakePointerTypeArg(t *testing.T) {
+func TestParseSliceCtor(t *testing.T) {
 	f := mustParse(t, "fn f() void {\n"+
-		"    var xs = make[*Point](4);\n"+
+		"    var xs = Point[](4);\n"+
+		"    var ys = i32[](0, cap: 8);\n"+
 		"    var p = new[**Point]();\n"+
 		"    _ = xs;\n"+
+		"    _ = ys;\n"+
 		"    _ = p;\n"+
 		"};\n")
 	call := singleValue(t, findVar(t, f, "xs")).(*ast.CallExpr)
-	if len(call.TypeArgs) != 1 {
-		t.Fatalf("make type args = %d", len(call.TypeArgs))
+	if !call.Slice || len(call.TypeArgs) != 1 || call.Size == nil || call.Cap != nil {
+		t.Fatalf("slice ctor = %#v", call)
 	}
-	if _, ok := call.TypeArgs[0].(*ast.PointerType); !ok {
-		t.Fatalf("make type arg = %#v", call.TypeArgs[0])
+	if n, ok := call.TypeArgs[0].(*ast.NamedType); !ok || n.Name != "Point" {
+		t.Fatalf("slice element = %#v", call.TypeArgs[0])
+	}
+	capped := singleValue(t, findVar(t, f, "ys")).(*ast.CallExpr)
+	if !capped.Slice || capped.Size == nil || capped.Cap == nil {
+		t.Fatalf("capped slice ctor = %#v", capped)
 	}
 	call2 := singleValue(t, findVar(t, f, "p")).(*ast.CallExpr)
 	if len(call2.TypeArgs) != 1 {
@@ -1567,6 +1573,36 @@ func TestRemovedSyntaxRejected(t *testing.T) {
 			}
 			if !found {
 				t.Fatalf("errors = %v, want %q", errs, tc.want)
+			}
+		})
+	}
+}
+
+func TestSliceCtorArgumentLabels(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		msg  string
+	}{
+		{"duplicate size", "fn main() void {\n    var xs = i32[](size: 1, size: 2);\n    _ = xs;\n};\n", "size given twice"},
+		{"duplicate cap", "fn main() void {\n    var xs = i32[](cap: 1, cap: 2);\n    _ = xs;\n};\n", "cap given twice"},
+		{"unknown label", "fn main() void {\n    var xs = i32[](len: 1);\n    _ = xs;\n};\n", "unknown slice argument len"},
+		{"positional after label", "fn main() void {\n    var xs = i32[](cap: 2, 3);\n    _ = xs;\n};\n", "one size comes first"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := Parse(tc.name+".ink", []byte(tc.src))
+			if len(errs) == 0 {
+				t.Fatalf("expected an error")
+			}
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Msg, tc.msg) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("errors = %v, want %q", errs, tc.msg)
 			}
 		})
 	}
