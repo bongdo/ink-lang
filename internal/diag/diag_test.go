@@ -64,3 +64,11 @@ func TestTypecheckFallback(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestInkWords(t *testing.T) {
+	got := InkWords("cannot use x (variable of type []byte) as int32 value, string of one rune")
+	want := "cannot use x (variable of type u8[]) as i32 value, str of one rune"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}

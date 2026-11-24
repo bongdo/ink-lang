@@ -11,7 +11,7 @@ fi
 go vet ./...
 go test ./...
 go build -o bin/ink ./cmd/ink
-ink_unformatted="$(bin/ink fmt -l tests/cases tests/smoke examples/tour examples/small examples/problems examples/frame)"
+ink_unformatted="$(bin/ink fmt -l tests/cases tests/smoke tests/bench examples/tour examples/small examples/problems examples/frame)"
 if [ -n "$ink_unformatted" ]; then
   echo "ink fmt needed:" >&2
   echo "$ink_unformatted" >&2

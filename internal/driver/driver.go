@@ -106,13 +106,13 @@ func sourceError(path string, pos, end token.Pos, msg string, warning bool) Erro
 
 func vetError(path string, pos token.Pos, msg string) Error {
 	info := diag.Vet(msg)
-	return Error{Path: path, Pos: pos, Msg: msg, Code: info.Code, Hint: info.Hint}
+	return Error{Path: path, Pos: pos, Msg: diag.InkWords(msg), Code: info.Code, Hint: info.Hint}
 }
 
 func typecheckError(path string, pos token.Pos, msg string) Error {
 	msg = sanitizeMessage(msg)
 	info := diag.Typecheck(msg)
-	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: msg, Code: info.Code, Hint: info.Hint}
+	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: diag.InkWords(msg), Code: info.Code, Hint: info.Hint}
 }
 
 func sanitizeMessage(msg string) string {

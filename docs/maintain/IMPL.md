@@ -212,7 +212,6 @@ High-level operations used by the CLI. The driver owns `go.mod`,
 | `u8`…`u64` | `uint8`…`uint64` |
 | `i8`…`i64` | `int8`…`int64` |
 | `int`/`uint` | `int`/`uint` |
-| `usize`/`isize` | `uint`/`int` |
 | `f32`/`f64` | `float32`/`float64` |
 | `rune`/`byte` | `rune`/`byte` |
 | `Duration` | `time.Duration` |

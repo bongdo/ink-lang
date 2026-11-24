@@ -134,7 +134,6 @@ func (b *Batch[T]) Slice(n, cap int) []T {
 		b.buf = next
 	}
 	start := b.off
-	clear(b.buf[start : start+cap])
 	b.off = start + cap
 	return b.buf[start : start+n : start+cap]
 }

@@ -22,8 +22,6 @@ var builtinGo = map[string]string{
 	"u64":   "uint64",
 	"int":   "int",
 	"uint":  "uint",
-	"usize": "uint",
-	"isize": "int",
 	"f32":   "float32",
 	"f64":   "float64",
 	"str":   "string",

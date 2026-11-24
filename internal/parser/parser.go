@@ -1706,8 +1706,7 @@ var builtinTypes = map[string]bool{
 	"i8": true, "i16": true, "i32": true, "i64": true,
 	"u8": true, "u16": true, "u32": true, "u64": true,
 	"int": true, "uint": true, "f32": true, "f64": true,
-	"str": true, "rune": true, "byte": true, "usize": true,
-	"isize": true, "any": true, "error": true, "Duration": true,
+	"str": true, "rune": true, "byte": true, "any": true, "error": true, "Duration": true,
 	"Type": true,
 }
 

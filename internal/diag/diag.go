@@ -1,6 +1,39 @@
 package diag
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+var typeWords = regexp.MustCompile(`\b(int32|int64|uint8|uint16|uint32|uint64|float32|float64|string)\b`)
+
+func InkWords(msg string) string {
+	msg = strings.ReplaceAll(msg, "[]byte", "u8[]")
+	msg = strings.ReplaceAll(msg, "[]rune", "rune[]")
+	return typeWords.ReplaceAllStringFunc(msg, func(word string) string {
+		switch word {
+		case "int32":
+			return "i32"
+		case "int64":
+			return "i64"
+		case "uint8":
+			return "u8"
+		case "uint16":
+			return "u16"
+		case "uint32":
+			return "u32"
+		case "uint64":
+			return "u64"
+		case "float32":
+			return "f32"
+		case "float64":
+			return "f64"
+		case "string":
+			return "str"
+		}
+		return word
+	})
+}
 
 type Info struct {
 	Code string
@@ -40,7 +73,10 @@ var rules = []struct {
 	{"nil-untyped", "cannot infer type of nil", "var p: *T = nil; or nil[T]", false},
 	{"void-value", "void is not a value", "void is a result only; use a value-returning call", false},
 	{"result-bang", "fallible results are marked", "write T! instead of T or error", false},
-	{"go-int", "mismatched types int and int32", "untyped integer literals are Go int; annotate the variable or convert with i32(0)", false},
+	{"go-int", "mismatched types int32 and int", "both sides need one width: declare the variable as i32 (var n: i32 = 0) or convert with int(x)", false},
+	{"type-removed", "usize was removed", "use uint", false},
+	{"type-removed", "isize was removed", "use int", false},
+	{"go-int", "mismatched types int and int32", "both sides need one width: declare the variable as i32 (var n: i32 = 0) or convert with i32(x)", false},
 	{"or-return", "or return", "use or fail; it returns the error to the caller", false},
 	{"match-block-value", "match with block arms cannot be used as an expression", "use match as a statement or give every arm a value", false},
 	{"match-nil-any", "case nil is not supported on any or interface", "else => ...", false},

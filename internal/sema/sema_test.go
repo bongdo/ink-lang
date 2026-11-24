@@ -341,3 +341,15 @@ fn main() void! {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }
+
+func TestRemovedTypeAliases(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"var a: usize = 0;", "usize was removed; use uint"},
+		{"var a: isize = 0;", "isize was removed; use int"},
+	} {
+		p := checkSrc(t, map[string]string{".": "fn main() void {\n    " + tc.src + "\n    _ = a;\n};\n"})
+		if !hasError(p, tc.want) {
+			t.Fatalf("%s: errors = %v", tc.src, p.Errors)
+		}
+	}
+}

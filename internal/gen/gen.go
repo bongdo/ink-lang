@@ -29,6 +29,7 @@ type generator struct {
 	p      *sema.Program
 	opt    Options
 	fileOf map[ast.Node]string
+	into   map[*ast.FuncDecl]string
 	errs   []error
 }
 
@@ -134,6 +135,16 @@ func (g *generator) genFile(pkg *sema.Package, tests bool) ([]byte, error) {
 		pkg:  pkg,
 		need: make(map[string]bool),
 		used: make(map[string]bool),
+	}
+	if g.into == nil {
+		g.into = make(map[*ast.FuncDecl]string)
+	}
+	for _, d := range pkg.Decls {
+		if fd, ok := d.(*ast.FuncDecl); ok {
+			if name := g.intoName(fd); name != "" {
+				g.into[fd] = name
+			}
+		}
 	}
 	for _, d := range pkg.Decls {
 		if _, ok := d.(*ast.TestDecl); ok {
@@ -346,7 +357,6 @@ var stdImports = map[string]string{
 	"reflect": "reflect",
 	"testing": "testing",
 	"errors":  "errors",
-	"binary":  "encoding/binary",
 }
 
 type importSpec struct {
@@ -464,6 +474,7 @@ type writer struct {
 	self       string
 	skip       map[ast.Stmt]bool
 	fuse       map[*ast.ForStmt]*ast.ForStmt
+	into       string
 }
 
 type rename struct {

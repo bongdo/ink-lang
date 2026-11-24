@@ -189,8 +189,6 @@ func TestTypeStr(t *testing.T) {
 		{named("str"), "string"},
 		{named("u8"), "uint8"},
 		{named("i64"), "int64"},
-		{named("usize"), "uint"},
-		{named("isize"), "int"},
 		{named("f32"), "float32"},
 		{named("rune"), "rune"},
 		{named("byte"), "byte"},
@@ -702,6 +700,52 @@ fn main() void! {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
 	expect(t, stdout, "10 30 50 70 90 1 2 3\n")
+}
+
+func TestGoForFusesRowCopy(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+
+const N = 4;
+
+type Row = i32[N];
+
+fn fill(y: int) Row {
+    var r = Row {};
+    for (var x = 0; x < N; x += 1) {
+        r[x] = i32(y * 10 + x);
+    };
+    return r;
+};
+
+fn main() void! {
+    var out = i32[](N * 3);
+    var m = map[str, Row] {};
+    m["a"] = fill(9);
+    arena {
+        var rows = Row[](3);
+        go for (var y = 0; y < 3; y += 1) limit 2 {
+            rows[y] = fill(y);
+        };
+        for (var y = 0; y < 3; y += 1) {
+            copy(out[y * N:], rows[y][:]);
+        };
+    };
+    fmt.Println(out, m["a"][0])
+        or fail;
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	if strings.Count(src, "copy(out[") != 1 {
+		t.Fatalf("copy was not fused into the worker:\n%s", src)
+	}
+	contains(t, src, "_s_into_fill")
+	stdout, stderr, err := p.run(t)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	}
+	expect(t, stdout, "[0 1 2 3 10 11 12 13 20 21 22 23] 90\n")
 }
 
 func TestParErrors(t *testing.T) {

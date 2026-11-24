@@ -1,0 +1,4 @@
+github.com/swaywm/go-wlroots v0.0.0-20250523114853-368024c750af h1:erA/8yTxONUSNrPwc6TjKrLH7T08IbzSUI03Mppy0Q8=
+github.com/swaywm/go-wlroots v0.0.0-20250523114853-368024c750af/go.mod h1:q8aPSXq+s5kHUiKwDzprdHGQCZRpw68y+0KEncqvB0c=
+golang.org/x/sys v0.33.0 h1:q3i8TbbEz+JRD9ywIRlyRAQbM0qF7hu24q3teo2hbuw=
+golang.org/x/sys v0.33.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=

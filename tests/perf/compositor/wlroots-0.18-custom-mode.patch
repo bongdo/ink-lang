@@ -1,0 +1,19 @@
+The Go binding does not expose wlr_output_state_set_custom_mode, which is the
+only way to give a headless output a size and a refresh rate. Without it the
+virtual output is fixed at 1280x720@60 and every frame measurement just reports
+60 Hz. Three lines, applied by run.sh to .deps/go-wlroots.
+
+--- a/wlroots/output.go
++++ b/wlroots/output.go
+@@ -246,6 +246,10 @@
+ func (os OutputState) SetMode(mode OutputMode) {
+ 	C.wlr_output_state_set_mode(os.p, mode.p)
+ }
+ 
++func (os OutputState) SetCustomMode(width int, height int, refresh int32) {
++	C.wlr_output_state_set_custom_mode(os.p, C.int(width), C.int(height), C.int(refresh))
++}
++
+ func (os OutputState) Finish() {
+ 	C.wlr_output_state_finish(os.p)
+ }

@@ -2,6 +2,7 @@ package gen
 
 import (
 	"go/types"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -37,156 +38,12 @@ func (w *writer) bodyContents(b *ast.Block, mark bool) {
 }
 
 func (w *writer) genStmts(stmts []ast.Stmt) {
-	for i := 0; i < len(stmts); i++ {
-		s := stmts[i]
+	for _, s := range stmts {
 		if w.skip[s] {
-			continue
-		}
-		if n := w.storeQuad(stmts[i:]); n > 0 {
-			i += n - 1
 			continue
 		}
 		w.stmt(s)
 	}
-}
-
-func (w *writer) storeQuad(stmts []ast.Stmt) int {
-	if len(stmts) < 4 {
-		return 0
-	}
-	var base ast.Expr
-	var idx ast.Expr
-	var rhs [4]ast.Expr
-	for k := 0; k < 4; k++ {
-		a, ok := stmts[k].(*ast.AssignStmt)
-		if !ok || a.Op != token.Assign || len(a.Lhs) != 1 || len(a.Rhs) != 1 {
-			return 0
-		}
-		ix, ok := unparen(a.Lhs[0]).(*ast.IndexExpr)
-		if !ok {
-			return 0
-		}
-		if k == 0 {
-			base, idx = ix.X, ix.Index
-			if !sideEffectFree(base) || !sideEffectFree(idx) || !w.byteContainer(base) {
-				return 0
-			}
-		} else {
-			if w.expr(ix.X) != w.expr(base) || !indexPlus(ix.Index, idx, k, w) {
-				return 0
-			}
-		}
-		if !pureValue(a.Rhs[0]) || exprHasIdent(a.Rhs[0], rootIdent(base)) {
-			return 0
-		}
-		rhs[k] = a.Rhs[0]
-	}
-	vals := make([]string, 4)
-	for k, e := range rhs {
-		vals[k] = w.next("v")
-		w.linef("%s := %s", vals[k], w.expr(e))
-	}
-	w.f.needPkg("binary")
-	w.linef("%s.LittleEndian.PutUint32(%s[int(%s):], uint32(%s) | uint32(%s)<<8 | uint32(%s)<<16 | uint32(%s)<<24)",
-		w.f.std("binary"), w.expr(base), w.expr(idx), vals[0], vals[1], vals[2], vals[3])
-	return 4
-}
-
-func indexPlus(e, base ast.Expr, k int, w *writer) bool {
-	b, ok := unparen(e).(*ast.BinaryExpr)
-	if !ok || b.Op != token.Plus {
-		return false
-	}
-	lit := strconv.Itoa(k)
-	if w.expr(b.Y) == lit && w.expr(b.X) == w.expr(base) {
-		return true
-	}
-	return w.expr(b.X) == lit && w.expr(b.Y) == w.expr(base)
-}
-
-func pureValue(e ast.Expr) bool {
-	switch e := unparen(e).(type) {
-	case *ast.BasicLit, *ast.Ident:
-		return true
-	case *ast.ParenExpr:
-		return pureValue(e.X)
-	case *ast.UnaryExpr:
-		switch e.Op {
-		case token.Add, token.Sub, token.Xor:
-			return pureValue(e.X)
-		}
-	case *ast.BinaryExpr:
-		switch e.Op {
-		case token.Add, token.Sub, token.Mul, token.And, token.Or, token.Xor, token.Shl, token.Shr, token.AndNot:
-			return pureValue(e.X) && pureValue(e.Y)
-		}
-	case *ast.CallExpr:
-		if e.Info == nil || e.Info.Kind != ast.CallConversion {
-			return false
-		}
-		for _, a := range e.Args {
-			if !pureValue(a) {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
-func rootIdent(e ast.Expr) string {
-	for {
-		switch x := unparen(e).(type) {
-		case *ast.Ident:
-			return x.Name
-		case *ast.IndexExpr:
-			e = x.X
-		case *ast.SelectorExpr:
-			e = x.X
-		case *ast.SliceExpr:
-			e = x.X
-		default:
-			return ""
-		}
-	}
-}
-
-func exprHasIdent(e ast.Expr, name string) bool {
-	if name == "" {
-		return false
-	}
-	found := false
-	ast.Inspect(e, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok && id.Name == name {
-			found = true
-			return false
-		}
-		return !found
-	})
-	return found
-}
-
-func (w *writer) byteContainer(e ast.Expr) bool {
-	return w.byteType(w.f.g.p.ExprTypes[e])
-}
-
-func (w *writer) byteType(t ast.Type) bool {
-	switch t := t.(type) {
-	case *ast.SliceType:
-		return w.byteElem(t.Elem)
-	case *ast.ArrayType:
-		return w.byteElem(t.Elem)
-	case *ast.NamedType:
-		if t.Decl != nil && t.Decl.Target != nil {
-			return w.byteType(t.Decl.Target)
-		}
-	}
-	return false
-}
-
-func (w *writer) byteElem(t ast.Type) bool {
-	n, ok := t.(*ast.NamedType)
-	return ok && (n.Name == "u8" || n.GoName == "uint8")
 }
 
 func (w *writer) stmt(s ast.Stmt) {
@@ -358,6 +215,11 @@ func allBlank(names []string) bool {
 }
 
 func (w *writer) assignStmt(s *ast.AssignStmt) {
+	if s.Op == token.Assign && len(s.Lhs) == 1 && len(s.Rhs) == 1 {
+		if call, ok := unparen(s.Rhs[0]).(*ast.CallExpr); ok && w.intoCall(call, s.Lhs[0]) {
+			return
+		}
+	}
 	lhs := make([]string, 0, len(s.Lhs))
 	for _, e := range s.Lhs {
 		lhs = append(lhs, w.expr(e))
@@ -394,6 +256,89 @@ func (w *writer) assignStmt(s *ast.AssignStmt) {
 	w.linef("%s %s %s", strings.Join(lhs, ", "), op, strings.Join(rhs, ", "))
 }
 
+func (w *writer) intoCall(call *ast.CallExpr, lhs ast.Expr) bool {
+	if call.Info == nil || call.Info.Kind != ast.CallFunc || call.Info.HasError || call.Info.Results != 1 || len(call.TypeArgs) > 0 {
+		return false
+	}
+	name := w.f.g.into[call.Info.Fn]
+	if name == "" || !w.addressable(lhs) || !pureOperand(lhs) || call.Ellipsis || w.f.pkg.Dir == "" {
+		return false
+	}
+	if filepath.Dir(w.f.g.sourcePath(call.Info.Fn)) != w.f.pkg.Dir {
+		return false
+	}
+	for _, a := range call.Args {
+		if !pureOperand(a) {
+			return false
+		}
+	}
+	args := make([]string, 0, len(call.Args)+1)
+	args = append(args, "&"+w.expr(lhs))
+	for _, a := range call.Args {
+		args = append(args, w.expr(a))
+	}
+	w.linef("%s(%s)", name, strings.Join(args, ", "))
+	return true
+}
+
+func pureOperand(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.BasicLit, *ast.Ident:
+		return true
+	case *ast.IndexExpr:
+		return pureOperand(e.X) && pureOperand(e.Index)
+	case *ast.SelectorExpr:
+		return pureOperand(e.X)
+	case *ast.UnaryExpr:
+		switch e.Op {
+		case token.Plus, token.Minus, token.Caret, token.Bang:
+			return pureOperand(e.X)
+		}
+	case *ast.BinaryExpr:
+		switch e.Op {
+		case token.Plus, token.Minus, token.Star, token.Slash, token.Percent,
+			token.Amp, token.Pipe, token.Caret, token.Shl, token.Shr,
+			token.Eq, token.Ne, token.Lt, token.Le, token.Gt, token.Ge,
+			token.AndAnd, token.OrOr:
+			return pureOperand(e.X) && pureOperand(e.Y)
+		}
+	case *ast.CallExpr:
+		if e.Info != nil && e.Info.Kind == ast.CallConversion {
+			for _, a := range e.Args {
+				if !pureOperand(a) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func (w *writer) addressable(e ast.Expr) bool {
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		return x.Name != "_"
+	case *ast.IndexExpr:
+		return !w.mapType(w.f.g.p.ExprTypes[x.X]) && w.addressable(x.X)
+	case *ast.SelectorExpr:
+		return w.addressable(x.X)
+	}
+	return false
+}
+
+func (w *writer) mapType(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.MapType:
+		return true
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Target != nil {
+			return w.mapType(t.Decl.Target)
+		}
+	}
+	return false
+}
+
 func (w *writer) returnStmt(s *ast.ReturnStmt) {
 	if len(s.Results) == 1 {
 		if or, ok := s.Results[0].(*ast.OrExpr); ok {
@@ -411,6 +356,14 @@ func (w *writer) returnStmt(s *ast.ReturnStmt) {
 	}
 	if len(vals) == 1 && w.err && w.isErrorExpr(s.Results[0]) {
 		w.returnErr(vals[0])
+		return
+	}
+	if w.into != "" && len(vals) == 1 {
+		if w.deferStack {
+			w.line("_s_d.RunTo(0)")
+		}
+		w.linef("%s = %s", w.into, vals[0])
+		w.line("return")
 		return
 	}
 	if len(vals) == 1 {
@@ -781,7 +734,175 @@ func (w *writer) failStmt(s *ast.FailStmt) {
 	w.propagateParError(errExpr)
 }
 
+func (w *writer) fuseCopy(b *ast.Block) {
+	if b == nil {
+		return
+	}
+	for i := 0; i+1 < len(b.Stmts); i++ {
+		par, ok := b.Stmts[i].(*ast.ForStmt)
+		if !ok || !par.Par || chunkLoopOf(par) == nil {
+			continue
+		}
+		cp, ok := b.Stmts[i+1].(*ast.ForStmt)
+		if !ok || cp.Par || cp.Range != nil || len(cp.Body.Stmts) != 1 {
+			continue
+		}
+		if !w.sameLoop(par, cp) || !w.rowCopy(par, cp) {
+			continue
+		}
+		if w.skip == nil {
+			w.skip = make(map[ast.Stmt]bool)
+			w.fuse = make(map[*ast.ForStmt]*ast.ForStmt)
+		}
+		w.skip[cp] = true
+		w.fuse[par] = cp
+	}
+}
+
+func (w *writer) sameLoop(a, b *ast.ForStmt) bool {
+	return loopVar(a) != "" && loopVar(a) == loopVar(b) &&
+		w.initString(a.Init) == w.initString(b.Init) &&
+		w.expr(a.Cond) == w.expr(b.Cond) &&
+		w.postString(a.Post) == w.postString(b.Post)
+}
+
+func loopVar(s *ast.ForStmt) string {
+	d, ok := s.Init.(*ast.DeclStmt)
+	if !ok || d.Decl == nil || len(d.Decl.Names) != 1 {
+		return ""
+	}
+	return d.Decl.Names[0]
+}
+
+func (w *writer) rowCopy(par, cp *ast.ForStmt) bool {
+	es, ok := cp.Body.Stmts[0].(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
+	call, ok := unparen(es.X).(*ast.CallExpr)
+	if !ok || call.Info == nil || call.Info.Builtin != "copy" || len(call.Args) != 2 {
+		return false
+	}
+	dst, ok := unparen(call.Args[0]).(*ast.SliceExpr)
+	if !ok || dst.High != nil {
+		return false
+	}
+	src, ok := unparen(call.Args[1]).(*ast.SliceExpr)
+	if !ok || src.High != nil {
+		return false
+	}
+	y := loopVar(par)
+	rows := rootIdent(src.X)
+	px := rootIdent(dst.X)
+	if y == "" || rows == "" || px == "" || rows == px {
+		return false
+	}
+	if !rowIndex(src.X, rows, y) || rootIdent(dst.X) != px {
+		return false
+	}
+	stride, ok := unparen(dst.Low).(*ast.BinaryExpr)
+	if !ok || stride.Op != token.Star {
+		return false
+	}
+	if id, ok := unparen(stride.X).(*ast.Ident); !ok || id.Name != y {
+		return false
+	}
+	if !writesRow(par.Body, rows, y) || usesIdent(par.Body, px) || !constExpr(stride.Y) {
+		return false
+	}
+	n := w.rowLen(w.f.g.p.ExprTypes[src.X])
+	if n == nil || w.expr(n) != w.expr(stride.Y) {
+		return false
+	}
+	return true
+}
+
+func constExpr(e ast.Expr) bool {
+	switch x := unparen(e).(type) {
+	case *ast.BasicLit:
+		return true
+	case *ast.Ident:
+		return x.Ref != nil && x.Ref.Kind == ast.RefConst
+	}
+	return false
+}
+
+func rootIdent(e ast.Expr) string {
+	for {
+		switch x := unparen(e).(type) {
+		case *ast.Ident:
+			return x.Name
+		case *ast.IndexExpr:
+			e = x.X
+		case *ast.SelectorExpr:
+			e = x.X
+		case *ast.SliceExpr:
+			e = x.X
+		default:
+			return ""
+		}
+	}
+}
+
+func rowIndex(e ast.Expr, rows, y string) bool {
+	for {
+		ix, ok := unparen(e).(*ast.IndexExpr)
+		if !ok {
+			return false
+		}
+		if id, ok := unparen(ix.X).(*ast.Ident); ok && id.Name == rows {
+			yi, ok := unparen(ix.Index).(*ast.Ident)
+			return ok && yi.Name == y
+		}
+		e = ix.X
+	}
+}
+
+func writesRow(b *ast.Block, rows, y string) bool {
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if a, ok := n.(*ast.AssignStmt); ok {
+			for _, l := range a.Lhs {
+				if rowIndex(l, rows, y) {
+					found = true
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func usesIdent(b *ast.Block, name string) bool {
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func (w *writer) rowLen(t ast.Type) ast.Expr {
+	switch t := t.(type) {
+	case *ast.ArrayType:
+		return t.Len
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Target != nil {
+			return w.rowLen(t.Decl.Target)
+		}
+	}
+	return nil
+}
+
 func (w *writer) arenaStmt(s *ast.ArenaStmt) {
+	w.fuseCopy(s.Body)
 	sites := arenaSites(s.Body)
 	saved := w.scratch
 	var local []string
@@ -1552,6 +1673,9 @@ func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 	sub.indent++
 	if s.Body != nil {
 		sub.genStmts(s.Body.Stmts)
+	}
+	if cp := w.fuse[s]; cp != nil {
+		sub.genStmts(cp.Body.Stmts)
 	}
 	sub.indent--
 	sub.line("}")

@@ -52,9 +52,93 @@ func (g *generator) funcDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl) {
 	w.indent--
 	w.line("}")
 	w.line("")
+	if recv == nil && g.into[fd] != "" {
+		g.intoFunc(w, fd)
+	}
 	if main {
 		g.mainWrapper(w, fd)
 	}
+}
+
+func (g *generator) intoName(fd *ast.FuncDecl) string {
+	if fd == nil || fd.Body == nil || fd.Err || fd.NeedsCtx || len(fd.Results) != 1 || len(fd.TypeParams) > 0 {
+		return ""
+	}
+	if fd.Name == "main" || strings.HasPrefix(fd.Name, "_s_") || !g.arrayType(fd.Results[0]) || bodyHasDefer(fd.Body) {
+		return ""
+	}
+	ok := true
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		if !ok {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.OnErrStmt:
+			ok = false
+			return false
+		case *ast.ReturnStmt:
+			if len(n.Results) != 1 {
+				ok = false
+				return false
+			}
+			if _, isOr := n.Results[0].(*ast.OrExpr); isOr {
+				ok = false
+				return false
+			}
+			if c, isCall := unparen(n.Results[0]).(*ast.CallExpr); isCall && callResults(c) != 1 {
+				ok = false
+				return false
+			}
+		}
+		return true
+	})
+	if !ok {
+		return ""
+	}
+	return "_s_into_" + fd.Name
+}
+
+func (g *generator) arrayType(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.ArrayType:
+		return true
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Target != nil {
+			return g.arrayType(t.Decl.Target)
+		}
+	}
+	return false
+}
+
+func (g *generator) intoFunc(w *writer, fd *ast.FuncDecl) {
+	name := g.into[fd]
+	params := g.paramsStr(w.f, fd.Params, nil, false)
+	dst := w.next("dst")
+	sig := "func " + name + "(" + dst + " *" + w.typeStr(fd.Results[0])
+	if params != "" {
+		sig += ", " + params
+	}
+	w.line(sig + ") {")
+	w.indent++
+	sub := w.sub()
+	sub.indent = w.indent
+	sub.into = "*" + dst
+	sub.results = fd.Results
+	sub.err = false
+	sub.deferStack = false
+	sub.line("{")
+	sub.indent++
+	if fd.Body != nil {
+		sub.genStmts(fd.Body.Stmts)
+	}
+	sub.indent--
+	sub.line("}")
+	w.buf.WriteString(sub.buf.String())
+	w.indent--
+	w.line("}")
+	w.line("")
 }
 
 func (g *generator) ctxFuncDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl, name string) {
