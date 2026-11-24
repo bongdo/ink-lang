@@ -2165,6 +2165,23 @@ func (s *server) callAt(fi *fileInfo, offset int) *ast.CallExpr {
 }
 
 func (s *server) signature(fi *fileInfo, call *ast.CallExpr, offset int) *SignatureHelp {
+	if call.Slice {
+		label := "[](size, cap)"
+		if len(call.TypeArgs) == 1 {
+			label = formatType(call.TypeArgs[0]) + label
+		}
+		active := 0
+		if call.Size == nil {
+			active = 1
+		}
+		return &SignatureHelp{
+			Signatures: []SignatureInformation{{
+				Label:      label,
+				Parameters: []ParameterInformation{{Label: "size"}, {Label: "cap"}},
+			}},
+			ActiveParameter: active,
+		}
+	}
 	var label string
 	var params []ParameterInformation
 	switch fun := call.Fun.(type) {

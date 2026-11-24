@@ -854,3 +854,25 @@ func TestFileAtRejectsStaleVersion(t *testing.T) {
 		t.Fatalf("stale analysis: fi=%+v ok=%v, want nil,true", fi, ok)
 	}
 }
+
+func TestSignatureHelpSliceCtor(t *testing.T) {
+	src := "fn main() void {\n    var xs = u8[](cap: 4096);\n    _ = xs;\n};\n"
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	msg := c.request("textDocument/signatureHelp", TextDocumentPositionParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Position:     PositionAt([]byte(src), strings.Index(src, "4096")),
+	})
+	var help SignatureHelp
+	if err := json.Unmarshal(msg.Result, &help); err != nil {
+		t.Fatal(err)
+	}
+	if len(help.Signatures) != 1 || !strings.Contains(help.Signatures[0].Label, "u8[](size, cap)") {
+		t.Fatalf("signature help: %+v", help)
+	}
+	if help.ActiveParameter != 1 {
+		t.Fatalf("active parameter = %d", help.ActiveParameter)
+	}
+}
