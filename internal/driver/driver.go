@@ -964,6 +964,14 @@ func New(dir string) error {
 	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(agent.Skill), 0o644); err != nil {
 		return err
 	}
+	pluginDir := filepath.Join(abs, ".opencode", "plugins", "ink")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		return err
+	}
+	plugin := strings.ReplaceAll(agent.PluginSource, "__INK__", inkCommand())
+	if err := os.WriteFile(filepath.Join(pluginDir, "index.ts"), []byte(plugin), 0o644); err != nil {
+		return err
+	}
 	gomod := fmt.Sprintf("module %s\n\ngo %s\n", cfg.Module, cfg.Go)
 	return os.WriteFile(filepath.Join(abs, "go.mod"), []byte(gomod), 0o644)
 }

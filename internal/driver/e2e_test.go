@@ -553,6 +553,13 @@ func TestNewWritesAgentGuide(t *testing.T) {
 	if mcpCmd.Type != "local" || len(mcpCmd.Command) != 2 || mcpCmd.Command[1] != "mcp" {
 		t.Fatalf("mcp config: %+v", mcpCmd)
 	}
+	plugin, err := os.ReadFile(filepath.Join(dir, ".opencode", "plugins", "ink", "index.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(plugin), "ctx.session.synthetic") || !strings.Contains(string(plugin), `"check", "--json"`) {
+		t.Fatalf("plugin:\n%s", plugin)
+	}
 	skill, err := os.ReadFile(filepath.Join(dir, ".opencode", "skills", "ink", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)

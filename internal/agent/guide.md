@@ -315,7 +315,10 @@ go save(1, "hello");            // detached, program-owned
 `ink mcp` is an MCP server on stdio for harnesses: `diagnose`, `hover`,
 `definition`, `references`, `complete`, `symbols`, `rename`, `quickfix`.
 `ink new` writes it into `opencode.json`, so an agent calls the compiler
-directly. Not needed in a terminal.
+directly. `ink new` also installs an OpenCode plugin under
+`.opencode/plugins/ink/`: after every `.ink` edit it runs `ink check` and
+injects the diagnostics into the session, so an agent sees errors without
+calling a tool.
 
 `ink lsp` speaks LSP on stdio: diagnostics, hover, definition, completion,
 document/workspace symbols, signature help, formatting, references, rename and

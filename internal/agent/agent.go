@@ -8,6 +8,9 @@ var Guide string
 //go:embed short.md
 var ShortGuide string
 
+//go:embed plugin.ts
+var PluginSource string
+
 const skillHeader = `---
 name: Ink
 description: Ink language reference, canonical syntax, diagnostics and fixes for .ink code
