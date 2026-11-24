@@ -1,6 +1,6 @@
 # Frame benchmark
 
-CPU-only 2.5K frame: arena rows, `go for` shading, row copy into a persistent
+CPU-only 2.5K frame: arena rows, `par for` shading, row copy into a persistent
 buffer. No raylib, no window, no upload — it measures Ink codegen and the arena,
 not the renderer.
 

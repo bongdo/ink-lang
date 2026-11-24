@@ -239,13 +239,13 @@ func TestPar(t *testing.T) {
 fn main() void! {
     var a = 0;
     var b = 0;
-    go {
+    par {
         a = load(1) or fail;
         b = load(2) or fail;
     };
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
-    go for (var i = 0; i < 3; i += 1) limit 2 {
+    par for (var i = 0; i < 3; i += 1) limit 2 {
         out[i] = xs[i];
     };
     a = load(3) or fail;
@@ -273,7 +273,7 @@ fn main() void {
 func TestParWriteRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void {
     var total = 0;
-    go for (var i = 0; i < 4; i += 1) {
+    par for (var i = 0; i < 4; i += 1) {
         total += i;
     };
 };
@@ -358,7 +358,7 @@ func TestLimitIsNotReserved(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void {
     var limit = 4;
     var xs = i32[] { 1, 2 };
-    go for (var i = 0; i < len(xs); i += 1) limit 1 {
+    par for (var i = 0; i < len(xs); i += 1) limit 1 {
         xs[i] = i32(limit);
     };
 };

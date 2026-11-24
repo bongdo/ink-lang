@@ -328,7 +328,7 @@ test "wrong method is 405 and unknown path is 404" {
 
 test "concurrent handlers share the store" {
     store = newStore();
-    go for (var i = 0; i < 50; i += 1) limit 8 {
+    par for (var i = 0; i < 50; i += 1) limit 8 {
         var rec = call("POST", "/items", `{"title":"x"}`);
         assert_eq(rec.Code, 201);
     };

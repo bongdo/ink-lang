@@ -6,8 +6,8 @@
 struct with methods and `wire`/named contract views, enum and exhaustive
 `match`, interface, generics, multiple and fallible results with `or fail`,
 inline `on err` and the scope listener, block-scoped `defer`, all loop forms,
-builtins, pointers, `any`/literal/`nil` patterns, `go { }`, `go for ... limit`,
-detached `go f(args)`, `arena`, Go interop and `test` blocks. It runs without
+builtins, pointers, `any`/literal/`nil` patterns, `par { }`, `par for ... limit`,
+detached `spawn f(args)`, `arena`, Go interop and `test` blocks. It runs without
 extra dependencies:
 
 ```sh
@@ -38,10 +38,10 @@ Sections in the tour: imports, `const`/`var`, aliases, structs and implicit
 `self`, enums and exhaustive `match`, interfaces, generics, multiple results,
 fallible results (`or fail`, `on err`), block-scoped `defer`,
 `if`/`for`/`match`, `any` type patterns, negative and `nil` patterns, typed vars
-and bare `nil`, `go`, `go for ... limit`, `go f()`, builtins, Go interop and
+and bare `nil`, `par`, `par for ... limit`, `spawn f()`, builtins, Go interop and
 `test` blocks.
 
-## `frame/` — arena and `go for` with raylib
+## `frame/` — arena and `par for` with raylib
 
 `frame/main.ink` rasterizes a frame into an arena-allocated row buffer, shades
 rows in parallel, copies them into one persistent buffer and uploads it once per
@@ -57,7 +57,7 @@ positions; `tests/run.sh` runs it as an intentional-failure oracle.
 
 ## `limits/` — concurrency boundaries
 
-`limits/README.md` explains why the static `go` checks cannot see every write,
+`limits/README.md` explains why the static `par` checks cannot see every write,
 and why `ink run -race` / `ink test -race` are the dynamic oracle.
 
 ## Editor highlighting and LSP

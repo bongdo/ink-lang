@@ -4,11 +4,11 @@
 45:12:match-block-value:match with block arms cannot be used as an expression
 56:13:nil-untyped:cannot infer type of nil
 64:5:err-manual:use or fail instead of if err != nil { return err }
-75:9:go-map-write:writing to map m inside go
-83:13:go-map-range:map iteration is not allowed in go for
-94:9:go-capture-write:writing to p captured from outside go
-103:13:go-break:break cannot leave a go block
-112:9:go-loop:for () is not allowed inside go
+75:9:go-map-write:writing to map m inside par
+83:14:go-map-range:map iteration is not allowed in par for
+94:9:go-capture-write:writing to p captured from outside par
+103:13:go-break:break cannot leave a par block
+112:9:go-loop:for () is not allowed inside par
 122:14:match-nil-any:case nil is not supported on any or interface
 131:14:match-nil-enum:case nil is not supported on enum E
 139:17:array-const:constant strconv.IntSize must be declared in a local package

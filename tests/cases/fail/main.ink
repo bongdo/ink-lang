@@ -20,7 +20,7 @@ fn handled() i32! {
 };
 
 fn inGo() i32! {
-    go {
+    par {
         {
             var n = bad()
                 or fail("worker");
@@ -46,7 +46,7 @@ fn main() void! {
     var c = i32(0);
     c = inGo()
         on err {
-            fmt.Println("go:", err)
+            fmt.Println("spawn:", err)
                 or fail;
         };
     _ = a;

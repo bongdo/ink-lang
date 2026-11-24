@@ -21,7 +21,7 @@ fn pass(n: i32) i32, bool! {
 fn runPar(n: i32) i32, bool! {
     var a = i32(0);
     var b = false;
-    go {
+    par {
         a, b = pair(n) or fail;
     };
     return a, b;

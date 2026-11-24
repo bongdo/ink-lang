@@ -147,7 +147,7 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 		return nil
 	}
 	if c.inTaskCapture[sym] {
-		c.p.errorf(c.fc.file.Path, id.Pos(), "go task handler cannot capture locals; pass data as arguments")
+		c.p.errorf(c.fc.file.Path, id.Pos(), "spawn on err cannot capture locals; pass data as arguments")
 	}
 	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path}
 	id.Ref = ref
@@ -459,7 +459,7 @@ func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
 		return nil
 	}
 	if c.arenaInWorker() {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside go; allocate before the go block")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
 	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}
@@ -535,7 +535,7 @@ func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {
 		return nil
 	}
 	if c.arenaInWorker() {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside go; allocate before the go block")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "arena allocation inside par; allocate before the par block")
 	}
 	elem := c.resolveType(call.TypeArgs[0])
 	call.TypeArgs = []ast.Type{elem}

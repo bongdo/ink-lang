@@ -417,7 +417,7 @@ func (c *checker) checkArenaCopy(call *ast.CallExpr) {
 
 func (c *checker) checkFailStmt(s *ast.FailStmt) {
 	if c.inTaskHandler > 0 {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave a go task; log or panic")
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave a spawn task; log or panic")
 	}
 	if c.fn == nil {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
@@ -741,7 +741,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave an on err listener; log, panic or handle")
 		}
 		if c.inTaskHandler > 0 {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a go task; log or panic")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a spawn task; log or panic")
 		}
 		if c.fn == nil {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return outside a function")
@@ -810,21 +810,21 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 		if c.inPar {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a go block; use or fail")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or fail")
 		}
 	case *ast.BreakStmt:
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "break outside a loop")
 		}
 		if c.crossesPar() {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "break cannot leave a go block")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "break cannot leave a par block")
 		}
 	case *ast.ContinueStmt:
 		if c.loopDepth == 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "continue outside a loop")
 		}
 		if c.crossesPar() {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "continue cannot leave a go block")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "continue cannot leave a par block")
 		}
 	case *ast.DeferStmt:
 		if s.Call == nil {
@@ -862,7 +862,7 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 	expr := s.Call
 	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
 		if or.Mode != ast.OrHandle || or.Block == nil {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "go call takes on err, not or fail; there is no caller to return to")
+			c.p.errorf(c.fc.file.Path, or.Pos(), "spawn takes on err, not or fail; there is no caller to return to")
 			c.resolveExpr(or.X, false)
 			return
 		}
@@ -871,7 +871,7 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 	}
 	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "go expects a call")
+		c.p.errorf(c.fc.file.Path, s.Pos(), "spawn expects a call")
 		return
 	}
 	if sel, ok := unparen(call.Fun).(*ast.SelectorExpr); ok && c.inArena > 0 {
@@ -882,7 +882,7 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 	switch unparen(call.Fun).(type) {
 	case *ast.Ident, *ast.SelectorExpr:
 	default:
-		c.p.errorf(c.fc.file.Path, call.Fun.Pos(), "go expects a function or method name; no closures")
+		c.p.errorf(c.fc.file.Path, call.Fun.Pos(), "spawn expects a function or method name; no closures")
 		return
 	}
 	t := c.resolveExpr(call, false)
@@ -890,15 +890,15 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 		return
 	}
 	if call.Info.Results > 0 {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "go call must not return a value; use go { ... } to collect results")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "spawn call must not return a value; use par { ... } to collect results")
 		return
 	}
 	if !call.Info.HasError && t != nil && !isVoidType(t) {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "go call must not return a value; use go { ... } to collect results")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "spawn call must not return a value; use par { ... } to collect results")
 		return
 	}
 	if call.Info.HasError && handler == nil {
-		c.p.errorf(c.fc.file.Path, call.Pos(), "go call can fail; handle it in the task")
+		c.p.errorf(c.fc.file.Path, call.Pos(), "spawn call can fail; handle it with on err")
 		return
 	}
 	if handler != nil {
@@ -1007,7 +1007,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 		f.Range.KeyType = key
 		f.Range.ElemType = elem
 		if f.Par && isMap {
-			c.p.errorf(c.fc.file.Path, f.Range.Pos(), "map iteration is not allowed in go for; collect keys into a slice first")
+			c.p.errorf(c.fc.file.Path, f.Range.Pos(), "map iteration is not allowed in par for; collect keys into a slice first")
 		}
 		switch len(f.Range.Names) {
 		case 1:
@@ -1054,7 +1054,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			}
 		}
 		if f.Init == nil && f.Cond == nil && f.Post == nil && (c.inPar || f.Par) {
-			c.p.errorf(c.fc.file.Path, f.Pos(), "for () is not allowed inside go; use a bounded loop")
+			c.p.errorf(c.fc.file.Path, f.Pos(), "for () is not allowed inside par; use a bounded loop")
 		}
 		if f.Init != nil {
 			c.checkStmt(f.Init)
@@ -1073,15 +1073,15 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			case *ast.DeclStmt:
 			case *ast.AssignStmt:
 				if init.Op != token.Assign {
-					c.p.errorf(c.fc.file.Path, init.Pos(), "go for init must assign simple names")
+					c.p.errorf(c.fc.file.Path, init.Pos(), "par for init must assign simple names")
 				}
 				for _, l := range init.Lhs {
 					if _, ok := l.(*ast.Ident); !ok {
-						c.p.errorf(c.fc.file.Path, l.Pos(), "go for init must assign simple names")
+						c.p.errorf(c.fc.file.Path, l.Pos(), "par for init must assign simple names")
 					}
 				}
 			default:
-				c.p.errorf(c.fc.file.Path, f.Init.Pos(), "go for init must declare or assign simple names")
+				c.p.errorf(c.fc.file.Path, f.Init.Pos(), "par for init must declare or assign simple names")
 			}
 		}
 		if f.Par {
@@ -1295,7 +1295,7 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	c.push()
 	for _, s := range body.Stmts {
 		if _, ok := s.(*ast.OnErrStmt); ok {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "on err must be in a block, not a go branch")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "on err must be in a block, not a par branch")
 		}
 		c.push()
 		c.checkStmt(s)
@@ -1495,35 +1495,35 @@ func (c *checker) checkParWrite(w parWrite, stmt int, frame parFrame, writers ma
 	}
 	switch w.id.Ref.Kind {
 	case ast.RefSelf, ast.RefField:
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to self inside go")
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to self inside par")
 	case ast.RefGlobal:
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to global %s inside go", w.id.Name)
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to global %s inside par", w.id.Name)
 	case ast.RefParam, ast.RefLocal:
 		t := c.exprType(w.id)
 		if c.isMapType(t) {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside go", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside par", w.id.Name)
 			return
 		}
 		if c.isPointerType(t) {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
 			return
 		}
 		if w.viaMap {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside go", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to map %s inside par", w.id.Name)
 			return
 		}
 		if w.viaPtr {
-			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
 			return
 		}
 		if frame.plain && writers[w.id.Name] == 1 {
 			if !parReadByOther(w.id.Name, stmt, readers) {
 				return
 			}
-			c.p.errorf(c.fc.file.Path, w.pos, "read by another go statement: %s", w.id.Name)
+			c.p.errorf(c.fc.file.Path, w.pos, "read by another par statement: %s", w.id.Name)
 			return
 		}
-		c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside go", w.id.Name)
+		c.p.errorf(c.fc.file.Path, w.pos, "writing to %s captured from outside par", w.id.Name)
 	}
 }
 

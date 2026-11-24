@@ -970,11 +970,12 @@ func (p *parser) parseStmt() ast.Stmt {
 	case token.For:
 		return p.parseForStmt(false, p.tok().Pos)
 	case token.Go:
+		return p.parseRemovedGoStmt()
+	case token.Spawn:
 		return p.parseGoStmt()
 	case token.On:
 		return p.parseOnErrStmt()
 	case token.Par:
-		p.errorf(p.tok().Pos, "par was renamed to go")
 		return p.parseGoStmt()
 	case token.Within:
 		pos := p.tok().Pos
@@ -1190,6 +1191,23 @@ func (p *parser) parseRangeClause() *ast.RangeClause {
 	rc.X = p.parseExprNoOr()
 	rc.Span = p.fin(start)
 	return rc
+}
+
+func (p *parser) parseRemovedGoStmt() ast.Stmt {
+	start := p.tok().Pos
+	p.next()
+	p.errorf(start, "go is not an Ink word; parallel work is par { ... } / par for, a detached task is spawn f(...)")
+	if p.at(token.For) {
+		return p.parseForStmt(true, start)
+	}
+	if p.at(token.LBrace) {
+		body := p.parseBlock()
+		p.consumeSemi()
+		return &ast.ParStmt{Span: p.fin(start), Body: body}
+	}
+	call := p.parseExpr()
+	p.consumeSemi()
+	return &ast.GoCallStmt{Span: p.fin(start), Call: call}
 }
 
 func (p *parser) parseGoStmt() ast.Stmt {

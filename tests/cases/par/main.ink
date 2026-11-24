@@ -7,7 +7,7 @@ fn load(x: i32) i32! {
 fn main() void! {
     var a = i32(0);
     var b = i32(0);
-    go {
+    par {
         a = load(1)
             or fail;
         b = load(2)
@@ -17,7 +17,7 @@ fn main() void! {
         or fail;
     var xs = i32[] { 1, 2, 3, 4 };
     var out = i32[4] {};
-    go for (var i = 0; i < len(xs); i += 1) limit 2 {
+    par for (var i = 0; i < len(xs); i += 1) limit 2 {
         out[i] = xs[i] * 2;
     };
     fmt.Println(out)

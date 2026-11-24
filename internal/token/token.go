@@ -80,6 +80,7 @@ const (
 	Case
 	Par
 	Go
+	Spawn
 	On
 	Within
 	Arena
@@ -169,6 +170,7 @@ var names = map[Kind]string{
 	Case:          "case",
 	Par:           "par",
 	Go:            "go",
+	Spawn:         "spawn",
 	On:            "on",
 	Within:        "within",
 	Arena:         "arena",

@@ -18,7 +18,7 @@ fn stop() void! {
 };
 
 fn main() void! {
-    go {
+    par {
         {
             defer boom();
             stop() or fail;

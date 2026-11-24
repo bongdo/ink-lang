@@ -644,18 +644,18 @@ fn work(n: int) int {
 fn main() void! {
     var a = 0;
     var b = 0;
-    go {
+    par {
         a = work(1);
         b = work(2);
     };
     var slots = int[4] {};
-    go for (var i = 0; i < 4; i += 1) limit 2 {
+    par for (var i = 0; i < 4; i += 1) limit 2 {
         slots[i] = work(i);
     };
     var c = work(3);
     var nums = int[] {1, 2, 3};
     var out = int[3] {};
-    go for (var idx, x in nums) {
+    par for (var idx, x in nums) {
         out[idx] = work(x);
     };
     fmt.Println(a + b, slots[0], slots[1], slots[2], slots[3], c, out[0], out[1], out[2]) or fail;
@@ -681,11 +681,11 @@ func TestGoForChunked(t *testing.T) {
 
 fn main() void! {
     var out = int[10] {};
-    go for (var i = 1; i < 10; i += 2) limit 3 {
+    par for (var i = 1; i < 10; i += 2) limit 3 {
         out[i] = i * 10;
     };
     var small = int[3] {};
-    go for (var j = 0; j < 3; j += 1) limit 8 {
+    par for (var j = 0; j < 3; j += 1) limit 8 {
         small[j] = j + 1;
     };
     fmt.Println(out[1], out[3], out[5], out[7], out[9], small[0], small[1], small[2])
@@ -724,7 +724,7 @@ fn main() void! {
     m["a"] = fill(9);
     arena {
         var rows = Row[](3);
-        go for (var y = 0; y < 3; y += 1) limit 2 {
+        par for (var y = 0; y < 3; y += 1) limit 2 {
             rows[y] = fill(y);
         };
         for (var y = 0; y < 3; y += 1) {
@@ -766,7 +766,7 @@ fn main() void! {
     var out = i32[](N * 3);
     arena {
         var rows = Row[](3);
-        go for (var y = 0; y < 3; y += 1) limit 2 {
+        par for (var y = 0; y < 3; y += 1) limit 2 {
             rows[y] = fill(y);
             if (y < 2) {
                 rows[y + 1] = fill(y + 10);
@@ -806,7 +806,7 @@ fn main() void! {
     var out = i32[](N * 3);
     arena {
         var rows = Row[](3);
-        go for (var y = 0; y < 3; y += 1) limit 2 {
+        par for (var y = 0; y < 3; y += 1) limit 2 {
             rows[y] = fill(y);
             var touch = fn () void {
                 out[0] = i32(9);
@@ -875,13 +875,13 @@ fn maybe(n: int) int! {
 fn main() void! {
     var p1 = 0;
     var p2 = 0;
-    go {
+    par {
         p1 = maybe(1) or fail;
         p2 = maybe(3) or fail;
     };
     fmt.Println(p1, p2) or fail;
     var slots = int[3] {};
-    go for (var i = 0; i < 3; i += 1) {
+    par for (var i = 0; i < 3; i += 1) {
         slots[i] = maybe(i) or fail;
     };
     fmt.Println(slots[0], slots[1], slots[2]) or fail;
@@ -912,7 +912,7 @@ fn boom() void {
 };
 
 fn main() void {
-    go {
+    par {
         boom();
     };
     _, _ = fmt.Println("after");
@@ -940,7 +940,7 @@ fn main() void {
     var n = 8;
     var i = 0;
     var out = i32[8] {};
-    go for (i = 0; i < n; i += 1) limit 4 {
+    par for (i = 0; i < n; i += 1) limit 4 {
         out[i] = i32(i * i);
     };
     _, _ = fmt.Println(out, i);
@@ -1120,8 +1120,8 @@ fn maybe(n: i32) i32! {
 };
 
 fn main() void! {
-    go {
-        go {
+    par {
+        par {
             maybe(1) or fail;
         };
         maybe(2) or fail;

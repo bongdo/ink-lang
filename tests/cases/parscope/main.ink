@@ -12,14 +12,14 @@ fn withDefer() void! {
 };
 
 fn run1() void! {
-    go {
+    par {
         withDefer()
             or fail;
     };
 };
 
 fn run2() void! {
-    go for (var i = 0; i < 1; i += 1) {
+    par for (var i = 0; i < 1; i += 1) {
         defer fmt.Println("for defer");
         fmt.Println("for body")
             or fail;
@@ -27,14 +27,14 @@ fn run2() void! {
 };
 
 fn run3() void! {
-    go {
+    par {
         stop()
             or fail("wrapped");
     };
 };
 
 fn run4() void! {
-    go {
+    par {
         {
             defer fmt.Println("inner defer");
             stop()

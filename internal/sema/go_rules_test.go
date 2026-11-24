@@ -7,20 +7,20 @@ func TestGoCallReadVisibleToPar(t *testing.T) {
 
 fn f() void {
     var a = i32(0);
-    go {
+    par {
         a = 1;
-        go job(a);
+        spawn job(a);
     };
 };
 
 fn main() void {};
 `})
-	wantError(t, p, "read by another go statement: a")
+	wantError(t, p, "read by another par statement: a")
 }
 
 func TestGoLimitMustBePositive(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void {
-    go for (var i = 0; i < 4; i += 1) limit 0 {
+    par for (var i = 0; i < 4; i += 1) limit 0 {
         _ = i;
     };
 };
@@ -55,7 +55,7 @@ fn handler() void {
             on err { _ = err; };
     };
     var a = i32(0);
-    go {
+    par {
         a = f()
             or fail;
     };
@@ -92,7 +92,7 @@ func TestArenaReceiverInDetachedGo(t *testing.T) {
 fn main() void {
     arena {
         var ps = Point[](4);
-        go ps[0].Touch();
+        spawn ps[0].Touch();
     };
 };
 `})

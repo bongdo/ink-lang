@@ -42,7 +42,7 @@ fn main() void! {
         var start = time.Now();
         arena {
             var rows = Row[](H);
-            go for (var y = 0; y < H; y += 1) limit 4 {
+            par for (var y = 0; y < H; y += 1) limit 4 {
                 rows[y] = shadeRow(y, f);
             };
             for (var y = 0; y < H; y += 1) {

@@ -122,7 +122,7 @@ Sema rules added with the canonical surface:
 - `void` is accepted only as a function result. `rejectVoid` rejects it in
   variables, fields, parameters, arguments, returns with values and composite
   elements.
-- `go for` over a map is rejected; `for ()` is rejected in a `go`/`go for`
+- `par for` over a map is rejected; `for ()` is rejected in a `par`/`par for`
   body. Function literals remain outside the static analysis.
 - A fallible call as a bare expression statement is rejected; `_ = f();` is
   the explicit discard.
@@ -260,7 +260,7 @@ a plain wrapper.
 - There is no `NeedsCtx`, no `_s_Name_ctx` twin and no public wrapper.
 - `main` starts without a context; a handler that needs one derives it with
   `context.WithTimeout` and passes it explicitly.
-- `go` creates no context and does not observe cancellation.
+- `par` creates no context and does not observe cancellation.
 
 ### `defer`
 
@@ -278,7 +278,7 @@ defer _s_d.RunTo(0)
 - On `return`: `_s_d.RunTo(0)` before the return.
 - On `break`/`continue`: run to the mark of the loop body being left.
 - On `or fail`: same as return/panic.
-- Each `go`/`go for` worker declares its own `_s_d` inside the goroutine and
+- Each `par`/`par for` worker declares its own `_s_d` inside the goroutine and
   runs `RunTo(0)` at worker exit. It never touches the enclosing function's
   stack.
 
@@ -291,7 +291,7 @@ defer _s_d.RunTo(0)
   `return f()` is a raw pass-through when the arities match.
 - `expr on err { ... }` → `_s_v, _s_err := f(); if _s_err != nil { err := _s_err; ... }`.
 - A scope listener emits `_s_onerr := func(err error) { ... }` at block entry;
-  `go` joins and detached calls use it. A handler that falls through leaves
+  `par` joins; `spawn` carries its own handler. A handler that falls through leaves
   the bound value at its zero value.
 - Direct call with no assignment and only an error result:
   `if _s_err := f(); _s_err != nil { ... }`.
@@ -340,7 +340,7 @@ func (ShapeRect) _s_shape() {}
   `break`/`continue`; the statement is emitted as `break _s_loop` or
   `continue _s_loop`. Plain `break` outside a match stays unlabeled.
 
-### `go`
+### `par`
 
 ```go
 var _s_wg sync.WaitGroup
@@ -369,17 +369,17 @@ if _s_err := _s_pe.First(); _s_err != nil {
 - At the join, the winner goes to the block's `_s_onerr` if present; otherwise
   an error-returning function returns it. A `void` function without a listener
   and a fallible branch is a sema error.
-- Writes to globals are rejected in both `go` and `go for`: a global is
+- Writes to globals are rejected in both `par` and `par for`: a global is
   shared with the whole program, not only with the other workers.
 
-### `go for`
+### `par for`
 
 - Sema has already rejected `return`/`break`/`continue` that leave the body,
   a map range, and `for ()` in the body.
 - `limit N` default `runtime.GOMAXPROCS(0)`.
 - Each iteration runs in its own goroutine with its own `DeferStack`.
 - Iteration variables are captured per iteration. A C-style init with
-  assignment (`go for (i = 0; ...)`) captures `_s_iN := i` per iteration and
+  assignment (`par for (i = 0; ...)`) captures `_s_iN := i` per iteration and
   rewrites body references to the copy; the condition and post use the outer
   variable. A direct write to `i` in the body is rejected.
 - Errors are stored by iteration ordinal; lowest index wins.
@@ -388,7 +388,7 @@ if _s_err := _s_pe.First(); _s_err != nil {
   The runtime keeps the `-1` path (first-completed wins, after all
   non-negative indexes) for compatibility.
 
-### `go f(args)`
+### `spawn f(args)`
 
 ```go
 _a1 := arg1

@@ -250,7 +250,7 @@ func TestIfaceGoNoHiddenCtx(t *testing.T) {
 
 type Good struct {
     fn Write(p: u8[]) int! {
-        go { };
+        par { };
         return len(p);
     };
 };

@@ -44,7 +44,7 @@ fn main() void {
         var t = (rl.GetTime() - t0) * 0.2;
         arena {
             var rows = Row[](H);
-            go for (var y = i32(0); y < i32(H); y += 1) limit workers {
+            par for (var y = i32(0); y < i32(H); y += 1) limit workers {
                 rows[y] = shadeRow(y, t);
             };
             for (var y = 0; y < H; y += 1) {

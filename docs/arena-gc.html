@@ -123,7 +123,7 @@
 <pre><code>for (var frame = 0; ...; frame += 1) {
     arena {
         var rows = Row[](H);        // Row = u8[480*4]
-        go for (var y = ...; ...) {
+        par for (var y = ...; ...) {
             rows[y] = shadeRow(y, t);
         };
         for (var y = ...; ...) {
@@ -385,7 +385,7 @@ _s_scr2.Release()</code></pre>
 </div>
 
 <p>Что могло бы сократить разрыв: писать горячий цикл с явным SIMD (ассемблер или C-функция через FFI), убрать построчную копию и возврат строки по значению, либо оставить как есть и упираться в 60 fps с запасом. Последнее для 2.5K уже почти выполняется: 10.9 ms p50 при бюджете 16.7 ms.</p>
-<p>После оптимизаций кодогена (chunked <code>go for</code>, отказ от пустых <code>Mark</code>/<code>RunTo</code>, перенос копии строки в воркер и запись массива сразу в приёмник) тот же синтетический стенд без raylib даёт <b>3.1 ms p50</b>, p99 4–7 ms. Подробности — в <code>docs/proposals/frame-2.5k-measurements.md</code>.</p>
+<p>После оптимизаций кодогена (chunked <code>par for</code>, отказ от пустых <code>Mark</code>/<code>RunTo</code>, перенос копии строки в воркер и запись массива сразу в приёмник) тот же синтетический стенд без raylib даёт <b>3.1 ms p50</b>, p99 4–7 ms. Подробности — в <code>docs/proposals/frame-2.5k-measurements.md</code>.</p>
 
 <h2>10. Что здесь проверено, а что нет</h2>
 <table>

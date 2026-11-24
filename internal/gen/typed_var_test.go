@@ -111,7 +111,7 @@ func TestTypedVarForInit(t *testing.T) {
 func TestTypedVarParForInit(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `fn main() void {
-    go for (var i: i32 = 0; i < 3; i += 1) {
+    par for (var i: i32 = 0; i < 3; i += 1) {
         assert(i >= 0);
     };
 };

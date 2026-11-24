@@ -81,20 +81,20 @@ place with status.
 
 | Feature | Status |
 |---|---|
-| `go { ... }` — one worker per top-level statement, joins at the block | ✅ |
-| `go for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
-| `go f(args)` — detached task, program-owned; `void!` needs `on err` on the call | ✅ |
-| `on err { ... }` — scope listener for `go`/`go for` errors; `fail` escalates | ✅ |
-| `go f(...) on err { ... };` — task-local handler, no captures, no `fail` | ✅ |
-| `par` | — renamed to `go` |
+| `par { ... }` — one worker per top-level statement, joins at the block | ✅ |
+| `par for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
+| `spawn f(args)` — detached task, program-owned; `void!` needs `on err` on the call | ✅ |
+| `on err { ... }` — scope listener for `par`/`par for` errors; `fail` escalates | ✅ |
+| `spawn f(...) on err { ... };` — task-local handler, no captures, no `fail` | ✅ |
+| `go` | — removed; use `par` or `spawn` |
 | `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |
 | per-worker `defer` | ✅ |
 | no early cancellation; all workers run to completion | ✅ |
 | static captured read/write sets | ✅ |
 | map writes and map ranges rejected | ✅ |
-| `for ()` rejected inside `go` | ✅ |
-| C-style `go for` captures a per-iteration copy | ✅ |
+| `for ()` rejected inside `par` | ✅ |
+| C-style `par for` captures a per-iteration copy | ✅ |
 | panic is a Go panic; not caught by `on err`, not recovered | ✅ |
 | hidden context | — removed; `ctx` is an ordinary value |
 | explicit `context.Context`, no `_ctx` wrapper or coloring | ✅ |

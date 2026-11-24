@@ -406,10 +406,10 @@ fn main() void! {
     fmt.Println(nums)
         or fail;
 
-    // go: each top-level statement is a worker.
+    // par: each top-level statement is a worker.
     var left = i32(0);
     var right = i32(0);
-    go {
+    par {
         left = mayFail(true)
             or fail;
         right = mayFail(true)
@@ -418,9 +418,9 @@ fn main() void! {
     fmt.Println(left, right)
         or fail;
 
-    // go for: disjoint slots, explicit limit.
+    // par for: disjoint slots, explicit limit.
     var out = i32[4] {};
-    go for (var i, x in i32[] { 1, 2, 3, 4 }) limit 2 {
+    par for (var i, x in i32[] { 1, 2, 3, 4 }) limit 2 {
         out[i] = x * 2;
     };
     fmt.Println(out)

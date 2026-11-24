@@ -6,7 +6,7 @@ fn stop() void! {
 };
 
 fn work() void! {
-    go {
+    par {
         {
             defer fmt.Println("cleanup");
             stop()
@@ -20,7 +20,7 @@ fn work() void! {
 };
 
 fn main() void! {
-    go {
+    par {
         {
             defer fmt.Println("d1");
             defer fmt.Println("d2");

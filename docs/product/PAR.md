@@ -1,32 +1,32 @@
-# Ink — `go`, `go for`
+# Ink — `par`, `par for`
 
 Normative annex to [`SPEC.md`](SPEC.md) §8: where SPEC is silent or looser,
-this file wins. It covers `go { }`, `go for`, the detached `go f(args)` and the
-`on err` listener. Removed: `par`, `within`, `or err`, `on fail`, `or panic`,
+this file wins. It covers `par { }`, `par for`, the detached `spawn f(args)` and the
+`on err` listener. Removed: `go`, `within`, `or err`, `on fail`, `or panic`,
 `or return`.
 
 ## 1. Terms
 
 **Worker** — the unit that runs concurrently.
 
-- `go { s1; s2; }`: one worker per **top-level statement** of the body. A
+- `par { s1; s2; }`: one worker per **top-level statement** of the body. A
   top-level statement is an immediate element of the body block. Statements
   inside a nested `if`, `for`, `match`, plain block or function literal are
   *not* workers: they run sequentially inside the enclosing worker. A nested
-  `go { }` starts its own workers and its own error set. Each top-level
+  `par { }` starts its own workers and its own error set. Each top-level
   statement is its own scope: a local declared in one worker is not visible in
   another.
-- `go for (...) { body }`: one worker per iteration; the whole body block is
+- `par for (...) { body }`: one worker per iteration; the whole body block is
   sequential inside one worker.
-- `go f(args)`: one detached task, not a worker of any `go` statement. It is
+- `spawn f(args)`: one detached task, not a worker of any `par` statement. It is
   owned by the program and may outlive the function that launched it. Arguments
   and the receiver are evaluated before the task starts. A method call on a
   value takes its address before launch (as in Go), so the task shares that
   variable.
-- **ord** — the worker's index: its spawn ordinal (0, 1, 2, …) for `go`, and
-  for `go for` over a slice, array, `str` or C-style loop. Spawn order is
+- **ord** — the worker's index: its spawn ordinal (0, 1, 2, …) for `par`, and
+  for `par for` over a slice, array, `str` or C-style loop. Spawn order is
   iteration order for all of these, so "lowest ord" is "lowest index". A `map`
-  range in `go for` is rejected by sema: collect keys into a slice first, then
+  range in `par for` is rejected by sema: collect keys into a slice first, then
   iterate the slice.
 - **Captured root** — a name declared outside the worker: local of the
   enclosing function, parameter, `self`, global. Names declared inside the
@@ -34,7 +34,7 @@ this file wins. It covers `go { }`, `go for`, the detached `go f(args)` and the
 
 ## 2. Error ordering and delivery
 
-One `ParErrors` per `go`/`go for` statement. Only the winner is delivered; the
+One `ParErrors` per `par`/`par for` statement. Only the winner is delivered; the
 other errors are dropped.
 
 - Indexed workers: winner = lowest ord.
@@ -51,7 +51,7 @@ Delivery:
 - `or fail` in a worker: run the worker's deferred calls, then add the error at
   the worker's ord and leave the worker. A panic in a deferred call is a Go
   panic (§3), not a collected error.
-- `go`/`go for` with an error-returning enclosing function: at the join the
+- `par`/`par for` with an error-returning enclosing function: at the join the
   statement is `err := <first>; if err != nil { <listener or return> }`; the
   enclosing block's deferred calls run by normal rules.
 - Enclosing scope has an `on err` listener: the winner is passed to it and the
@@ -59,7 +59,7 @@ Delivery:
 - Enclosing function cannot return an error (`void` or no `!`) and has no
   listener: a branch that can fail unhandled is a compile error. Every worker
   must handle its own errors.
-- `return`, `break`, `continue` may not cross a `go` boundary. `or fail` is the
+- `return`, `break`, `continue` may not cross a `par` boundary. `or fail` is the
   only way out of a worker.
 - A fallible call as a bare statement is rejected inside a worker too:
   `f();` drops the error. Use `f() on err { ... };` or `f() or fail;`;
@@ -94,9 +94,9 @@ func (p *ParErrors) First() error
   the goroutine). No worker touches the enclosing function's stack.
 - Deferred calls run LIFO at worker exit and before an error is reported
   (`or fail`). A panic in a worker also runs them, then aborts the process.
-- A `defer` written as a top-level statement of a `go` body is itself one
+- A `defer` written as a top-level statement of a `par` body is itself one
   worker: the deferred call runs when that worker ends, not when a sibling
-  ends. Put related statements in a block (`go { { defer f(); ... }; };`) when
+  ends. Put related statements in a block (`par { { defer f(); ... }; };`) when
   the cleanup must belong to the same worker. This follows from §1: only a
   block is one worker.
 - Deferred calls obey the write rules of §5.
@@ -112,26 +112,26 @@ Before codegen, for each worker body compute:
   `q` an alias of that root inside the worker (transitive). Aliased writes are
   attributed to the root.
 
-Plain `go`, reject:
+Plain `par`, reject:
 
 1. A captured root in `W` of two or more top-level statements.
 2. A captured root in `W(s1)` and in `R(s2)`, `s1 != s2`:
-   `read by another go statement: <root>`.
+   `read by another par statement: <root>`.
 3. Any write through a pointer-typed captured root — deref `*p`, field `p.f`,
    slot `p[i]`, a non-pure method `p.M()` when `p` is pointer-typed, or an
    alias of one of those. Always rejected, even with a single writer:
-   `writing to <root> captured from outside go`. Without alias/escape analysis
+   `writing to <root> captured from outside par`. Without alias/escape analysis
    disjointness cannot be proven, so it is not attempted.
 4. Any write to a slot of a captured `map`, whatever the index:
-   `writing to map <root> inside go`.
+   `writing to map <root> inside par`.
 5. `self`: always a write when the receiver root is `self`, including
-   `self.M()`: `writing to self inside go`.
+   `self.M()`: `writing to self inside par`.
 
-`go for`, reject:
+`par for`, reject:
 
-1. A map range: `map iteration is not allowed in go for; collect keys into a
+1. A map range: `map iteration is not allowed in par for; collect keys into a
    slice first`.
-2. `for ()` in the body: `for () is not allowed inside go; use a bounded loop`.
+2. `for ()` in the body: `for () is not allowed inside par; use a bounded loop`.
    Function literals are outside the static analysis.
 3. The `self` rule and the map rule above.
 4. Any write through a pointer-typed captured root (§5.3).
@@ -142,20 +142,20 @@ Plain `go`, reject:
    exemption is per write target.
 6. Writes to iteration-body locals are free, including iteration variables
    declared by the loop (`var` init, range names). A name assigned by a
-   C-style init (`go for (i = 0; ...)`) is not worker-local: a direct write to
+   C-style init (`par for (i = 0; ...)`) is not worker-local: a direct write to
    it in the body is rejected as a captured write (§6).
 
 Allowed in both: reads of captured roots, reads of `self` fields, writes to
 locals declared inside the worker. Writes to globals are always rejected in
 both forms: a global is shared with the whole program, not only with the other
 workers. A write to a captured *value* struct (`c.n = v`) is attributed to `c`
-and obeys the same root rules; in `go for` a non-slot write to `c` is rejected.
+and obeys the same root rules; in `par for` a non-slot write to `c` is rejected.
 A method call on a captured value struct (`c.M()`, implicit `&c`) is also a
 write to `c`.
 
-## 6. C-style `go for` with assignment init
+## 6. C-style `par for` with assignment init
 
-`go for (i = 0; i < n; i += 1)`, `i` declared outside:
+`par for (i = 0; i < n; i += 1)`, `i` declared outside:
 
 - `i` is an iteration variable of this loop: it is in `iter` for the disjoint
   slot exemption, but it is not worker-local. A direct write to `i` inside the
@@ -166,22 +166,22 @@ write to `c`.
   outer `i`; after the loop `i` holds what the post left.
 - Several simple-ident LHS (`i, j: 0, 0`) behave the same way.
 - Any other init (call, field target, index target) is rejected in sema. Keep
-  that error local to the `go for` init.
+  that error local to the `par for` init.
 
-## 7. Detached `go f(args)`
+## 7. Detached `spawn f(args)`
 
 - `f` must be a declared function or a Go function returning `void` or `void!`.
-  A call that returns a value is rejected: use `go { ... }` to collect results.
+  A call that returns a value is rejected: use `par { ... }` to collect results.
 - Arguments are evaluated before the task starts and passed by value like any
   call. There is no closure; captured locals are not available.
 - The task belongs to the program. It may outlive the calling function, a
-  request handler or a `go { }` block that launched it.
+  request handler or a `par { }` block that launched it.
 - Error delivery: the task has no caller to return to, so a fallible call
-  carries its own handler at the launch site: `go f(args) on err { ... };`.
+  carries its own handler at the launch site: `spawn f(args) on err { ... };`.
   A `void!` call without a handler is rejected. The handler runs in the task,
   sees `err` and package-level names only, and cannot `fail` or `return`.
   A scope `on err` listener never receives a detached task error.
-- `or fail` after `go f(...)` is rejected: there is no function return to use.
+- `or fail` after `spawn f(...)` is rejected: there is no function return to use.
 - Panics are not recovered (§3).
 
 ## 8. Known limits
@@ -203,7 +203,7 @@ write to `c`.
   this static analysis: the checker does not model their happens-before. Use
   `go build -race` for that path.
 - No dynamic checks in the compiler. `go build -race` stays the runtime oracle.
-- `go` is not tied to a context. Cancelling a `context.Context` does not stop a
+- `par` is not tied to a context. Cancelling a `context.Context` does not stop a
   worker or a detached task; both run to completion.
 - A growable slice written by a worker cannot be appended to across workers:
   `append` may reallocate, so collect per-worker results and merge after the
@@ -211,7 +211,7 @@ write to `c`.
 
 ## 9. Checks
 
-Section §5 is enforced by sema. The test suite pins the rules with `go` and
-`go for` cases; `ink check --fast` must stay clean for accepted programs and
+Section §5 is enforced by sema. The test suite pins the rules with `par` and
+`par for` cases; `ink check --fast` must stay clean for accepted programs and
 report the messages quoted in §5. The dynamic oracle remains
 `ink run -race` / `ink test -race`.

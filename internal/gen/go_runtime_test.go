@@ -16,7 +16,7 @@ type Counter struct {
 
 fn main() void {
     var c = Counter { N: 1 };
-    go c.Bump(2);
+    spawn c.Bump(2);
     time.Sleep(20ms);
 };
 `,
@@ -34,7 +34,7 @@ func TestGoVoidGoFunction(t *testing.T) {
 		"main.ink": `use time;
 
 fn main() void {
-    go time.Sleep(20ms);
+    spawn time.Sleep(20ms);
 };
 `,
 	})
@@ -79,7 +79,7 @@ fn handler() void {
             on err { _ = err; };
     };
     var a = i32(0);
-    go {
+    par {
         a = f()
             or fail;
     };
@@ -116,7 +116,7 @@ type Sink struct {
 };
 
 fn emit(n: Notifier, msg: str) void {
-    go n.Notify(msg);
+    spawn n.Notify(msg);
 };
 
 fn main() void {
@@ -151,7 +151,7 @@ fn two(s: str) void {
 };
 
 fn main() void {
-    go g("x");
+    spawn g("x");
     g = two;
     time.Sleep(20ms);
 };
@@ -197,7 +197,7 @@ fn boom() void! {
 
 fn inner() void! {
     on err { fail(err, "join"); };
-    go { boom() or fail; };
+    par { boom() or fail; };
 };
 
 fn main() void! {

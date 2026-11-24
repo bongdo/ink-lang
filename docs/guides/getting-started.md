@@ -144,7 +144,7 @@ fn exists(path: str) bool! {
 - `call() or fail("context");` wraps and propagates.
 - `call() on err { ... };` handles the error here; the name is always `err`.
 - `on err { ... };` as the first statement of a function or block listens for
-  unhandled `go` errors. It cannot be empty and cannot use `fail` or `return`.
+  unhandled `par` errors. It cannot be empty and cannot use `fail` or `return`.
 - `panic("message");` is a Go panic: `on err` does not catch it.
 - The handler always starts on a new line, indented once.
 
@@ -169,7 +169,7 @@ fn save(id: i32) void! { ... };
 fn main() void! {
     var users = 0;
     var orders = 0;
-    go {
+    par {
         users = load(1)
             or fail;
         orders = load(2)
@@ -178,18 +178,18 @@ fn main() void! {
 
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
-    go for (var i = 0; i < len(xs); i += 1) limit 2 {
+    par for (var i = 0; i < len(xs); i += 1) limit 2 {
         out[i] = xs[i] * 2;
     };
 
-    go save(3)
+    spawn save(3)
         on err { _ = fmt.Println(err); };   // detached task
 };
 ```
 
 Captured state may be read concurrently. Writes must go to a slot indexed by
-the iteration variable or be the only writer of that variable inside `go`.
-`go` and `go for` wait for all workers and never cancel early; the
+the iteration variable or be the only writer of that variable inside `par`.
+`par` and `par for` wait for all workers and never cancel early; the
 lowest-ordinal unhandled error is delivered at the join — to the scope's
 `on err`, or returned from the function. A panic is a Go panic and aborts the
 process.
@@ -201,7 +201,7 @@ var ctx, cancel = context.WithTimeout(r.Context(), 30s);
 defer cancel();
 ```
 
-There is no hidden context and no coloring: `go` does not create, cancel or
+There is no hidden context and no coloring: `par` does not create, cancel or
 derive a context, and a deadline does not stop workers. The checks are static;
 `ink run -race` and `ink test -race` are the dynamic oracle, and aliases or
 escapes the static pass cannot see are covered only by `-race`; see

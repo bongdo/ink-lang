@@ -6,7 +6,7 @@ func TestArenaAllowsParOnPreallocated(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
         var xs = i32[](16);
-        go for (var y = i32(0); y < i32(16); y += 1) limit 4 {
+        par for (var y = i32(0); y < i32(16); y += 1) limit 4 {
             xs[y] = y * 2;
         };
     };
@@ -56,7 +56,7 @@ fn main() void {};
 func TestArenaRejectsAllocationInsidePar(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
-        go {
+        par {
             var p = new[i32]();
             _ = p;
         };
@@ -65,14 +65,14 @@ func TestArenaRejectsAllocationInsidePar(t *testing.T) {
 
 fn main() void {};
 `})
-	wantError(t, p, "arena allocation inside go")
+	wantError(t, p, "arena allocation inside par")
 }
 
 func TestArenaAllowsWorkerArena(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void {
     arena {
         var outer = i32[](4);
-        go {
+        par {
             arena {
                 var tmp = i32[](4);
                 tmp[0] = outer[0];

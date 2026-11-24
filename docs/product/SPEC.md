@@ -244,7 +244,7 @@ So `n = p.X` and `copy(px, row)` work, while `f(p)` and `p.Move()` do not. The
 rule is what makes reuse safe: nothing can read the buffer after the block
 returns it.
 
-`go` is allowed inside an arena. `new` and `T[](n)` must run before `go`: a
+`par` is allowed inside an arena. `new` and `T[](n)` must run before `par`: a
 worker shares the block's batch, so an allocation inside a worker is an error.
 A worker may write an arena element indexed by its own iteration variable
 (`rows[y] = row`) and may open its own `arena { ... };`.
@@ -415,7 +415,7 @@ Forms:
 - `expr on err { ... };` — handle this expression here; the name is always
   `err`. Inside the block, `fail(err, "context");` wraps and returns.
 - `on err { ... };` as the first statement of a function or block — a scope
-  listener for unhandled errors of `go` constructs (§8). It must be the first
+  listener for unhandled errors of `par` constructs (§8). It must be the first
   statement, must not be empty, and may not use `return`; `fail` sends the
   error to the enclosing function.
 - `panic(...)` — Go's panic, not an error handler (§8.5).
@@ -439,8 +439,8 @@ not be nested inside another expression.
 
 A fallible call used as a bare expression statement is a compile error: its
 result would be dropped. Write `call() on err { ... };` or `call() or fail;`;
-`_ = call();` is the explicit discard. The rule also applies inside `go { }`
-and `go for` bodies.
+`_ = call();` is the explicit discard. The rule also applies inside `par { }`
+and `par for` bodies.
 
 `if (err != nil) { return err; }` (and the multi-result form) is rejected:
 propagation has one canonical spelling, `or fail`. `if err != nil` remains
@@ -500,29 +500,29 @@ else => ...;
 ## 8. Concurrency
 
 ```hare
-go {
+par {
     users = loadUsers(id)
         or fail;
     orders = loadOrders(id)
         or fail;
 };
 
-go for (var i = 0; i < len(urls); i += 1) limit 4 {
+par for (var i = 0; i < len(urls); i += 1) limit 4 {
     sizes[i] = fetchSize(urls[i])
         or fail;
 };
 
-go saveUser(1, "hello")       // detached task
+spawn saveUser(1, "hello")       // detached task
     on err { log(err); };
 ```
 
-One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
+Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or handles.
 
-### 8.1 `go { }`
+### 8.1 `par { }`
 
 - Each top-level statement of the body is a worker; the block joins them.
   Statements inside a nested block, `if`, loop, `match` or function literal run
-  sequentially in the enclosing worker. A nested `go { }` starts its own
+  sequentially in the enclosing worker. A nested `par { }` starts its own
   workers and error set. Each top-level statement is its own scope; a local
   declared in one worker is not visible in another.
 - `defer` inside a worker is allowed and runs LIFO at worker exit.
@@ -534,16 +534,16 @@ One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
   is delivered.
 - Panics are not recovered (§8.5).
 
-### 8.2 `go for`
+### 8.2 `par for`
 
 - One worker per iteration, at most `limit N` at a time. `limit` is optional;
   the default is `GOMAXPROCS`. The body is sequential inside one worker.
 - `map` range is rejected: a map has no ordinal, so the winning error would be
   nondeterministic. Collect keys into a slice first and iterate the slice.
-- Errors: same delivery as `go { }`; the lowest iteration index wins.
+- Errors: same delivery as `par { }`; the lowest iteration index wins.
 - Panics are not recovered.
 
-### 8.3 `go f(args)` — detached task
+### 8.3 `spawn f(args)` — detached task
 
 - `f` must return `void` or `void!`. The call returns immediately.
 - Arguments and the receiver are evaluated before the task starts. There is no
@@ -553,48 +553,48 @@ One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
   is a data race.
 - The task belongs to the program, not to the calling function, so it can
   outlive a request handler.
-- A fallible task carries its own handler: `go f(args) on err { ... };`. The
+- A fallible task carries its own handler: `spawn f(args) on err { ... };`. The
   handler runs in the task, after the call, and receives `err`. Without it a
   `void!` call is rejected: on a detached task there is no caller to return to,
   so the error must be handled where it happens.
 - The handler body may use `err`, package-level names and its own locals; it
   cannot read locals of the launching function, `fail` or `return`. It may
   `panic`.
-- `or fail` after `go f(...)` is rejected: there is no function return to use.
+- `or fail` after `spawn f(...)` is rejected: there is no function return to use.
 - A scope `on err` listener never receives a detached task error; it belongs to
-  `go { }` and `go for` in its own scope.
+  `par { }` and `par for` in its own scope.
 - Panics are not recovered.
 
 ### 8.4 `on err` and error order
 
 - A scope listener is `on err { ... };` as the first statement of a function
   or block; its rules are in §6. The nearest lexical listener wins.
-- An inline `expr on err { ... };` handles that expression only. `go`
-  statements have no inline handler.
-- `go` and `go for` deliver only the winning error; the others are dropped.
+- An inline `expr on err { ... };` handles that expression only. `par` and
+  `spawn` statements have no inline handler.
+- `par` and `par for` deliver only the winning error; the others are dropped.
   The winner is the lowest spawn ordinal, which is iteration order for
-  `go for`.
-- `return`, `break` and `continue` may not cross a `go` boundary. `or fail` is
+  `par for`.
+- `return`, `break` and `continue` may not cross a `par` boundary. `or fail` is
   the way out of a worker.
 
 ### 8.5 Panic
 
 - `panic` is Go's panic: not an error, never delivered to `on err`, never
-  recovered or wrapped by `go`.
+  recovered or wrapped by `par`.
 - A panic in any worker runs that goroutine's deferred calls, prints the stack
   and exits the process with status 2. Other goroutines are not unwound.
 
 ### 8.6 Write rules
 
-- Plain `go`: a captured root may be written by at most one top-level
+- Plain `par`: a captured root may be written by at most one top-level
   statement, and no other statement may read it. Writes through a captured
   pointer, to a captured map slot, to a global, or to `self` are rejected.
   Direct aliases (`var q = p`, `q = p`) are attributed to the root.
-- `go for`: writes to captured roots are rejected except disjoint slots
+- `par for`: writes to captured roots are rejected except disjoint slots
   `base[i]`, `base[i].f` or `base[i][j]` where every base of the index chain is
   a slice or array and the outermost index uses the iteration variable. Map
   writes, pointer writes and `self` writes are always rejected.
-- A C-style `go for` with an assignment init captures a per-iteration copy of
+- A C-style `par for` with an assignment init captures a per-iteration copy of
   each simple-ident LHS; the body sees the copy, while the condition and post
   use the outer variable. A direct write to that variable in the body is
   rejected as a captured write.
@@ -611,12 +611,12 @@ One keyword, `go`. No pools, queues, `send`, `close`, `wait` or handles.
 - There is no hidden context. `context.Context` is an ordinary value, passed
   explicitly to the Go APIs that need it. Functions take one only when they
   pass it to a Go API or derive a deadline; most do not.
-- `go { }` branches capture `ctx` lexically like any other local; nothing is
+- `par { }` branches capture `ctx` lexically like any other local; nothing is
   passed implicitly.
-- `go` does not create, cancel or derive a context. Cancelling a deadline does
+- `par` does not create, cancel or derive a context. Cancelling a deadline does
   not stop workers; they run to completion.
-- No `_ctx` wrapper and no second function: a function using `go` keeps its
-  exact signature, so Bubble Tea's `Update` with `go` still satisfies
+- No `_ctx` wrapper and no second function: a function using `par` keeps its
+  exact signature, so Bubble Tea's `Update` with `par` still satisfies
   `tea.Model`.
 
 ## 9. Tooling

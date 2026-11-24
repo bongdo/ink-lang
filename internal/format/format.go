@@ -470,11 +470,11 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.expr(s.Call)
 		p.write(";")
 	case *ast.ParStmt:
-		p.write("go ")
+		p.write("par ")
 		p.block(s.Body)
 		p.write(";")
 	case *ast.GoCallStmt:
-		p.write("go ")
+		p.write("spawn ")
 		p.expr(s.Call)
 		p.write(";")
 	case *ast.OnErrStmt:
@@ -545,7 +545,7 @@ func (p *printer) elsePart(s ast.Stmt) {
 
 func (p *printer) forStmt(f *ast.ForStmt) {
 	if f.Par {
-		p.write("go ")
+		p.write("par ")
 	}
 	p.write("for (")
 	switch {

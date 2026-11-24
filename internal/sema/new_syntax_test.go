@@ -121,34 +121,34 @@ func TestGoCallRules(t *testing.T) {
 		"returns value": {
 			src: `
 fn f() i32 { return 1; };
-fn main() void { go f(); };
+fn main() void { spawn f(); };
 `,
-			want: "go call must not return a value",
+			want: "spawn call must not return a value",
 		},
 		"not a call": {
 			src: `
-fn main() void { go 1; };
+fn main() void { spawn 1; };
 `,
-			want: "go expects a call",
+			want: "spawn expects a call",
 		},
 		"fallible without handler": {
 			src: `
 fn f() void! { return; };
-fn main() void! { go f(); };
+fn main() void! { spawn f(); };
 `,
-			want: "go call can fail",
+			want: "spawn call can fail",
 		},
 		"or fail": {
 			src: `
 fn f() void! { return; };
-fn main() void! { go f() or fail; };
+fn main() void! { spawn f() or fail; };
 `,
-			want: "go call takes on err, not or fail",
+			want: "spawn takes on err, not or fail",
 		},
 		"handler on a void call": {
 			src: `
 fn f() void { return; };
-fn main() void { go f() on err { _ = err; }; };
+fn main() void { spawn f() on err { _ = err; }; };
 `,
 			want: "on err on a call that cannot fail",
 		},
@@ -157,29 +157,29 @@ fn main() void { go f() on err { _ = err; }; };
 fn f() void! { return; };
 fn main() void! {
     var x = 1;
-    go f() on err { _ = x; };
+    spawn f() on err { _ = x; };
 };
 `,
-			want: "go task handler cannot capture locals",
+			want: "spawn on err cannot capture locals",
 		},
 		"handler fails": {
 			src: `
 fn f() void! { return; };
-fn main() void! { go f() on err { fail(err); }; };
+fn main() void! { spawn f() on err { fail(err); }; };
 `,
-			want: "fail cannot leave a go task",
+			want: "fail cannot leave a spawn task",
 		},
 		"handler returns": {
 			src: `
 fn f() void! { return; };
-fn main() void! { go f() on err { return; }; };
+fn main() void! { spawn f() on err { return; }; };
 `,
-			want: "return cannot leave a go task",
+			want: "return cannot leave a spawn task",
 		},
 		"handler empty": {
 			src: `
 fn f() void! { return; };
-fn main() void! { go f() on err {}; };
+fn main() void! { spawn f() on err {}; };
 `,
 			want: "on err must do something",
 		},
@@ -235,7 +235,7 @@ func TestOnErrListenerCatchesGoError(t *testing.T) {
 fn boom() void! { fail(errors.New("x")); };
 fn main() void! {
     on err { panic(err); };
-    go { boom() or fail; };
+    par { boom() or fail; };
 };
 `})
 	noErrors(t, p)

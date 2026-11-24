@@ -549,16 +549,16 @@ const statementsSrc = `fn f(n: int) void {
     for () {
         break;
     };
-    go {
+    par {
         a = 1;
     };
-    go for (var i = 0; i < n; i += 1) limit 4 {
+    par for (var i = 0; i < n; i += 1) limit 4 {
         a = i;
     };
-    go for (var j in xs) limit n {
+    par for (var j in xs) limit n {
         continue;
     };
-    go f();
+    spawn f();
     match (a) {
     case 0 => a = 1;
     else => { a = 2; };
@@ -1493,7 +1493,9 @@ func TestGoOnlySyntaxHints(t *testing.T) {
 		{"switch", "fn main() void {\n    switch (x) {\n    };\n};\n", "go-switch", 2, 5},
 		{"package", "package main\n\nfn main() void {\n};\n", "go-package", 1, 1},
 		{"import", "import \"fmt\"\n\nfn main() void {\n};\n", "go-import", 1, 1},
-		{"par", "fn main() void {\n    par {\n    };\n};\n", "par-removed", 2, 5},
+		{"go-block", "fn main() void {\n    go {\n    };\n};\n", "go-removed", 2, 5},
+		{"go-for", "fn main() void {\n    go for (var i = 0; i < 2; i += 1) {\n    };\n};\n", "go-removed", 2, 5},
+		{"go-call", "fn main() void {\n    go f();\n};\n", "go-removed", 2, 5},
 		{"within", "fn main() void {\n    within 1s {\n    };\n};\n", "within-removed", 2, 5},
 		{"chan", "fn main() void {\n    var c chan i32;\n    _ = c;\n};\n", "go-chan", 2, 11},
 		{"select", "fn main() void {\n    select {\n    };\n};\n", "go-select", 2, 5},
@@ -1516,6 +1518,33 @@ func TestGoOnlySyntaxHints(t *testing.T) {
 			}
 			if e.Pos.Line != tc.line || e.Pos.Col != tc.col {
 				t.Fatalf("pos = %d:%d, want %d:%d", e.Pos.Line, e.Pos.Col, tc.line, tc.col)
+			}
+		})
+	}
+}
+
+func TestGoRemovedHints(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"block", "fn main() void {\n    go {\n    };\n};\n"},
+		{"for", "fn main() void {\n    go for (var i = 0; i < 2; i += 1) {\n    };\n};\n"},
+		{"call", "fn main() void {\n    go f();\n};\n"},
+	}
+	wantMsg := "go is not an Ink word; parallel work is par { ... } / par for, a detached task is spawn f(...)"
+	wantHint := "concurrency is par (waits) or spawn (does not)"
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := Parse("go.ink", []byte(tc.src))
+			if len(errs) != 1 {
+				t.Fatalf("errors = %v, want exactly one", errs)
+			}
+			if errs[0].Msg != wantMsg {
+				t.Fatalf("message = %q, want %q", errs[0].Msg, wantMsg)
+			}
+			if got := diag.Classify(errs[0].Msg); got.Code != "go-removed" || got.Hint != wantHint {
+				t.Fatalf("diag = %+v, want go-removed %q", got, wantHint)
 			}
 		})
 	}

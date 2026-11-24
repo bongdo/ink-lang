@@ -25,7 +25,7 @@ fn boom() void {
 };
 
 fn main() void {
-    go {
+    par {
         boom();
     };
     _, _ = fmt.Println("after");
@@ -54,7 +54,7 @@ fn stop() void! {
 };
 
 fn work() void! {
-    go {
+    par {
         {
             defer fmt.Println("cleanup");
             stop() or fail;
@@ -65,7 +65,7 @@ fn work() void! {
 };
 
 fn main() void! {
-    go {
+    par {
         {
             defer fmt.Println("d1");
             defer fmt.Println("d2");
@@ -99,7 +99,7 @@ fn spin() void {
 fn main() void! {
     var out = int[8] {};
     var i = 0;
-    go for (i = 0; i < 8; i += 1) {
+    par for (i = 0; i < 8; i += 1) {
         spin();
         out[i] = i * 10;
     };
@@ -131,7 +131,7 @@ fn check(k: i32) i32! {
 fn main() void! {
     var ks = i32[] { 1, 2 };
     var out = i32[8] {};
-    go for (var i, k in ks) {
+    par for (var i, k in ks) {
         out[k] = check(k) or fail;
     };
     var dummy = out[0] + out[1] + out[2];
@@ -169,7 +169,7 @@ fn job(wg: *sync.WaitGroup) void! {
 fn main() void! {
     var wg = sync.WaitGroup {};
     wg.Add(1);
-    go job(&wg) on err { _ = fmt.Println("caught"); };
+    spawn job(&wg) on err { _ = fmt.Println("caught"); };
     wg.Wait();
 };
 `,
@@ -199,7 +199,7 @@ fn main() void! {
         on err {
             got = true;
         };
-        go {
+        par {
             boom() or fail;
         };
     };

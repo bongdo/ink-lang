@@ -6,11 +6,11 @@ func TestParForIterVarWriteAllowed(t *testing.T) {
 	parGapsOK(t, `
 fn main() void {
     var xs = i32[] {1, 2, 3};
-    go for (var i, x in xs) {
+    par for (var i, x in xs) {
         i = i + 1;
         x = x;
     };
-    go for (var j = 0; j < 3; j += 1) {
+    par for (var j = 0; j < 3; j += 1) {
         j = j + 1;
     };
 };
@@ -21,7 +21,7 @@ func TestParForAssignInitWriteRejected(t *testing.T) {
 	parGapsError(t, `
 fn main() void {
     var i = 0;
-    go for (i = 0; i < 3; i += 1) {
+    par for (i = 0; i < 3; i += 1) {
         i = i + 1;
     };
 };
@@ -32,7 +32,7 @@ func TestParForNonIdentInitRejected(t *testing.T) {
 	parGapsError(t, `
 fn main() void {
     var a = i32[1] {};
-    go for (a[0] = 0; a[0] < 3; a[0] += 1) {
+    par for (a[0] = 0; a[0] < 3; a[0] += 1) {
     };
 };
 `)
@@ -43,7 +43,7 @@ func TestParMatchWriteRejected(t *testing.T) {
 fn main() void {
     var a = 0;
     var b = 0;
-    go {
+    par {
         match (1) {
         case 1 => { a = 1; };
         else => {};
@@ -65,7 +65,7 @@ fn stop() void! {
 fn main() void! {
     var a = 0;
     var b = 0;
-    go {
+    par {
         stop() on err {
             a = 1;
         };
@@ -80,7 +80,7 @@ func TestParGlobalWriteRejected(t *testing.T) {
 var counter = 0;
 
 fn main() void {
-    go {
+    par {
         counter = 1;
     };
 };
@@ -95,7 +95,7 @@ type Group struct {
 
 fn main() void {
     var g = Group { m = map[i32, i32] {} };
-    go {
+    par {
         g.m[0] = 1;
     };
 };
@@ -105,7 +105,7 @@ fn main() void {
 func TestParFuncLitState(t *testing.T) {
 	parGapsOK(t, `
 fn main() void {
-    go {
+    par {
         {
             var f = fn(x: i32) i32 {
                 return x + 1;
@@ -147,7 +147,7 @@ fn main() void {
     var c = C { n = 0 };
     var a = 0;
     var b = 0;
-    go {
+    par {
         a = c.Get();
         b = c.n;
     };

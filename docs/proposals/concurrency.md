@@ -1,12 +1,12 @@
 # Ink — concurrency and errors (proposal)
 
-Status: proposal, not implemented. Replaces the `par` rules in
-[`../product/PAR.md`](../product/PAR.md) and the handler set in
-[`../product/SPEC.md`](../product/SPEC.md) §10. `arena` is unchanged.
+Status: implemented as `par` (join block, parallel loop) and `spawn` (detached
+task). The normative rules are in [`../product/PAR.md`](../product/PAR.md) and
+[`../product/SPEC.md`](../product/SPEC.md) §8. `arena` is unchanged.
 
 ## Decisions
 
-- One keyword for concurrency: `go`.
+- Structured concurrency uses `par`; detached tasks use `spawn`.
 - No hidden context. `ctx` is an ordinary value, passed explicitly to the Go
   APIs that need it. Nothing is coloured, nothing is wrapped.
 - `within` is removed. Use `context.WithTimeout` explicitly.
@@ -17,9 +17,9 @@ Status: proposal, not implemented. Replaces the `par` rules in
 ## Syntax
 
 ```ink
-go { ... };                       // branches, join at the block
-go for (...) limit 4 { ... };     // parallel loop, join at the loop
-go f(args);                       // detached task: start and continue
+par { ... };                       // branches, join at the block
+par for (...) limit 4 { ... };     // parallel loop, join at the loop
+spawn f(args);                       // detached task: start and continue
 
 on err { ... };                   // scope listener for unhandled async errors
 expr on err { ... };              // handle this expression here
@@ -31,9 +31,9 @@ error("msg");                     // construct an error
 panic("msg"); panic(err);         // Go panic
 ```
 
-Removed: `par`, `within`, `or err`, `on fail`, `or panic`, `or return`.
+Removed: `go`, `within`, `or err`, `on fail`, `or panic`, `or return`.
 
-## `go { }`
+## `par { }`
 
 - Each top-level statement of the body is a worker; the block joins them.
 - Captured roots follow the existing write rules: one writer per root, no other
@@ -51,36 +51,37 @@ Removed: `par`, `within`, `or err`, `on fail`, `or panic`, `or return`.
 - Panics are not recovered: a panic in a worker unwinds that goroutine, runs its
   `defer`s, prints the stack and exits the process with status 2.
 
-## `go for`
+## `par for`
 
 - One worker per iteration, at most `limit N` at a time. `limit` is optional;
   the default is `GOMAXPROCS`.
 - The body is sequential inside one worker.
 - `map` range is rejected; collect keys into a slice first.
-- Errors: same delivery as `go { }`; the lowest iteration index wins.
+- Errors: same delivery as `par { }`; the lowest iteration index wins.
 - Panics are not recovered.
 
-## `go f(args)` — detached task
+## `spawn f(args)` — detached task
 
 - `f` must return `void` or `void!`. The call returns immediately.
 - Arguments are evaluated before the task starts. There is no closure: a
   detached task cannot capture locals. State travels through arguments only.
 - The task belongs to the program, not to the calling function, so it can
   outlive a request handler.
-- Error delivery: an unhandled error from `f` goes to the `on err` listener of
-  the scope where the call was written, captured at launch. Without a listener
-  it crashes the program with that error.
-- `or fail` after `go f(...)` is rejected: there is no function return to use.
+- Error delivery: a fallible task carries its own handler:
+  `spawn f(...) on err { ... };`. The handler runs in the task and sees only
+  `err` and package-level names; a scope `on err` listener never receives a
+  detached task error.
+- `or fail` after `spawn f(...)` is rejected: there is no function return to use.
 - Panics are not recovered.
 
 ## `on err { }`
 
 - At the start of a function or block: the listener for unhandled async errors
-  of that scope (`go { }`, `go for`, `go f(...)`). The nearest lexical listener
+  of that scope (`par { }`, `par for`). The nearest lexical listener
   wins.
 - After an expression: the handler for that expression's error; it takes
   precedence over the scope listener. This form is for synchronous fallible
-  calls only; `go` statements have no inline handler.
+  calls only; `par` and `spawn` statements have no inline handler.
 - The block is never empty, inline or scope. It may use `err` and may either leave the scope
   (`or fail`, `fail(...)`, `return`, `panic`) or continue. A handler that
   continues leaves the expression's value at its zero value; this is the Go
@@ -104,7 +105,7 @@ Removed: `par`, `within`, `or err`, `on fail`, `or panic`, `or return`.
 ## Panic
 
 - Not an error; `on err` never receives a panic.
-- No runtime recovery, no `PanicError`, no wrapping in `go`.
+- No runtime recovery, no `PanicError`, no wrapping in `par`.
 - A panic in any goroutine runs that goroutine's deferred calls and then
   terminates the process with a stack trace. Other goroutines are not unwound.
 
@@ -127,13 +128,13 @@ fn handler(w: http.ResponseWriter, r: *http.Request) void {
 
 - Functions take `ctx: context.Context` explicitly only when they need to pass
   it to a Go API or derive a deadline. Most functions do not.
-- `go { }` branches capture `ctx` lexically like any other local; nothing is
+- `par { }` branches capture `ctx` lexically like any other local; nothing is
   passed implicitly.
-- `go` does not create, cancel or derive a context. Cancelling a deadline does
+- `par` does not create, cancel or derive a context. Cancelling a deadline does
   not stop workers; they run to completion.
 - No `_ctx` wrappers, no second function, no `Background` fallback.
-- A function using `go` keeps its exact signature: Bubble Tea's `Update` with
-  `go` still satisfies `tea.Model`.
+- A function using `par` keeps its exact signature: Bubble Tea's `Update` with
+  `par` still satisfies `tea.Model`.
 
 ## Examples
 
@@ -167,7 +168,7 @@ Server with a listener and a detached job:
 fn handle(w: http.ResponseWriter, r: *http.Request) void {
     on err { log(err); };
 
-    go saveUser(1, "hello");
+    spawn saveUser(1, "hello");
     w.Write(bytes("ok"))
         on err {};
 };
@@ -188,7 +189,7 @@ Parallel computation:
 fn load() (i32, i32)! {
     var a = i32(0);
     var b = i32(0);
-    go {
+    par {
         a = fetchA()
             or fail;
         b = fetchB()
@@ -202,7 +203,7 @@ Frame:
 
 ```ink
 fn frame(rows: Row[], t: f64) void! {
-    go for (var y = 0; y < H; y += 1) limit 4 {
+    par for (var y = 0; y < H; y += 1) limit 4 {
         rows[y] = shadeRow(y, t);
     };
 };
@@ -238,9 +239,9 @@ fn loadMsg() tea.Msg {
 
 ## Migration
 
-- `par { }` → `go { }`.
-- `par for` → `go for`.
-- `par f(...)` → `go f(...)`.
+- `go { }` → `par { }`.
+- `go for` → `par for`.
+- `go f(...)` → `spawn f(...)`.
 - `or err { ... }` → `on err { ... }`.
 - `or panic(...)` → `on err { panic(...) }`; in a worker use `or fail("ctx")`.
 - `within D { ... }` → `var ctx, cancel = context.WithTimeout(ctx, D); defer cancel();`
@@ -249,19 +250,19 @@ fn loadMsg() tea.Msg {
 
 ## Tests to add or rewrite
 
-- `go { }`, `go for`: error delivery to listener vs function; no early
+- `par { }`, `par for`: error delivery to listener vs function; no early
   cancellation; void function without listener and an unhandled branch error.
-- `go f(...)`: detached lifetime outliving a handler; listener captured;
-  `or fail` rejected; panic aborts.
+- `spawn f(...)`: detached lifetime outliving a handler; task-local `on err`;
+  no captures; `or fail` rejected; panic aborts.
 - `on err`: non-empty; scope listener; inline overrides; fall-through zero
   value; handler may `fail`.
-- Panic: not caught by `on err`; not wrapped in `go`.
-- Remove `within`, `or panic`, `_ctx` wrapper and `par` tests; rewrite the tour
+- Panic: not caught by `on err`; not wrapped in `par`.
+- Remove `within`, `or panic`, `_ctx` wrapper and `go` tests; rewrite the tour
   and Bubble Tea smoke accordingly.
 
 ## Open items
 
-1. `go for` is the only awkward spelling; alternatives are `go each` or a
-   separate `parallel for`. Confirm `go for`.
+1. `par for` is the only awkward spelling; alternatives are `par each` or a
+   separate `parallel for`. Confirm `par for`.
 2. Panic from a detached task: crash (proposed).
 3. A bound value after a fall-through `on err` is the zero value (proposed).

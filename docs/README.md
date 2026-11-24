@@ -20,7 +20,7 @@ a quote and `ses_...`. The agent maintains it from the user's words; a note is
 | Document | Contains |
 |---|---|
 | [`product/SPEC.md`](product/SPEC.md) | normative language |
-| [`product/PAR.md`](product/PAR.md) | normative `go` / `go for` annex |
+| [`product/PAR.md`](product/PAR.md) | normative `par` / `par for` / `spawn` annex |
 | [`product/FFI.md`](product/FFI.md) | Go boundary |
 | [`product/FEATURES.md`](product/FEATURES.md) | the only status table |
 | [`product/EDGES.md`](product/EDGES.md) | the only list of deviations |

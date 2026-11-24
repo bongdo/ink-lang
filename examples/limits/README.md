@@ -14,7 +14,7 @@ fn store(p: *i32, v: i32) void {
 
 fn main() void {
     var n = i32(0);
-    go {
+    par {
         store(&n, 1);
     };
 };

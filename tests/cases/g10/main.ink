@@ -5,7 +5,7 @@ var xs = i32[] { 3, 1, 2 };
 
 fn less(i: int, j: int) bool {
     var dummy = i32[1] {};
-    go {
+    par {
         dummy[0] = 0;
     };
     return xs[i] < xs[j];
@@ -16,7 +16,7 @@ type Doubler struct {
 
     fn Double() i32 {
         var out = i32[1] {};
-        go {
+        par {
             out[0] = n * 2;
         };
         return out[0];
@@ -26,7 +26,7 @@ type Doubler struct {
 type Stringer struct {
     fn String() str {
         var out = u8[1] {};
-        go {
+        par {
             out[0] = 1;
         };
         return "stringer";

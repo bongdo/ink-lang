@@ -139,7 +139,7 @@ fn pair() i32, bool { return 1, true; };
 - Handlers: `or fail;`, `or fail("context");`, `expr on err { ... };`.
   `or` always starts a new line, indented once.
 - `on err { ... };` as the first statement of a function or block is a scope
-  listener for unhandled `go` errors. It must be non-empty and cannot use
+  listener for unhandled `par` errors. It must be non-empty and cannot use
   `return`; `fail` sends the error to the enclosing function.
 - The handler error is always `err`. Inside it, `fail(err, "context");` wraps
   and returns. Manual `if err != nil { return err; }` propagation is rejected.
@@ -148,8 +148,8 @@ fn pair() i32, bool { return 1, true; };
   shorthand after `or`; it wraps the call error, it does not create one.
 - A fallible call as a bare statement (`f();`) is a compile error. Use
   `f() on err { ... };` or `f() or fail;`; `_ = f();` discards deliberately.
-  The rule also applies inside `go` bodies.
-- `panic(...)` is Go's panic: not caught by `on err`, not recovered by `go`.
+  The rule also applies inside `par` bodies.
+- `panic(...)` is Go's panic: not caught by `on err`, not recovered by `par`.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
   there is no `switch`.
@@ -202,8 +202,8 @@ fn pair() i32, bool { return 1, true; };
   when it is inside one. Every execution starts zeroed. Arena memory
   never leaves the block: no assignment to a captured variable, no return, no
   `&T{}`, no call argument or receiver. Read fields and indices, copy structs
-  and arrays that hold no references, and `copy` bytes out. `go` is allowed;
-  `new`/`i32[](n)` must run before `go`, a worker may write `rows[y]` and open
+  and arrays that hold no references, and `copy` bytes out. `par` is allowed;
+  `new`/`i32[](n)` must run before `par`, a worker may write `rows[y]` and open
   its own `arena { ... };`.
 - `//` comments only; `void` is a result only.
 
@@ -240,30 +240,30 @@ for (var i, x in xs) { ... };
   `"A"`, not `"65"`; format numbers with `fmt.Sprint(n)`.
 - Reserved words cannot be identifiers: `use`, `fail`, `as`, `fn`, `type`,
   `struct`, `enum`, `interface`, `var`, `const`, `return`, `if`, `else`,
-  `for`, `in`, `match`, `case`, `go`, `on`, `arena`, `limit`, `defer`, `break`,
-  `continue`, `or`, `test`, `true`, `false`, `nil`, `map`. `par` and `within`
+  `for`, `in`, `match`, `case`, `par`, `spawn`, `on`, `arena`, `limit`, `defer`, `break`,
+  `continue`, `or`, `test`, `true`, `false`, `nil`, `map`. `go` and `within`
   are removed keywords with their own diagnostics.
 
 ## Concurrency
 
 ```hare
-go {
+par {
     a = loadA()
         or fail;
 };
-go for (var i = 0; i < len(xs); i += 1) limit 8 { ... };
-go save(1, "hello");            // detached, program-owned
+par for (var i = 0; i < len(xs); i += 1) limit 8 { ... };
+spawn save(1, "hello");         // detached, program-owned
 ```
 
-- `go { }` runs top-level statements as workers and joins at the block.
+- `par { }` runs top-level statements as workers and joins at the block.
   Nested blocks are sequential inside one worker.
-- `go for` runs iterations as workers; `limit N` is optional (default
+- `par for` runs iterations as workers; `limit N` is optional (default
   `GOMAXPROCS`); the body is sequential inside one worker.
-- `go f(args);` starts a detached task; `f` returns `void` or `void!`.
+- `spawn f(args);` starts a detached task; `f` returns `void` or `void!`.
   Arguments and the receiver are evaluated first and there is no closure; the
   task is owned by the program and may outlive the caller. A method call on a
   value takes its address, so the task shares that variable.
-- A fallible task needs its own handler: `go f(a) on err { log(err); };`.
+- A fallible task needs its own handler: `spawn f(a) on err { log(err); };`.
   `void!` without one is a compile error. The handler runs in the task, sees
   only `err` and package names, and cannot `fail` or `return`; the scope
   listener never receives a detached task error.
@@ -272,10 +272,10 @@ go save(1, "hello");            // detached, program-owned
   escalates the error to the enclosing function. An inline
   `expr on err { ... };` handles one expression, may fall through, and leaves
   the value at its zero value; it may `fail`, `return` or `panic`.
-- Maps: no range in `go for`, no writes in `go`. Collect keys, write locally.
+- Maps: no range in `par for`, no writes in `go`. Collect keys, write locally.
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
-  APIs that need it. `go` never creates or cancels a context.
-- Panics are Go panics: `on err` does not catch them and `go` does not recover
+  APIs that need it. `par` never creates or cancels a context.
+- Panics are Go panics: `on err` does not catch them and `par` does not recover
   them; the process exits with status 2.
 - Checks are static (aliases, escapes, literals); `ink run -race` and
   `ink test -race` are the dynamic oracle.
@@ -293,11 +293,11 @@ go save(1, "hello");            // detached, program-owned
 | `error-ctor` | write `errors.New("msg")`; `error` is a type |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |
-| `par-removed` | write `go { ... };` |
+| `go-removed` | concurrency is `par` (waits) or `spawn` (does not) |
 | `within-removed` | use `context.WithTimeout` and pass `ctx` explicitly |
 | `or-panic` | use `on err { panic(...) }` or `or fail` |
-| `go-map-write` | write to a local slice, merge after the `go` |
-| `go-map-range` | collect keys into a slice, then `go for` the slice |
+| `go-map-write` | write to a local slice, merge after the `par` |
+| `go-map-range` | collect keys into a slice, then `par for` the slice |
 | `go-capture-write` | copy the value locally and collect the result |
 | `go-break` | return a value or set a local flag |
 | `go-loop` | replace `for ()` with a bounded loop |

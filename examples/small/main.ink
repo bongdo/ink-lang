@@ -126,13 +126,13 @@ fn wrapHandler() i32! {
     return v;
 };
 
-// Scope listener: catches unhandled errors of `go` in this function.
+// Scope listener: catches unhandled errors of `par` in this function.
 fn scopeListener() i32! {
     on err {
         _ = fmt.Println("scope:", err);
     };
     var total = i32(0);
-    go {
+    par {
         total = mayFail(false)
             or fail;
     };
@@ -266,7 +266,7 @@ fn main() void! {
     fmt.Println("wrapped:", wrapped)
         or fail;
 
-    // Scope listener on go errors.
+    // Scope listener on par errors.
     var listened = scopeListener()
         or fail;
     fmt.Println("listened:", listened)
@@ -358,18 +358,18 @@ fn main() void! {
     fmt.Println(nums)
         or fail;
 
-    // go: one worker per top-level statement, joins at the block.
+    // par: one worker per top-level statement, joins at the block.
     var left = i32(0);
     var right = i32(0);
-    go {
+    par {
         left = mayFail(true)
             or fail;
         right = mayFail(true)
             or fail;
     };
-    // go for over disjoint slots with an explicit limit.
+    // par for over disjoint slots with an explicit limit.
     var out = i32[4] {};
-    go for (var i, n in i32[] { 1, 2, 3, 4 }) limit 2 {
+    par for (var i, n in i32[] { 1, 2, 3, 4 }) limit 2 {
         out[i] = n * 2;
     };
     fmt.Println(left, right, out)
@@ -378,7 +378,7 @@ fn main() void! {
     // Detached task: program-owned, its own error handler, explicit join.
     var wg = sync.WaitGroup {};
     wg.Add(1);
-    go detached(3, &wg)
+    spawn detached(3, &wg)
         on err {
             _ = fmt.Println("task:", err);
         };

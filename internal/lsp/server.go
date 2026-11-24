@@ -78,7 +78,7 @@ var builtinFuncs = []string{
 
 var keywords = []string{
 	"use", "as", "fn", "type", "struct", "enum", "interface", "var", "const",
-	"return", "if", "else", "for", "in", "match", "case", "go", "on",
+	"return", "if", "else", "for", "in", "match", "case", "par", "spawn", "on",
 	"limit", "defer", "break", "continue", "or", "fail", "arena", "test", "true", "false", "nil", "map",
 }
 

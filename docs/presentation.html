@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ink — go и ошибки</title>
+<title>Ink — par, spawn и ошибки</title>
 <style>
   :root {
     --line: rgba(128,128,128,.35);
@@ -105,8 +105,8 @@
 </head>
 <body>
 
-<h1>Ink: <span class="mono">go</span>, <span class="mono">on err</span>, <span class="mono">or fail</span></h1>
-<p class="lead">Одно слово для параллельности, два — для ошибок, паника — это паника Go.
+<h1>Ink: <span class="mono">par</span>, <span class="mono">spawn</span>, <span class="mono">on err</span>, <span class="mono">or fail</span></h1>
+<p class="lead">Два слова для параллельности: <code>par</code> ждёт, <code>spawn</code> — нет; два — для ошибок, паника — это паника Go.
    Никаких скрытых контекстов и «цветных» функций.</p>
 
 <nav>
@@ -118,13 +118,13 @@
 </nav>
 
 <section id="model">
-  <h2>Три формы одного слова</h2>
+  <h2>Три формы конкурентности</h2>
   <div class="grid g3">
     <div class="card">
       <span class="tag">блок</span>
-      <h3 class="mono">go { ... };</h3>
+      <h3 class="mono">par { ... };</h3>
       <p class="small">Ветки — верхнеуровневые операторы. Блок ждёт их и отдаёт первую ошибку.</p>
-<pre><span class="k">go</span> {
+<pre><span class="k">par</span> {
     a = fetchA()
         <span class="k">or fail</span>;
     b = fetchB()
@@ -133,17 +133,17 @@
     </div>
     <div class="card">
       <span class="tag">цикл</span>
-      <h3 class="mono">go for ... limit N</h3>
+      <h3 class="mono">par for ... limit N</h3>
       <p class="small">Итерации параллельно, не больше N одновременно. Ждёт в конце.</p>
-<pre><span class="k">go for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
+<pre><span class="k">par for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
     rows[y] = shadeRow(y, t);
 };</pre>
     </div>
     <div class="card">
       <span class="tag">задача</span>
-      <h3 class="mono">go f(args);</h3>
+      <h3 class="mono">spawn f(args);</h3>
       <p class="small">Отвязанная задача: запустил и пошёл. Живёт с программой, переживает обработчик запроса.</p>
-<pre><span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);
+<pre><span class="k">spawn</span> saveUser(1, <span class="c">"hello"</span>);
 <span class="c">// вернулись сразу</span></pre>
     </div>
   </div>
@@ -151,9 +151,9 @@
   <h2>Время жизни</h2>
   <table>
     <tr><th>Форма</th><th>Кто владеет</th><th>Ждёт?</th></tr>
-    <tr><td class="mono">go { }</td><td>блок</td><td>да, в конце блока</td></tr>
-    <tr><td class="mono">go for</td><td>цикл</td><td>да, в конце цикла</td></tr>
-    <tr><td class="mono">go f(args)</td><td>программа</td><td>нет</td></tr>
+    <tr><td class="mono">par { }</td><td>блок</td><td>да, в конце блока</td></tr>
+    <tr><td class="mono">par for</td><td>цикл</td><td>да, в конце цикла</td></tr>
+    <tr><td class="mono">spawn f(args)</td><td>программа</td><td>нет</td></tr>
   </table>
   <p class="small muted">Правило: есть тело — ждём; нет тела — не ждём.</p>
 
@@ -164,7 +164,7 @@
       <ul class="small">
         <li>писать в свой слот: <code>rows[y] = ...</code></li>
         <li>читать захваченные значения</li>
-        <li>вкладывать <code>go</code> и <code>go for</code></li>
+        <li>вкладывать <code>par</code> и <code>par for</code></li>
       </ul>
     </div>
     <div class="card">
@@ -185,7 +185,7 @@
     <div class="card">
       <span class="tag">обработать</span>
       <h3 class="mono">on err { ... }</h3>
-      <p class="small">На выражении — локально. В начале функции или блока — слушатель для <code>go</code>.</p>
+      <p class="small">На выражении — локально. В начале функции или блока — слушатель для <code>par</code>.</p>
 <pre>var u = loadUser(name)
     <span class="k">on err</span> {
         http.Error(w, err.Error(), 500);
@@ -207,7 +207,10 @@
         log(err);
     };
 
-    <span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);   <span class="c">// ошибка придёт в log</span>
+    <span class="k">par</span> {
+        saveUser(1, <span class="c">"hello"</span>)
+            <span class="k">or fail</span>;   <span class="c">// ошибка придёт в log</span>
+    };
 };</pre>
   <p class="small muted">Слушатель — замыкание, захваченное задачей. Он может выполниться после выхода из функции:
      только лог, метрики, паника. <code>fail</code>/<code>return</code> внутри запрещены.</p>
@@ -218,7 +221,7 @@
 
   <h3>Паника</h3>
   <p class="small"><code>panic(...)</code> — это паника Go. <code>on err</code> её не ловит.
-     <code>go</code> не заворачивает её в ошибку. Паника в любой горутине печатает стек и завершает процесс.</p>
+     <code>par</code> не заворачивает её в ошибку. Паника в любой горутине печатает стек и завершает процесс.</p>
 <pre>os.ReadFile(<span class="c">"assets.bin"</span>)
     <span class="k">on err</span> { panic(err); };</pre>
 
@@ -241,9 +244,9 @@
   <div class="split">
     <div>
       <div class="row" style="margin-bottom:10px">
-        <button class="btn primary" id="add">go worker(job)</button>
-        <button class="btn" id="addFail">go worker(bad)</button>
-        <button class="btn" id="burst">go for 8 limit 3</button>
+        <button class="btn primary" id="add">spawn worker(job)</button>
+        <button class="btn" id="addFail">spawn worker(bad)</button>
+        <button class="btn" id="burst">par for 8 limit 3</button>
         <button class="btn" id="reset">сброс</button>
       </div>
       <div class="queue" id="queue" style="margin-bottom:12px"></div>
@@ -260,7 +263,7 @@
     log(err);
 };
 
-<span class="k">go for</span> (var i = 0; i &lt; 8; i += 1) <span class="k">limit</span> 3 {
+<span class="k">par for</span> (var i = 0; i &lt; 8; i += 1) <span class="k">limit</span> 3 {
     worker(i)
         <span class="k">or fail</span>;
 };</pre>
@@ -272,12 +275,12 @@
   <h2>Что убрали и почему</h2>
   <table>
     <tr><th>Убрано</th><th>Причина</th><th>Замена</th></tr>
-    <tr><td class="mono">par</td><td>одно слово для параллельности</td><td class="mono">go</td></tr>
+    <tr><td class="mono">go</td><td>смешивал join и detached task</td><td class="mono">par / spawn</td></tr>
     <tr><td class="mono">within</td><td>жил только за счёт скрытого контекста</td><td class="mono">context.WithTimeout</td></tr>
     <tr><td class="mono">or err</td><td>два способа ловить ошибку</td><td class="mono">on err</td></tr>
     <tr><td class="mono">or panic</td><td>либо терял ошибку, либо не паниковал</td><td class="mono">panic(...)</td></tr>
     <tr><td>скрытый ctx</td><td>цветные функции, потеря дедлайна на интерфейсах</td><td><code>ctx</code> — обычное значение</td></tr>
-    <tr><td>пулы и очереди</td><td>горутина дешевле пула; очередь не нужна для трёх сценариев</td><td class="mono">go f(...)</td></tr>
+    <tr><td>пулы и очереди</td><td>горутина дешевле пула; очередь не нужна для трёх сценариев</td><td class="mono">spawn f(...)</td></tr>
   </table>
 
   <h3>Контекст теперь явный</h3>
@@ -286,7 +289,7 @@ defer cancel();
 
 var rows = db.QueryContext(ctx, <span class="c">"select 1"</span>)
     <span class="k">on err</span> { ... };</pre>
-  <p class="small muted">Никаких <code>_s_ctx</code>, обёрток и <code>Background</code>-фолбэков. Bubble Tea <code>Update</code> с <code>go</code>
+  <p class="small muted">Никаких <code>_s_ctx</code>, обёрток и <code>Background</code>-фолбэков. Bubble Tea <code>Update</code> с <code>par</code>
      удовлетворяет <code>tea.Model</code> без второй функции.</p>
 </section>
 
@@ -298,18 +301,19 @@ var rows = db.QueryContext(ctx, <span class="c">"select 1"</span>)
 <pre style="font-size:12px"><span class="k">on err</span> { log(err); };
 
 fn handle(w: ResponseWriter, r: *Request) void {
-    <span class="k">go</span> saveUser(1, <span class="c">"hello"</span>);
+    <span class="k">spawn</span> saveUser(1, <span class="c">"hello"</span>)
+        <span class="k">on err</span> { log(err); };
     w.Write(bytes(<span class="c">"ok"</span>))
         <span class="k">on err</span> {};
 };</pre>
-      <p class="small">Фон переживает запрос; ошибки — в слушатель.</p>
+      <p class="small">Фон переживает запрос; ошибки — в собственный обработчик.</p>
     </div>
     <div class="card">
       <h3>Игра: кадр</h3>
-<pre style="font-size:12px"><span class="k">go for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
+<pre style="font-size:12px"><span class="k">par for</span> (var y = i32(0); y &lt; i32(H); y += 1) <span class="k">limit</span> 4 {
     rows[y] = shadeRow(y, t);
 };</pre>
-      <p class="small">Арена даёт строки без GC; <code>go for</code> раздаёт их по ядрам.</p>
+      <p class="small">Арена даёт строки без GC; <code>par for</code> раздаёт их по ядрам.</p>
     </div>
     <div class="card">
       <h3>Композитор</h3>
@@ -318,7 +322,7 @@ fn handle(w: ResponseWriter, r: *Request) void {
     draw();
     <span class="k">if</span> (quit) { <span class="k">break</span>; };
 };</pre>
-      <p class="small">Один событийный цикл. Ни <code>go</code>, ни каналов не нужно.</p>
+      <p class="small">Один событийный цикл. Ни <code>par</code>, ни каналов не нужно.</p>
     </div>
   </div>
 </section>
