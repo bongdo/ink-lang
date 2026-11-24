@@ -1077,7 +1077,7 @@ func (s *server) inferredType(fi *fileInfo, node ast.Node, line, col, offset int
 	}
 	t := s.info.At[fi.path+":"+strconv.Itoa(line)+":"+strconv.Itoa(col)]
 	if t == "" {
-		if word := identWordAt(fi.src, offset); word != "" {
+		if word := identWordAt(fi.src, offset); word != "" && strings.Count(lineText(fi.src, line), word) == 1 {
 			t = s.info.ByName[filepath.Dir(fi.path)+"\x00"+strconv.Itoa(line)+"\x00"+word]
 		}
 	}
@@ -1117,6 +1117,22 @@ func inkTypeText(s string) string {
 		}
 		return word
 	})
+}
+
+func lineText(src []byte, line int) string {
+	start := 0
+	for i := 1; i < line; i++ {
+		j := strings.IndexByte(string(src[start:]), '\n')
+		if j < 0 {
+			return ""
+		}
+		start += j + 1
+	}
+	end := strings.IndexByte(string(src[start:]), '\n')
+	if end < 0 {
+		return string(src[start:])
+	}
+	return string(src[start : start+end])
 }
 
 func identWordAt(src []byte, offset int) string {

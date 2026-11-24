@@ -339,6 +339,15 @@ func (s *session) quickfix(a positionArgs) (string, error) {
 		} `json:"edit"`
 	}
 	if err := json.Unmarshal(raw, &actions); err != nil || len(actions) == 0 {
+		hint := ""
+		for _, d := range diags {
+			if h, ok := d["hint"].(string); ok && h != "" {
+				hint = h
+			}
+		}
+		if hint != "" {
+			return "no automatic fix here; hint: " + hint, nil
+		}
 		return "no quick fixes", nil
 	}
 	var b strings.Builder
@@ -380,6 +389,7 @@ func (s *session) diagnosticsAt(a positionArgs) ([]map[string]any, error) {
 			"severity": 1,
 			"code":     d.Code,
 			"message":  d.Message,
+			"hint":     d.Hint,
 			"source":   "ink",
 		})
 	}
@@ -402,19 +412,22 @@ func (s *session) symbols(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var syms []struct {
-		Name  string `json:"name"`
-		Kind  int    `json:"kind"`
-		Range struct {
-			Start struct{ Line int }
-		} `json:"range"`
+	type mcpSymbol struct {
+		Name     string                             `json:"name"`
+		Kind     int                                `json:"kind"`
+		Range    struct{ Start struct{ Line int } } `json:"range"`
+		Children []mcpSymbol                        `json:"children"`
 	}
+	var syms []mcpSymbol
 	if err := json.Unmarshal(raw, &syms); err != nil {
 		return "", err
 	}
 	var b strings.Builder
 	for _, sym := range syms {
 		fmt.Fprintf(&b, "%s %s:%d\n", sym.Name, path, sym.Range.Start.Line+1)
+		for _, child := range sym.Children {
+			fmt.Fprintf(&b, "  %s %s:%d\n", child.Name, path, child.Range.Start.Line+1)
+		}
 	}
 	if b.Len() == 0 {
 		return "no symbols", nil
