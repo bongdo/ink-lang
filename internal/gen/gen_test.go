@@ -666,7 +666,8 @@ fn main() void! {
 	})
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "_s_sync.WaitGroup")
-	contains(t, src, "make(chan struct{}, 2)")
+	contains(t, src, "_s_limit")
+	contains(t, src, "_s_per")
 	contains(t, src, "go func() {")
 	contains(t, src, "_s_i")
 	stdout, stderr, err := p.run(t)
@@ -674,6 +675,29 @@ fn main() void! {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
 	expect(t, stdout, "30 0 10 20 30 30 10 20 30\n")
+}
+
+func TestGoForChunked(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+
+fn main() void! {
+    var out = int[10] {};
+    go for (var i = 1; i < 10; i += 2) limit 3 {
+        out[i] = i * 10;
+    };
+    fmt.Println(out[1], out[3], out[5], out[7], out[9])
+        or fail;
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, "_s_per")
+	stdout, stderr, err := p.run(t)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	}
+	expect(t, stdout, "10 30 50 70 90\n")
 }
 
 func TestParErrors(t *testing.T) {

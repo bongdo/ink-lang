@@ -1184,6 +1184,28 @@ func hoverText(node ast.Node) string {
 		return codeBlock(typeDeclText(node))
 	case *ast.VarDecl:
 		return codeBlock(varDeclText(node))
+	case *ast.BasicLit:
+		if t := literalTypeName(node.Kind); t != "" {
+			return codeBlock(t + " literal")
+		}
+	}
+	return ""
+}
+
+func literalTypeName(kind token.Kind) string {
+	switch kind {
+	case token.String, token.RawString:
+		return "str"
+	case token.Int:
+		return "int"
+	case token.Float:
+		return "f64"
+	case token.Rune:
+		return "rune"
+	case token.Duration:
+		return "Duration"
+	case token.True, token.False:
+		return "bool"
 	}
 	return ""
 }

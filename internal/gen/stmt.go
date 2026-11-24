@@ -370,7 +370,9 @@ func (w *writer) returnErr(errName string) {
 
 func (w *writer) breakStmt(kind string) {
 	if w.deferStack && len(w.loops) > 0 {
-		w.linef("_s_d.RunTo(%s)", w.loops[len(w.loops)-1])
+		if mark := w.loops[len(w.loops)-1]; mark != "" {
+			w.linef("_s_d.RunTo(%s)", mark)
+		}
 	}
 	if w.matchDepth > 0 && len(w.loopLabels) > 0 {
 		if label := w.loopLabels[len(w.loopLabels)-1]; label != "" {
@@ -796,6 +798,27 @@ func (w *writer) deferStmt(s *ast.DeferStmt) {
 	w.linef("_s_d.Push(func() { %s })", callStr)
 }
 
+func bodyPushesDefer(b *ast.Block) bool {
+	if b == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		switch n.(type) {
+		case *ast.FuncLit, *ast.ForStmt, *ast.ParStmt:
+			return false
+		case *ast.DeferStmt, *ast.WithinStmt, *ast.ArenaStmt:
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 func loopJumps(b *ast.Block) bool {
 	if b == nil {
 		return false
@@ -961,6 +984,7 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 	}
 	w.loopLabels = append(w.loopLabels, label)
 	scratch := w.loopScratch(s.Body)
+	push := bodyPushesDefer(s.Body)
 	if s.Range != nil {
 		w.rangeHead(s.Range)
 	} else {
@@ -985,20 +1009,18 @@ func (w *writer) forStmt(s *ast.ForStmt) {
 	w.indent++
 	mark := ""
 	terminates := blockTerminates(s.Body)
-	if w.deferStack && (!terminates || loopJumps(s.Body)) {
+	if w.deferStack && push && (!terminates || loopJumps(s.Body)) {
 		mark = w.next("mark")
 		w.linef("%s := _s_d.Mark()", mark)
-		w.loops = append(w.loops, mark)
 	}
+	w.loops = append(w.loops, mark)
 	if s.Body != nil {
 		w.genStmts(s.Body.Stmts)
 	}
-	if mark != "" {
-		if !terminates {
-			w.linef("_s_d.RunTo(%s)", mark)
-		}
-		w.loops = w.loops[:len(w.loops)-1]
+	if mark != "" && !terminates {
+		w.linef("_s_d.RunTo(%s)", mark)
 	}
+	w.loops = w.loops[:len(w.loops)-1]
 	w.loopLabels = w.loopLabels[:len(w.loopLabels)-1]
 	w.indent--
 	w.line("}")
@@ -1192,7 +1214,215 @@ func (w *writer) unhandled(errName string) {
 	w.propagateParError(errName)
 }
 
+type chunkLoop struct {
+	name  string
+	start ast.Expr
+	end   ast.Expr
+	step  ast.Expr
+	limit ast.Expr
+}
+
+func chunkLoopOf(s *ast.ForStmt) *chunkLoop {
+	if s.Range != nil || s.Init == nil || s.Cond == nil || s.Post == nil {
+		return nil
+	}
+	d, ok := s.Init.(*ast.DeclStmt)
+	if !ok || d.Decl == nil || d.Decl.Type != nil || len(d.Decl.Names) != 1 || len(d.Decl.Values) != 1 {
+		return nil
+	}
+	name := d.Decl.Names[0]
+	if name == "_" || !isIntLit(d.Decl.Values[0]) {
+		return nil
+	}
+	cond, ok := s.Cond.(*ast.BinaryExpr)
+	if !ok || cond.Op != token.Lt {
+		return nil
+	}
+	x, ok := unparen(cond.X).(*ast.Ident)
+	if !ok || x.Name != name {
+		return nil
+	}
+	if exprUsesName(cond.Y, name) || !sideEffectFree(cond.Y) {
+		return nil
+	}
+	post, ok := s.Post.(*ast.AssignStmt)
+	if !ok || post.Op != token.PlusAssign || len(post.Lhs) != 1 || len(post.Rhs) != 1 {
+		return nil
+	}
+	lhs, ok := unparen(post.Lhs[0]).(*ast.Ident)
+	if !ok || lhs.Name != name {
+		return nil
+	}
+	if !isPosIntLit(post.Rhs[0]) {
+		return nil
+	}
+	if bodyWritesName(s.Body, name) || !chunkSafeBody(s.Body) {
+		return nil
+	}
+	return &chunkLoop{name: name, start: d.Decl.Values[0], end: cond.Y, step: post.Rhs[0], limit: s.Limit}
+}
+
+func isIntLit(e ast.Expr) bool {
+	lit, ok := unparen(e).(*ast.BasicLit)
+	return ok && lit.Kind == token.Int
+}
+
+func isPosIntLit(e ast.Expr) bool {
+	lit, ok := unparen(e).(*ast.BasicLit)
+	if !ok || lit.Kind != token.Int {
+		return false
+	}
+	n, err := strconv.ParseInt(lit.Value, 0, 64)
+	return err == nil && n > 0
+}
+
+func exprUsesName(e ast.Expr, name string) bool {
+	found := false
+	ast.Inspect(e, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func sideEffectFree(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.BasicLit, *ast.Ident:
+		return true
+	case *ast.BinaryExpr:
+		return sideEffectFree(e.X) && sideEffectFree(e.Y)
+	case *ast.UnaryExpr:
+		return sideEffectFree(e.X)
+	case *ast.CallExpr:
+		if e.Info == nil {
+			return false
+		}
+		switch e.Info.Builtin {
+		case "len", "cap", "min", "max":
+			for _, a := range e.Args {
+				if !sideEffectFree(a) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func bodyWritesName(b *ast.Block, name string) bool {
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.AssignStmt:
+			for _, l := range n.Lhs {
+				if id, ok := unparen(l).(*ast.Ident); ok && id.Name == name {
+					found = true
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func chunkSafeBody(b *ast.Block) bool {
+	if b == nil {
+		return true
+	}
+	ok := true
+	ast.Inspect(b, func(n ast.Node) bool {
+		if !ok {
+			return false
+		}
+		switch n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.OrExpr, *ast.DeferStmt, *ast.OnErrStmt, *ast.WithinStmt,
+			*ast.ArenaStmt, *ast.ParStmt, *ast.GoCallStmt, *ast.FailStmt, *ast.ReturnStmt:
+			ok = false
+			return false
+		}
+		return true
+	})
+	return ok
+}
+
+func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
+	w.f.needPkg("rt")
+	w.line("{")
+	w.indent++
+	wg := w.next("wg")
+	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
+	limit := w.next("limit")
+	if cl.limit != nil {
+		w.linef("%s := int(%s)", limit, w.expr(cl.limit))
+	} else {
+		w.linef("%s := %s.GOMAXPROCS(0)", limit, w.f.std("runtime"))
+	}
+	start := w.next("start")
+	end := w.next("end")
+	step := w.next("step")
+	w.linef("%s := %s", start, w.expr(cl.start))
+	w.linef("%s := int(%s)", end, w.expr(cl.end))
+	w.linef("%s := %s", step, w.expr(cl.step))
+	n := w.next("n")
+	per := w.next("per")
+	w.linef("%s := (%s - %s + %s - 1) / %s", n, end, start, step, step)
+	w.linef("if %s < 0 { %s = 0 }", n, n)
+	w.linef("if %s > %s { %s = %s }", limit, n, limit, n)
+	w.linef("if %s < 1 { %s = 1 }", limit, limit)
+	w.linef("%s := (%s + %s - 1) / %s", per, n, limit, limit)
+	idx := w.next("w")
+	w.linef("for %s := 0; %s < %s; %s++ {", idx, idx, limit, idx)
+	w.indent++
+	lo := w.next("lo")
+	hi := w.next("hi")
+	w.linef("%s := %s + %s*%s*%s", lo, start, idx, per, step)
+	w.linef("%s := %s + %s*%s", hi, lo, per, step)
+	w.linef("if %s > %s { %s = %s }", hi, end, hi, end)
+	w.linef("%s.Add(1)", wg)
+	w.linef("go func(%s, %s int) {", lo, hi)
+	w.indent++
+	w.linef("defer %s.Done()", wg)
+	w.linef("var _s_d _s_rt.DeferStack")
+	w.linef("defer _s_d.RunTo(0)")
+	sub := w.sub()
+	sub.results = nil
+	sub.err = false
+	sub.deferStack = true
+	sub.par = nil
+	sub.linef("for %s := %s; %s < %s; %s += %s {", cl.name, lo, cl.name, hi, cl.name, step)
+	sub.indent++
+	if s.Body != nil {
+		sub.genStmts(s.Body.Stmts)
+	}
+	sub.indent--
+	sub.line("}")
+	w.buf.WriteString(sub.buf.String())
+	w.indent--
+	w.linef("}(%s, %s)", lo, hi)
+	w.indent--
+	w.line("}")
+	w.linef("%s.Wait()", wg)
+	w.indent--
+	w.line("}")
+}
+
 func (w *writer) parForStmt(s *ast.ForStmt) {
+	if cl := chunkLoopOf(s); cl != nil {
+		w.chunkedParFor(s, cl)
+		return
+	}
 	scratch := w.loopScratch(s.Body)
 	w.line("{")
 	w.indent++
