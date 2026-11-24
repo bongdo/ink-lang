@@ -112,6 +112,9 @@ func vetError(path string, pos token.Pos, msg string) Error {
 func typecheckError(path string, pos token.Pos, msg string) Error {
 	msg = sanitizeMessage(msg)
 	info := diag.Typecheck(msg)
+	if info.Code == "str-number" {
+		return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: "str(n) converts a rune, not a number; use strconv.Itoa, strconv.FormatFloat or fmt.Sprint", Code: info.Code, Hint: info.Hint}
+	}
 	return Error{Path: path, Pos: pos, End: spanEnd(pos, token.Pos{}), Msg: diag.InkWords(msg), Code: info.Code, Hint: info.Hint}
 }
 
@@ -639,6 +642,7 @@ func (p *Project) Test(args []string) (int, error) {
 	count := p.testCount()
 	if count == 0 {
 		fmt.Fprintln(os.Stderr, "ink: no `test` blocks in .ink sources; declare `test \"name\" { ... };` in any .ink file")
+		return 1, nil
 	}
 	cmd := exec.Command("go", append([]string{"test", "-buildvcs=false", "./..."}, args...)...)
 	cmd.Dir = p.Root

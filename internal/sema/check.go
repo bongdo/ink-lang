@@ -152,6 +152,19 @@ func isBuiltinFunc(name string) bool {
 func (p *Program) checkFreeMethods() {
 	for _, pkg := range p.Packages {
 		count := make(map[*ast.TypeDecl]int)
+		for _, f := range pkg.Files {
+			for _, d := range f.Decls {
+				v, ok := d.(*ast.VarDecl)
+				if !ok {
+					continue
+				}
+				for _, val := range v.Values {
+					if lit, ok := val.(*ast.FuncLit); ok {
+						countFreeReceiver(p, pkg, lit, count)
+					}
+				}
+			}
+		}
 		names := make([]string, 0, len(pkg.Funcs))
 		for name := range pkg.Funcs {
 			names = append(names, name)
@@ -181,6 +194,21 @@ func (p *Program) checkFreeMethods() {
 			p.warnf(p.fileOfDecl(pkg, decl), decl.Pos(), "type %s is passed as *%s to %d free functions; state and behaviour belong in the type body", decl.Name, decl.Name, count[decl])
 		}
 	}
+}
+
+func countFreeReceiver(p *Program, pkg *Package, lit *ast.FuncLit, count map[*ast.TypeDecl]int) {
+	if lit == nil || len(lit.Params) == 0 || lit.Params[0].Type == nil {
+		return
+	}
+	ptr, ok := lit.Params[0].Type.(*ast.PointerType)
+	if !ok {
+		return
+	}
+	named, ok := ptr.Elem.(*ast.NamedType)
+	if !ok || named.Decl == nil || named.Decl.Kind != ast.TypeStruct || p.declPkg[named.Decl] != pkg {
+		return
+	}
+	count[named.Decl]++
 }
 
 func (p *Program) fileOfDecl(pkg *Package, decl *ast.TypeDecl) string {
