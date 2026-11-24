@@ -18,6 +18,8 @@ From the project root (the directory with `go.mod`):
 2. Fix diagnostics to `[]`; run `ink fmt -w .`.
 3. `ink check --json` — full generated-Go typecheck; completion gate.
 4. `ink test` (`-race` for concurrency); `ink run [-- args]` (`-race` for races).
+   The program starts in the project root (the directory with `go.mod`);
+   `ink -C dir <command>` selects the project from anywhere.
 
 No prompts. `ink check --json` exits 1 on errors, 0 when clean.
 

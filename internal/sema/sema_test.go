@@ -46,15 +46,17 @@ func checkSrc(t *testing.T, files map[string]string) *Program {
 
 func noErrors(t *testing.T, p *Program) {
 	t.Helper()
-	if len(p.Errors) == 0 {
-		return
-	}
 	var b strings.Builder
 	for _, e := range p.Errors {
+		if e.Warning {
+			continue
+		}
 		b.WriteString(e.String())
 		b.WriteByte('\n')
 	}
-	t.Fatalf("unexpected sema errors:\n%s", b.String())
+	if b.Len() > 0 {
+		t.Fatalf("unexpected sema errors:\n%s", b.String())
+	}
 }
 
 func TestHello(t *testing.T) {
@@ -309,6 +311,33 @@ fn main() void {
 };
 `})
 	if !hasError(p, "self.Add") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestErrReturnWarning(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use strconv;
+
+fn pick(s: str) i64! {
+    var n = strconv.ParseInt(s, 10, 64)
+        on err {
+            return -1;
+        };
+    return n;
+};
+
+fn main() void! {
+    _ = pick("1");
+    return;
+};
+`})
+	found := false
+	for _, e := range p.Errors {
+		if e.Warning && strings.Contains(e.Msg, "turns the failure into success") {
+			found = true
+		}
+	}
+	if !found {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }

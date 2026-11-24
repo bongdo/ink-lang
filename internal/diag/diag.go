@@ -60,6 +60,8 @@ var rules = []struct {
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
+	{"err-return", "return in on err turns the failure into success", "use fail(err) to propagate, or return a value only if success is intended", true},
+	{"reserved", "is a reserved word", "rename it; the word is part of the syntax", false},
 	{"or-expr", "or is statement-level", "split it: var v = f() or fail; then pass v", false},
 	{"for-cond", "condition-only loop", "write for (; cond; ): for (; rows.Next(); ) { ... }", false},
 	{"import-path", "is not in std", "use the full Go path: path/filepath, net/http, encoding/json, database/sql", false},

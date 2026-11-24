@@ -35,21 +35,22 @@ type parFrame struct {
 }
 
 type checker struct {
-	p             *Program
-	fc            *fileCtx
-	fn            *funcInfo
-	scopes        []*scope
-	loopDepth     int
-	parFrames     []parFrame
-	parLoopBase   []int
-	inPar         bool
-	inListener    int
-	inTaskHandler int
-	inTaskCapture map[*symbol]bool
-	listeners     []bool
-	parArenas     []int
-	inArena       int
-	tparams       map[string]bool
+	p               *Program
+	fc              *fileCtx
+	fn              *funcInfo
+	scopes          []*scope
+	loopDepth       int
+	parFrames       []parFrame
+	parLoopBase     []int
+	inPar           bool
+	inListener      int
+	inInlineHandler int
+	inTaskHandler   int
+	inTaskCapture   map[*symbol]bool
+	listeners       []bool
+	parArenas       []int
+	inArena         int
+	tparams         map[string]bool
 }
 
 func (c *checker) push() {
@@ -733,6 +734,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 	case *ast.FailStmt:
 		c.checkFailStmt(s)
 	case *ast.ReturnStmt:
+		if c.inInlineHandler > 0 && c.fn != nil && c.fn.err {
+			c.p.warnf(c.fc.file.Path, s.Pos(), "return in on err turns the failure into success: the caller gets a value and a nil error; use fail(err) instead")
+		}
 		if c.inListener > 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave an on err listener; log, panic or handle")
 		}

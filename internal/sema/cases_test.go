@@ -58,6 +58,9 @@ func TestConformanceCases(t *testing.T) {
 		}
 		p := Check(parsed, Options{Root: root, Module: "example.com/test"})
 		for _, e := range p.Errors {
+			if e.Warning {
+				continue
+			}
 			t.Errorf("%s: %s", entry.Name(), e.String())
 		}
 	}

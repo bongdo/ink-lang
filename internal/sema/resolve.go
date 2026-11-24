@@ -474,7 +474,11 @@ func (p *Program) finalChecks() {
 		for _, f := range pkg.Files {
 			for _, u := range f.Uses {
 				if !u.Used && u.Alias != "_" {
-					p.errorf(f.Path, u.Pos(), "import %s is not used", u.Alias)
+					name := u.Alias
+					if name == "" {
+						name = u.Path
+					}
+					p.errorf(f.Path, u.Pos(), "import %s is not used", name)
 				}
 			}
 		}

@@ -225,10 +225,29 @@ func (p *parser) expect(k token.Kind) token.Pos {
 func (p *parser) expectIdent() (token.Token, bool) {
 	t := p.tok()
 	if t.Kind != token.Ident {
+		if word := t.Kind.String(); isWordToken(word) {
+			p.errorf(t.Pos, "%s is a reserved word; rename it", word)
+			return p.next(), true
+		}
 		p.errorf(t.Pos, "expected identifier, found %s", describe(t))
 		return t, false
 	}
 	return p.next(), true
+}
+
+func isWordToken(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if i == 0 && !(r >= 'a' && r <= 'z') {
+			return false
+		}
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *parser) consumeSemi() (token.Pos, bool) {
@@ -520,8 +539,12 @@ func (p *parser) parseParams() []*ast.Param {
 	for !p.at(token.RParen) && !p.at(token.EOF) {
 		t := p.tok()
 		if t.Kind != token.Ident {
-			p.errorf(t.Pos, "expected parameter name, found %s", describe(t))
-			break
+			if word := t.Kind.String(); isWordToken(word) {
+				p.errorf(t.Pos, "%s is a reserved word; rename the parameter", word)
+			} else {
+				p.errorf(t.Pos, "expected parameter name, found %s", describe(t))
+				break
+			}
 		}
 		start := t.Pos
 		p.next()

@@ -773,7 +773,9 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 		}
 		c.push()
 		c.declare(&symbol{name: or.Name, kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: or})
+		c.inInlineHandler++
 		c.checkBlock(or.Block)
+		c.inInlineHandler--
 		c.pop()
 	}
 	return xt
