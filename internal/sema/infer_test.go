@@ -5,7 +5,7 @@ import "testing"
 func TestLambdaInference(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use sort;
 
-type User struct {
+struct User {
     age: i32,
 };
 
@@ -39,7 +39,7 @@ fn main() void {
     var r = lib.Result { value = 1 };
 };
 `,
-		"lib": `type Result struct {
+		"lib": `struct Result {
     Value: i32,
 };
 

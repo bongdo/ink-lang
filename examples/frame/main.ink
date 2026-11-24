@@ -8,7 +8,7 @@ const H = 270;
 
 const RowLen = W * 4;
 
-type Row = u8[RowLen];
+alias Row = u8[RowLen];
 
 fn shadeRow(y: i32, t: f64) Row {
     var row = Row {};

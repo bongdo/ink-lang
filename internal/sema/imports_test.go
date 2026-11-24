@@ -38,22 +38,22 @@ func TestGeneratedTypeCollision(t *testing.T) {
 		src  string
 		line int
 	}{
-		{`type Color enum {
+		{`enum Color {
     Red,
 };
 
-type ColorRed struct {
+struct ColorRed {
     X: i32,
 };
 
 fn main() void {
 };
 `, 5},
-		{`type ColorRed struct {
+		{`struct ColorRed {
     X: i32,
 };
 
-type Color enum {
+enum Color {
     Red,
 };
 

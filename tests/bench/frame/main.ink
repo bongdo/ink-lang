@@ -10,7 +10,7 @@ const RowLen = W * 4;
 
 const Frames = 240;
 
-type Row = u8[RowLen];
+alias Row = u8[RowLen];
 
 fn shadeRow(y: int, t: int) Row {
     var row = Row {};

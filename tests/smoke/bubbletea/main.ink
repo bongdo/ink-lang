@@ -1,7 +1,7 @@
 use fmt;
 use charm.land/bubbletea/v2 as tea;
 
-type Model struct {
+struct Model {
     cursor: int,
 
     fn Init() tea.Cmd {

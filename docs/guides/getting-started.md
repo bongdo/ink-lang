@@ -101,21 +101,21 @@ Go.
 ## Types and constants
 
 ```hare
-type User struct {
+struct User {
     Name: str,
     age: u32,
 };
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Empty,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type UserId = u64;
+alias UserId = u64;
 
 const MaxUsers = 100;
 
@@ -124,8 +124,9 @@ var p: *User = nil;
 
 `const` is package-level only and has no type; a local `const` is an error, use
 `var`. `var` may carry a type (`var p: *User = nil`), which gives bare `nil` its
-expected type. Old declarations with `=` before a type or function body are
-rejected; `ink fmt` formats canonical input.
+expected type. Declarations start with their kind (`struct`, `enum`, `interface`
+or `alias`); the `type` keyword is gone. Old declarations with `=` before a
+function body are rejected; `ink fmt` formats canonical input.
 
 ## Errors
 

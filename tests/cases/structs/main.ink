@@ -1,6 +1,6 @@
 use fmt;
 
-type User struct {
+struct User {
     Name: str,
     age: u32,
 

@@ -33,11 +33,11 @@ func wantError(t *testing.T, p *Program, sub string) *Error {
 }
 
 func TestIfaceConformanceOK(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -45,7 +45,7 @@ type Buffer struct {
     };
 };
 
-type AliasWriter = Writer;
+alias AliasWriter = Writer;
 
 fn emit(w: Writer, text: str) int! {
     return w.Write(bytes(text)) or fail;
@@ -76,11 +76,11 @@ fn main() void! {
 }
 
 func TestIfaceMissingMethod(t *testing.T) {
-	src := `type Writer interface {
+	src := `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Empty struct {
+struct Empty {
     fn Len() int {
         return 0;
     };
@@ -106,11 +106,11 @@ fn main() void {
 }
 
 func TestIfaceWrongParam(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Bad struct {
+struct Bad {
     fn Write(p: str) int! {
         return len(p);
     };
@@ -129,11 +129,11 @@ fn main() void {
 }
 
 func TestIfaceWrongResult(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Bad struct {
+struct Bad {
     fn Write(p: u8[]) bool {
         return true;
     };
@@ -152,11 +152,11 @@ fn main() void {
 }
 
 func TestIfaceMissingErrorResult(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Bad struct {
+struct Bad {
     fn Write(p: u8[]) int {
         return len(p);
     };
@@ -175,11 +175,11 @@ fn main() void {
 }
 
 func TestIfaceValueReceiver(t *testing.T) {
-	src := `type Writer interface {
+	src := `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -215,11 +215,11 @@ fn main() void {
 }
 
 func TestIfaceReturnPosition(t *testing.T) {
-	src := `type Writer interface {
+	src := `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -244,11 +244,11 @@ fn main() void {
 }
 
 func TestIfaceGoNoHiddenCtx(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Good struct {
+struct Good {
     fn Write(p: u8[]) int! {
         par { };
         return len(p);
@@ -272,11 +272,11 @@ fn main() void! {
 }
 
 func TestIfaceCompositeAndAssignment(t *testing.T) {
-	src := `type Writer interface {
+	src := `interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -284,7 +284,7 @@ type Buffer struct {
     };
 };
 
-type Holder struct {
+struct Holder {
     w: Writer,
 };
 
@@ -318,12 +318,12 @@ func TestIfaceUnexportedMethod(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use ./lib as lib;
 
-type Impl struct {
+struct Impl {
     fn write() void {
     };
 };
 
-type hidden interface {
+interface hidden {
     write();
 };
 
@@ -336,7 +336,7 @@ fn main() void {
     lib.Run(&i);
 };
 `,
-		"lib": `type Hidden interface {
+		"lib": `interface Hidden {
     write();
 };
 
@@ -351,7 +351,7 @@ func TestIfaceCrossPackage(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use ./lib as lib;
 
-type Impl struct {
+struct Impl {
     fn Push(m: lib.Msg) int! {
         return 0;
     };
@@ -362,11 +362,11 @@ fn main() void {
     lib.Use(&i);
 };
 `,
-		"lib": `type Msg struct {
+		"lib": `struct Msg {
     n: i32,
 };
 
-type Sink interface {
+interface Sink {
     Push(m: Msg) int!;
 };
 
@@ -380,7 +380,7 @@ fn Use(s: Sink) void {
 func TestIfaceGoReader(t *testing.T) {
 	good := `use io;
 
-type Source struct {
+struct Source {
     fn Read(p: u8[]) int! {
         return len(p);
     };
@@ -403,7 +403,7 @@ fn main() void {
 func TestIfaceGoReaderMismatch(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use io;
 
-type Source struct {
+struct Source {
     fn Read(p: u8[]) i32 {
         return len(p);
     };

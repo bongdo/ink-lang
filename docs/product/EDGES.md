@@ -47,9 +47,9 @@ not re-file.
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
 | `nil-map-write` sees variables declared `= nil`, not struct fields or parameters. | A field is nil until assigned and a parameter may be nil at run time; without flow analysis any warning on them would be false most of the time. |
 | A map is nil until it is assigned; there is no implicit allocation. | `map[K, V] {}` is empty, `map[K, V](nil)` is nil; `nil[T]` also works. Writing to a nil map is the warning `nil-map-write`. |
-| The slice constructor needs a nameable element type: `*Point[](n)` parses as a dereference. | `T[](n)` is the type applied to a size; a pointer or nested slice element needs an alias. | `type PointPtr = *Point;` then `PointPtr[](n)`. |
+| The slice constructor needs a nameable element type: `*Point[](n)` parses as a dereference. | `T[](n)` is the type applied to a size; a pointer or nested slice element needs an alias. | `alias PointPtr = *Point;` then `PointPtr[](n)`. |
 | A bare integer variable is Go `int`; mixing it with `i32` needs an annotation or a conversion. | Go has the same rule; the message uses Ink type names and the hint names the fix (`var n: i32 = 0` / `i32(x)`). |
-| `usize` and `isize` are gone. | They were aliases of `uint`/`int`; `type-removed` names the replacement. |
+| `usize` and `isize` are gone. | They were aliases of `uint`/`int`; write `uint`/`int` instead. |
 | `new` is a builtin name; `make` was removed. | A user function named `new` is rejected and must be renamed; `make` in source is a diagnostic with a hint. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block and the listener. |
 | Import paths cannot contain spaces or quotes. | Paths are bare; valid Go module paths fit the path charset. |

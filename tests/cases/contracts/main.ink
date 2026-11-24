@@ -1,7 +1,7 @@
 use encoding/json;
 use fmt;
 
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Role: str,

@@ -12,7 +12,7 @@ use context;
 use os/signal;
 use syscall;
 
-type Item struct {
+struct Item {
     ID: int,
     Title: str,
     Done: bool,
@@ -24,7 +24,7 @@ type Item struct {
     };
 };
 
-type CreateReq struct {
+struct CreateReq {
     Title: str,
 
     wire {
@@ -32,7 +32,7 @@ type CreateReq struct {
     };
 };
 
-type PatchReq struct {
+struct PatchReq {
     Done: bool,
 
     wire {
@@ -40,7 +40,7 @@ type PatchReq struct {
     };
 };
 
-type Store struct {
+struct Store {
     mu: sync.Mutex,
     items: Item[],
     next: int,

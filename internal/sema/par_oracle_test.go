@@ -72,7 +72,7 @@ func TestParMapWriteRejected(t *testing.T) {
 
 func TestParPointerWriteRejected(t *testing.T) {
 	cases := map[string]string{
-		"field": `type C struct {
+		"field": `struct C {
     n: i32,
 };
 
@@ -100,7 +100,7 @@ fn main() void {
     };
 };
 `,
-		"param": `type C struct {
+		"param": `struct C {
     n: i32,
 };
 
@@ -125,7 +125,7 @@ fn main() void {
 
 func TestParAliasWriteRejected(t *testing.T) {
 	cases := map[string]string{
-		"alias outside": `type C struct {
+		"alias outside": `struct C {
     n: i32,
 };
 
@@ -138,7 +138,7 @@ fn main() void {
     };
 };
 `,
-		"alias inside": `type C struct {
+		"alias inside": `struct C {
     n: i32,
 };
 
@@ -153,7 +153,7 @@ fn main() void {
     };
 };
 `,
-		"chained alias inside": `type C struct {
+		"chained alias inside": `struct C {
     n: i32,
 };
 
@@ -179,7 +179,7 @@ fn main() void {
 
 func TestParMethodWriteRejected(t *testing.T) {
 	cases := map[string]string{
-		"pointer receiver": `type C struct {
+		"pointer receiver": `struct C {
     n: i32,
 
     fn Bump() void {
@@ -195,7 +195,7 @@ fn main() void {
     };
 };
 `,
-		"self": `type C struct {
+		"self": `struct C {
     n: i32,
 
     fn Bump() void {
@@ -369,7 +369,7 @@ fn main() void {
     };
 };
 `,
-		"value struct method": `type C struct {
+		"value struct method": `struct C {
     n: i32,
 
     fn Bump() void {

@@ -1,6 +1,6 @@
 use fmt;
 
-type Point struct {
+struct Point {
     X: i32,
     Y: i32,
 };

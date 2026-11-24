@@ -2,7 +2,7 @@ use fmt;
 use os;
 use errors;
 
-type Point struct {
+struct Point {
     x: i32,
 };
 

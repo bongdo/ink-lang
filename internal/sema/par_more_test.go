@@ -89,7 +89,7 @@ fn main() void {
 
 func TestParStructMapWriteRejected(t *testing.T) {
 	parGapsError(t, `
-type Group struct {
+struct Group {
     m: map[i32, i32],
 };
 
@@ -129,7 +129,7 @@ fn main() void {
 
 func TestParMethodMatchWriteRejected(t *testing.T) {
 	parGapsError(t, `
-type C struct {
+struct C {
     n: i32,
 
     fn Get() i32 {

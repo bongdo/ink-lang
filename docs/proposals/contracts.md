@@ -14,7 +14,7 @@ kind, per the owner's decision ("это один и тот же тип — wire 
 ## Surface
 
 ```ink
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Role: str,

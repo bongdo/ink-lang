@@ -29,7 +29,7 @@ func TestUnreachablePanicFollowsControlFlow(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 
-type E enum {
+enum E {
     A,
     B,
 };

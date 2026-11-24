@@ -11,7 +11,7 @@ const sample = `use fmt;
 use ./lib as lib;
 
 // user type
-type User struct {
+struct User {
     Name: str,
     age: u32,
 
@@ -20,16 +20,16 @@ type User struct {
     };
 };
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Empty,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Id = u64;
+alias Id = u64;
 
 const Max = 10;
 
@@ -135,7 +135,7 @@ fn main() void {
 func TestTrailingCommentsStay(t *testing.T) {
 	src := `use fmt;
 
-type User struct {
+struct User {
     Name: str, // name
 };
 
@@ -148,7 +148,7 @@ fn main() void {
 `
 	want := `use fmt;
 
-type User struct {
+struct User {
     Name: str, // name
 };
 
@@ -168,7 +168,7 @@ fn main() void {
 func TestTrailingCommentsUseAndMatch(t *testing.T) {
 	src := `use fmt; // note
 
-type User struct {
+struct User {
     Name: str,
 }; // point
 
@@ -182,7 +182,7 @@ fn main() void {
 `
 	want := `use fmt; // note
 
-type User struct {
+struct User {
     Name: str,
 }; // point
 
@@ -253,7 +253,7 @@ fn main() void {
 }
 
 func TestInterfaceMethodWithoutFn(t *testing.T) {
-	src := `type Writer interface {
+	src := `interface Writer {
     Write(p: u8[]) int!;
     Close() void;
     Flush();
@@ -313,7 +313,7 @@ func TestNewSyntax(t *testing.T) {
     return 1, 2;
 };
 
-type Handler = fn(i32) (str, bool);
+alias Handler = fn(i32) (str, bool);
 
 fn main() void {
     var x = nil;
@@ -337,19 +337,19 @@ fn main() void {
 }
 
 func TestCanonicalDeclSyntax(t *testing.T) {
-	src := `type User struct {
+	src := `struct User {
     Name: str,
 };
 
-type Shape enum {
+enum Shape {
     Circle,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type UserId = u64;
+alias UserId = u64;
 
 fn Greet() str {
     return "hi";
@@ -391,7 +391,7 @@ func TestElseIfSingleSemicolon(t *testing.T) {
 }
 
 func TestTypedVarDecl(t *testing.T) {
-	src := `type Point struct {
+	src := `struct Point {
     X: i32,
 };
 

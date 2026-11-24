@@ -7,7 +7,7 @@ import (
 )
 
 func TestContractBlocks(t *testing.T) {
-	f := mustParse(t, `type User struct {
+	f := mustParse(t, `struct User {
     wire: str,
     ID: i64
     fn Label() str {
@@ -44,14 +44,14 @@ fn main() void {
 }
 
 func TestContractOnlyInStruct(t *testing.T) {
-	_, errs := Parse("bad.ink", []byte(`type Shape enum {
+	_, errs := Parse("bad.ink", []byte(`enum Shape {
     Circle,
     wire {
         A: "a",
     },
 };
 
-type W interface {
+interface W {
     wire {
         A: "a",
     };

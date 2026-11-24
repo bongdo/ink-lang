@@ -12,7 +12,7 @@ fn pair() (i32, i32)! {
     return 1, 2;
 };
 
-type Handler = fn(i32) (str, bool)!;
+alias Handler = fn(i32) (str, bool)!;
 
 fn main() void {};
 `)

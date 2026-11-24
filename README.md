@@ -8,7 +8,7 @@ Go-speed binaries, Hare-like syntax, sum types, and structured parallelism.
 ```hare
 use fmt;
 
-type User struct {
+struct User {
     Name: str,
     age: u32,
 
@@ -187,10 +187,10 @@ Highlights:
 - struct literals use named fields only: `User { Name: "A" }`.
 - multiple results: `fn f() (A, B)!`, `var a, b = f();`,
   `var a, b = f() or fail;`; `_` is a result placeholder and explicit discard.
-- `type Name struct { ... }`, `type Shape enum { ... }`,
-  `type Writer interface { ... }`; alias keeps `=` (`type UserId = u64;`).
+- `struct Name { ... }`, `enum Shape { ... }`,
+  `interface Writer { ... }`; aliases start with `alias` (`alias UserId = u64;`).
   Fields and methods live inside the body, with implicit `self`.
-- `type Shape enum { Circle { radius: f64 }, Empty, };` with exhaustive `match`.
+- `enum Shape { Circle { radius: f64 }, Empty, };` with exhaustive `match`.
 - `match` on `any` with `case T as x` and `else`; negative literals and
   `case nil` for nilable values. `break`/`continue` in a case target the loop.
 - `T[]`, `T[N]`, `map[K, V]`, `*T`, `fn(A) R`, generics `Stack[T]`.

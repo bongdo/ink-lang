@@ -2,7 +2,7 @@ package sema
 
 import "testing"
 
-const contractOK = `type User struct {
+const contractOK = `struct User {
     ID: i64,
     Email: str,
     Pass: str,
@@ -29,7 +29,7 @@ func TestContractsOK(t *testing.T) {
 }
 
 func TestContractMissingField(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     wire {
@@ -43,7 +43,7 @@ fn main() void {};
 }
 
 func TestContractUnexportedField(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     id: i64,
 
     wire {
@@ -57,7 +57,7 @@ fn main() void {};
 }
 
 func TestContractDuplicateField(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     wire {
@@ -72,7 +72,7 @@ fn main() void {};
 }
 
 func TestContractDuplicateName(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
     Other: i64,
 
@@ -88,7 +88,7 @@ fn main() void {};
 }
 
 func TestContractDuplicateBlock(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     wire {
@@ -106,7 +106,7 @@ fn main() void {};
 }
 
 func TestContractEmpty(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     wire {
@@ -119,7 +119,7 @@ fn main() void {};
 }
 
 func TestContractGeneric(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Box[T] struct {
+	p := checkSrc(t, map[string]string{".": `struct Box[T] {
     Value: T,
 
     wire {
@@ -133,7 +133,7 @@ fn main() void {};
 }
 
 func TestContractUnusedView(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     admin {
@@ -147,7 +147,7 @@ fn main() void {};
 }
 
 func TestContractBadKey(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     wire {
@@ -161,7 +161,7 @@ fn main() void {};
 }
 
 func TestContractUppercaseView(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     Admin {
@@ -175,7 +175,7 @@ fn main() void {};
 }
 
 func TestContractViewCollidesWithField(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     admin: i64,
 
     admin {
@@ -192,7 +192,7 @@ fn main() void {
 }
 
 func TestContractViewCollidesWithMethod(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     fn admin() void {};
@@ -211,11 +211,11 @@ fn main() void {
 }
 
 func TestContractUnusedIsPerType(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Other struct {
+	p := checkSrc(t, map[string]string{".": `struct Other {
     admin: i64,
 };
 
-type User struct {
+struct User {
     ID: i64,
 
     admin {
@@ -232,7 +232,7 @@ fn main() void {
 }
 
 func TestContractInvalidViewOneError(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     ID: i64,
 
     Admin {

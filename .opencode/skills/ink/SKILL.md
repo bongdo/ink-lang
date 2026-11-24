@@ -92,14 +92,14 @@ test "load fails on bad json" {
 ```hare
 use fmt;
 
-type User struct {
+struct User {
     Name: str,
     fn Greet() str { return "hi, " + Name; };
 };
 
-type Shape enum { Circle { radius: f64 }, Empty, };
-type Writer interface { Write(p: u8[]) int!; };
-type ID = u64;
+enum Shape { Circle { radius: f64 }, Empty, };
+interface Writer { Write(p: u8[]) int!; };
+alias ID = u64;
 const Max = 100;
 
 fn load(name: str) User! { return User { Name: name }; };
@@ -107,8 +107,9 @@ fn split(n: i32) (i32, bool)! { return n, true; };
 fn pair() i32, bool { return 1, true; };
 ```
 
-- `type X struct/enum/interface` has no `=`; aliases keep `=`. Methods live in
-  the type body; `self` is implicit; struct literals use `field: value`.
+- Declarations start with `struct`, `enum`, `interface` or `alias`; aliases keep
+  `=`. Methods live in the type body; `self` is implicit; struct literals use
+  `field: value`.
 - Contract blocks live in a struct body. `wire { Field: "name"; };` is the
   default JSON view; any other lowercase block name is a named view:
   `admin { Field: "name"; };`. A block is an allowlist; unlisted fields are
@@ -119,7 +120,7 @@ fn pair() i32, bool { return 1, true; };
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - A method is declared inside the type body, after its fields; there is no
   file-scope receiver clause, and methods are never split across files. A big
-  type is split by composition: `type SessionAPI struct { App: *App };` with
+  type is split by composition: `struct SessionAPI { App: *App };` with
   its methods in the body, and `App` holds `Sessions: *SessionAPI`. `self` is a pointer: mutating `Items`, `Orders`
   or any field inside a method changes the value the caller holds, and a map or
   slice field is shared even when the struct is copied. Return `void!` when the

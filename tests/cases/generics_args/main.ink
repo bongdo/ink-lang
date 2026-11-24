@@ -2,11 +2,11 @@ use cmp;
 use fmt;
 use slices;
 
-type User struct {
+struct User {
     age: i32,
 };
 
-type Strs = str[];
+alias Strs = str[];
 
 fn Echo[T](x: T) T {
     return x;

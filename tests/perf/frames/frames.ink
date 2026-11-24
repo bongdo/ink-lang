@@ -6,7 +6,7 @@ const Frames = 3000;
 
 const Windows = 64;
 
-type Rect struct {
+struct Rect {
     X: f64,
     Y: f64,
     W: f64,
@@ -23,7 +23,7 @@ fn tile(i: int, n: int, w: f64, h: f64, gap: f64) Rect {
     };
 };
 
-type Stats struct {
+struct Stats {
     Mean: f64,
     P50: f64,
     P99: f64,

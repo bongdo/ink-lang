@@ -106,11 +106,11 @@ fn main() void {
 }
 
 func TestExplicitCallTypeArgsDriveConformance(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Writer interface {
+	p := checkSrc(t, map[string]string{".": `interface Writer {
     Write() void;
 };
 
-type Buf struct {
+struct Buf {
     age: i32,
 };
 

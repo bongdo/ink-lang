@@ -40,7 +40,7 @@ fn run() void! {
 
 fn main() void {};
 `,
-		"struct field": `type S struct {
+		"struct field": `struct S {
     x: void,
 };
 
@@ -57,7 +57,7 @@ fn main() void {
     _ = xs;
 };
 `,
-		"struct literal field": `type S struct {
+		"struct literal field": `struct S {
     x: i32,
 };
 
@@ -80,7 +80,7 @@ fn main() void {
     _ = xs;
 };
 `,
-		"generic void arg": `type Box[T] struct {
+		"generic void arg": `struct Box[T] {
     v: T,
 };
 

@@ -39,7 +39,7 @@ func arrayVarType(t *testing.T, p *Program, name string) *ast.ArrayType {
 }
 
 func TestArrayNamedConstStruct(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Foo struct {
+	p := checkSrc(t, map[string]string{".": `struct Foo {
     x: i32,
 };
 
@@ -63,7 +63,7 @@ fn main() void {
 }
 
 func TestArrayNamedConstAlias(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Byte = u8;
+	p := checkSrc(t, map[string]string{".": `alias Byte = u8;
 
 const N = 3;
 
@@ -85,7 +85,7 @@ fn main() void {
 }
 
 func TestArrayLiteralLength(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Foo struct {
+	p := checkSrc(t, map[string]string{".": `struct Foo {
     x: i32,
 };
 
@@ -103,7 +103,7 @@ fn main() void {
 }
 
 func TestArrayGenericTypeDiagnostic(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Stack[Item] struct {
+	p := checkSrc(t, map[string]string{".": `struct Stack[Item] {
     data: Item[],
 };
 
@@ -116,11 +116,11 @@ fn main() void {
 }
 
 func TestArrayLengthNotConstant(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Foo struct {
+	p := checkSrc(t, map[string]string{".": `struct Foo {
     x: i32,
 };
 
-type Bar struct {
+struct Bar {
     y: i32,
 };
 
@@ -133,7 +133,7 @@ fn main() void {
 }
 
 func TestGenericInstantiationStillWorks(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Stack[Item] struct {
+	p := checkSrc(t, map[string]string{".": `struct Stack[Item] {
     data: Item[],
 };
 
@@ -156,7 +156,7 @@ func TestArrayImportedConstLength(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use ./lib as lib;
 
-type Foo struct {
+struct Foo {
     x: i32,
 };
 
@@ -187,7 +187,7 @@ func TestArrayImportedVarNotConstant(t *testing.T) {
 	p := checkSrc(t, map[string]string{
 		".": `use ./lib as lib;
 
-type Foo struct {
+struct Foo {
     x: i32,
 };
 
@@ -203,12 +203,12 @@ fn main() void {
 }
 
 func TestDuplicateEnumVariantPackage(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type A enum {
+	p := checkSrc(t, map[string]string{".": `enum A {
     X,
     Y,
 };
 
-type B enum {
+enum B {
     Y,
     Z,
 };
@@ -220,13 +220,13 @@ fn main() void {};
 
 func TestDuplicateEnumVariantOtherPackage(t *testing.T) {
 	p := checkSrc(t, map[string]string{
-		".": `type A enum {
+		".": `enum A {
     X,
 };
 
 fn main() void {};
 `,
-		"lib": `type B enum {
+		"lib": `enum B {
     X,
 };
 `,

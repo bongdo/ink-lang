@@ -6,7 +6,7 @@ func TestGoDetachedReceiverSnapshot(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use time;
 
-type Counter struct {
+struct Counter {
     N: i32,
 
     fn Bump(k: i32) void {
@@ -104,11 +104,11 @@ func TestGoInterfaceReceiver(t *testing.T) {
 		"main.ink": `use fmt;
 use time;
 
-type Notifier interface {
+interface Notifier {
     Notify(msg: str) void;
 };
 
-type Sink struct {
+struct Sink {
     fn Notify(msg: str) void {
         fmt.Println("sink", msg)
             on err { _ = err; };

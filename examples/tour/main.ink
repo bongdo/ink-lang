@@ -17,14 +17,14 @@ const N = 3;
 var packageVar = i32(7);
 
 // Aliases do not create a new Go type.
-type UserId = u64;
+alias UserId = u64;
 
-type Handler = fn(i32) i32;
+alias Handler = fn(i32) i32;
 
-type PairFn = fn(i32) (str, bool);
+alias PairFn = fn(i32) (str, bool);
 
 // Struct: fields and methods live in the type body; `self` is implicit.
-type Point struct {
+struct Point {
     x: i32,
     y: i32,
 
@@ -39,7 +39,7 @@ type Point struct {
 };
 
 // Enum is a sealed sum type. `match` must be exhaustive.
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
@@ -54,11 +54,11 @@ fn area(s: Shape) f64 {
 };
 
 // Interfaces are structural; methods are signatures, without `fn`.
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -72,7 +72,7 @@ fn emit(w: Writer, text: str) int! {
 };
 
 // Generics: type parameters are written in `[...]`.
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {

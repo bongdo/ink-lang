@@ -1,6 +1,6 @@
 use fmt;
 
-type Node struct {
+struct Node {
     value: i32,
     next: *Node,
 };

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const validSrc = `type User struct {
+const validSrc = `struct User {
     Name: str,
 
     fn hello() str {
@@ -907,7 +907,7 @@ fn main() void {
 }
 
 func TestCompletionAfterDot(t *testing.T) {
-	src := `type Item struct {
+	src := `struct Item {
     Name: str,
     Qty: i32,
 

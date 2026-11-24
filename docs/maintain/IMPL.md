@@ -85,11 +85,11 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program
 The driver guarantees `go.mod` exists and Go imports are resolvable before
 `Check` is called; sema returns an error if they are not.
 
-The parser accepts only the canonical declaration forms (`type X struct`,
-`type X enum`, `type X interface`, `fn f() R { ... }`); `=` before a body is a
-parse error. The formatter prints the canonical form. Aliases always require
-`=` (`type X = Y`). A non-local Go import path ending in `/v2`, `/v3`, ... without
-an alias is a parse error.
+The parser accepts the canonical declaration forms (`struct X`, `enum X`,
+`interface X`, `alias X = Y`, `fn f() R { ... }`); the `type` keyword is
+rejected with `type-removed`. The formatter prints the canonical form. Aliases
+always require `=` (`alias X = Y`). A non-local Go import path ending in
+`/v2`, `/v3`, ... without an alias is a parse error.
 
 Sema fills:
 

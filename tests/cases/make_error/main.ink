@@ -1,7 +1,7 @@
 use fmt;
 use errors;
 
-type Point struct {
+struct Point {
     X: i32,
 };
 

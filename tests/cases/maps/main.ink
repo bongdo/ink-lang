@@ -1,10 +1,10 @@
 use fmt;
 
-type P struct {
+struct P {
     x: i32,
 };
 
-type Bag struct {
+struct Bag {
     m: map[str, i32],
 };
 

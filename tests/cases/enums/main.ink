@@ -1,6 +1,6 @@
 use fmt;
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,

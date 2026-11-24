@@ -18,9 +18,9 @@ fn main() void {};
 }
 
 func TestArenaRejectsMethodCall(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
-type Mover struct {
+struct Mover {
     fn Move(p: *Point) void { p.X = 1; };
 };
 
@@ -38,7 +38,7 @@ fn main() void {};
 }
 
 func TestArenaRejectsClosureEscape(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn f() void {
     var out = fn() i32 { return 0; };
@@ -107,7 +107,7 @@ fn main() void {};
 }
 
 func TestArenaEscapeRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn leak() *Point {
     var out: *Point = nil;
@@ -123,7 +123,7 @@ fn main() void {};
 }
 
 func TestArenaReturnRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn leak() *Point {
     arena {
@@ -137,7 +137,7 @@ fn main() void {};
 }
 
 func TestArenaRejectsArg(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn consume(p: *Point) void { _ = p; };
 
@@ -169,9 +169,9 @@ fn main() void {};
 }
 
 func TestArenaRejectsStructWithPointer(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
-type Holder struct {
+struct Holder {
     P: *Point,
 };
 
@@ -191,7 +191,7 @@ fn main() void {};
 }
 
 func TestArenaAllowsScalarStructCopy(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Vec struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Vec { X: i32 };
 
 fn consume(v: Vec) void { _ = v; };
 
@@ -209,7 +209,7 @@ fn main() void {};
 }
 
 func TestArenaAddrRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn f() void {
     arena {
@@ -224,7 +224,7 @@ fn main() void {};
 }
 
 func TestArenaScalarCopyAllowed(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn f() i32 {
     var n = i32(0);
@@ -242,8 +242,8 @@ fn main() void {};
 }
 
 func TestArenaRejectsCopyOfPointers(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
-type PointPtr = *Point;
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
+alias PointPtr = *Point;
 
 fn f() void {
     var out = PointPtr[](2);
@@ -259,7 +259,7 @@ fn main() void {};
 }
 
 func TestArenaRejectsMatchBinding(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn consume(p: *Point) void { _ = p; };
 

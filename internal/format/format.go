@@ -256,12 +256,12 @@ func (p *printer) params(ps []*ast.Param) {
 
 func (p *printer) typeDecl(t *ast.TypeDecl) {
 	p.ind()
-	p.write("type ")
-	p.write(t.Name)
-	p.typeParams(t.TypeParams)
 	switch t.Kind {
 	case ast.TypeStruct:
-		p.write(" struct {")
+		p.write("struct ")
+		p.write(t.Name)
+		p.typeParams(t.TypeParams)
+		p.write(" {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -300,7 +300,10 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	case ast.TypeEnum:
-		p.write(" enum {")
+		p.write("enum ")
+		p.write(t.Name)
+		p.typeParams(t.TypeParams)
+		p.write(" {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -330,7 +333,10 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	case ast.TypeInterface:
-		p.write(" interface {")
+		p.write("interface ")
+		p.write(t.Name)
+		p.typeParams(t.TypeParams)
+		p.write(" {")
 		p.line()
 		p.lastLine = t.Pos().Line
 		p.indent++
@@ -347,6 +353,9 @@ func (p *printer) typeDecl(t *ast.TypeDecl) {
 		p.ind()
 		p.write("};")
 	default:
+		p.write("alias ")
+		p.write(t.Name)
+		p.typeParams(t.TypeParams)
 		p.write(" = ")
 		p.typ(t.Target)
 		p.write(";")

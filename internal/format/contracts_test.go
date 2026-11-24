@@ -7,7 +7,7 @@ import (
 )
 
 func TestContractRoundTrip(t *testing.T) {
-	src := `type User struct {
+	src := `struct User {
     ID: i64,
     Email: str,
 

@@ -12,7 +12,7 @@ func TestLocalConstRejected(t *testing.T) {
 }
 
 func TestPackageConstArrayLength(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Foo struct {
+	p := checkSrc(t, map[string]string{".": `struct Foo {
     x: i32,
 };
 

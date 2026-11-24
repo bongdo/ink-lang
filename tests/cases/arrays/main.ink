@@ -1,14 +1,14 @@
 use fmt;
 use ./lib;
 
-type Point struct {
+struct Point {
     x: i32,
     y: i32,
 };
 
-type Byte = u8;
+alias Byte = u8;
 
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {

@@ -66,6 +66,7 @@ const (
 	As
 	Fn
 	Type
+	Alias
 	Struct
 	Enum
 	Interface
@@ -156,6 +157,7 @@ var names = map[Kind]string{
 	As:            "as",
 	Fn:            "fn",
 	Type:          "type",
+	Alias:         "alias",
 	Struct:        "struct",
 	Enum:          "enum",
 	Interface:     "interface",

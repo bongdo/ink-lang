@@ -1,10 +1,10 @@
 use fmt;
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buffer struct {
+struct Buffer {
     data: u8[],
 
     fn Write(p: u8[]) int! {

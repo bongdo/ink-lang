@@ -27,7 +27,7 @@ func TestParForMapWriteRejected(t *testing.T) {
 }
 
 func TestParForMapFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Cell struct { v: i32 };
+	parGapsError(t, `struct Cell { v: i32 };
 
 fn main() void {
     var m = map[i32, Cell] {};
@@ -39,7 +39,7 @@ fn main() void {
 }
 
 func TestParForNestedMapWriteRejected(t *testing.T) {
-	parGapsError(t, `type Group struct { m: map[i32, i32] };
+	parGapsError(t, `struct Group { m: map[i32, i32] };
 
 fn main() void {
     var g = Group { m = map[i32, i32] {} };
@@ -51,7 +51,7 @@ fn main() void {
 }
 
 func TestParForSliceFieldWriteAllowed(t *testing.T) {
-	parGapsOK(t, `type Cell struct { v: i32 };
+	parGapsOK(t, `struct Cell { v: i32 };
 
 fn main() void {
     var cs = Cell[] { Cell { v = 0 }, Cell { v = 0 } };
@@ -73,7 +73,7 @@ func TestParPlainMapWriteRejected(t *testing.T) {
 }
 
 func TestParForAliasFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box struct { x: i32 };
+	parGapsError(t, `struct Box { x: i32 };
 
 fn main() void {
     var b = Box { x = 0 };
@@ -87,7 +87,7 @@ fn main() void {
 }
 
 func TestParForAliasAssignFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box struct { x: i32 };
+	parGapsError(t, `struct Box { x: i32 };
 
 fn main() void {
     var b = Box { x = 0 };
@@ -102,7 +102,7 @@ fn main() void {
 }
 
 func TestParForAddressAliasFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box struct { x: i32 };
+	parGapsError(t, `struct Box { x: i32 };
 
 fn main() void {
     var b = Box { x = 0 };
@@ -115,7 +115,7 @@ fn main() void {
 }
 
 func TestParForAliasChainFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Box struct { x: i32 };
+	parGapsError(t, `struct Box { x: i32 };
 
 fn main() void {
     var b = Box { x = 0 };
@@ -130,7 +130,7 @@ fn main() void {
 }
 
 func TestParForLocalAliasFieldWriteAllowed(t *testing.T) {
-	parGapsOK(t, `type Box struct { x: i32 };
+	parGapsOK(t, `struct Box { x: i32 };
 
 fn main() void {
     par for (var i = 0; i < 2; i += 1) {
@@ -143,7 +143,7 @@ fn main() void {
 }
 
 func TestParForAliasMethodRejected(t *testing.T) {
-	parGapsError(t, `type Counter struct {
+	parGapsError(t, `struct Counter {
     n: i32,
 
     fn Add(v: i32) void {
@@ -163,7 +163,7 @@ fn main() void {
 }
 
 func TestParForCapturedMethodRejected(t *testing.T) {
-	parGapsError(t, `type Counter struct {
+	parGapsError(t, `struct Counter {
     n: i32,
 
     fn Add(v: i32) void {
@@ -182,7 +182,7 @@ fn main() void {
 }
 
 func TestParPureMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Counter struct {
+	parGapsOK(t, `struct Counter {
     n: i32,
 
     fn Get() i32 {
@@ -204,7 +204,7 @@ fn main() void {
 }
 
 func TestParForLocalMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Counter struct {
+	parGapsOK(t, `struct Counter {
     n: i32,
 
     fn Add(v: i32) void {
@@ -222,7 +222,7 @@ fn main() void {
 }
 
 func TestParForSliceSlotMethodAllowed(t *testing.T) {
-	parGapsOK(t, `type Cell struct {
+	parGapsOK(t, `struct Cell {
     v: i32,
 
     fn Set(x: i32) void {
@@ -240,7 +240,7 @@ fn main() void {
 }
 
 func TestParMethodFieldWriteRejected(t *testing.T) {
-	parGapsError(t, `type Counter struct {
+	parGapsError(t, `struct Counter {
     n: i32,
 
     fn Bump() void {

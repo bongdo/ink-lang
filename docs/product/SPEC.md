@@ -53,15 +53,15 @@ go 1.27
 Type declarations have one canonical form:
 
 ```hare
-type User struct { ... };
-type Shape enum { ... };
-type Writer interface { ... };
-type UserId = u64;
+struct User { ... };
+enum Shape { ... };
+interface Writer { ... };
+alias UserId = u64;
 ```
 
 A struct, enum or interface declaration has no `=` before its body; an alias
-keeps `=`. The older form with `=` before a struct, enum or interface body is
-rejected.
+keeps `=`. Declarations start with `struct`, `enum`, `interface` or `alias`;
+the `type` keyword is gone.
 
 ### 3.1. Builtins
 
@@ -95,7 +95,7 @@ slice of pointers.
 ### 3.3. Structs
 
 ```hare
-type Buffer struct {
+struct Buffer {
     data: u8[],
     name: str,
 
@@ -119,7 +119,7 @@ A struct body may declare contract blocks. `wire` is the default external view;
 any other lowercase block name is a named view of the same contract type:
 
 ```hare
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Pass: str,
@@ -157,7 +157,7 @@ type User struct {
 ### 3.4. Enums
 
 ```hare
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
 };
@@ -175,7 +175,7 @@ type Shape enum {
 Interfaces exist for Go interop and for explicitly declared contracts:
 
 ```hare
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 ```
@@ -185,7 +185,7 @@ Implementation is structural. No `implements`, no embedding.
 ### 3.6. Generics
 
 ```hare
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {
@@ -207,8 +207,8 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] { ... };
 ### 3.7. Aliases
 
 ```hare
-type UserId = u64;
-type Handler = fn(Request) Response!;
+alias UserId = u64;
+alias Handler = fn(Request) Response!;
 ```
 
 An alias does not create a new Go type.

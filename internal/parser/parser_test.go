@@ -156,7 +156,7 @@ use ./ed as ed;
 
 const Max = 100;
 
-type User struct {
+struct User {
     Name: str,
     age: u32,
 
@@ -169,21 +169,21 @@ type User struct {
     };
 };
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
     Flush() void;
 };
 
-type Id = u64;
-type Handler = fn(Request) Response!;
+alias Id = u64;
+alias Handler = fn(Request) Response!;
 
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {
@@ -413,19 +413,19 @@ func TestVersionedImportRequiresAlias(t *testing.T) {
 }
 
 func TestTypeDeclSyntax(t *testing.T) {
-	src := `type User struct {
+	src := `struct User {
     Name: str,
 };
 
-type Shape enum {
+enum Shape {
     Circle,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type UserId = u64;
+alias UserId = u64;
 `
 	f := mustParse(t, src)
 	checkSpans(t, f)
@@ -444,26 +444,43 @@ type UserId = u64;
 	}
 }
 
-func TestTypeDefinitionRejectsAssign(t *testing.T) {
-	cases := []string{
-		"type X = struct {\n    A: int,\n};\n",
-		"type X = enum {\n    A,\n};\n",
-		"type X = interface {\n    Close() void;\n};\n",
+func TestTypeRemoved(t *testing.T) {
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{"type User struct {\n    Name: str,\n};\n", "declare struct User { ... }"},
+		{"type Shape enum {\n    Empty,\n};\n", "declare enum Shape { ... }"},
+		{"type Writer interface {\n    Write(p: u8[]) int!;\n};\n", "declare interface Writer { ... }"},
+		{"type UserId = u64;\n", "declare alias UserId = ..."},
 	}
-	for _, src := range cases {
-		f, errs := Parse("oldtype.ink", []byte(src))
-		if len(errs) != 1 || errs[0].Msg != "type definitions are declared without '='" {
-			t.Fatalf("%q: errors = %v", src, errs)
+	for _, tc := range cases {
+		f, errs := Parse("oldtype.ink", []byte(tc.src))
+		if len(errs) != 1 {
+			t.Fatalf("%q: errors = %v", tc.src, errs)
+		}
+		if !strings.Contains(errs[0].Msg, tc.want) {
+			t.Errorf("%q: message = %q, want %q", tc.src, errs[0].Msg, tc.want)
+		}
+		if got := diag.Classify(errs[0].Msg).Code; got != "type-removed" {
+			t.Errorf("%q: code = %q", tc.src, got)
 		}
 		checkSpans(t, f)
-		if td := declType(t, f, "X"); td.Kind == ast.TypeAlias {
-			t.Errorf("%q: parsed as alias: %+v", src, td)
-		}
+	}
+	f, errs := Parse("oldtype.ink", []byte("type User struct {\n    Name: str,\n};\n\nfn main() void {};\n"))
+	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "not an Ink word") {
+		t.Fatalf("errors = %v", errs)
+	}
+	if td := declType(t, f, "User"); td.Kind != ast.TypeStruct || len(td.Fields) != 1 {
+		t.Errorf("User = %+v", td)
+	}
+	if declFunc(t, f, "main") == nil {
+		t.Error("main not parsed after the removed keyword")
 	}
 }
 
 func TestTypeAliasRequiresAssign(t *testing.T) {
-	_, errs := Parse("alias.ink", []byte("type Id u64;\n"))
+	_, errs := Parse("alias.ink", []byte("alias Id u64;\n"))
 	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "expected '='") {
 		t.Fatalf("errors = %v", errs)
 	}
@@ -980,21 +997,21 @@ func TestExpressions(t *testing.T) {
 	}
 }
 
-const typesSrc = `type A = u8[];
-type B = u8[16];
-type C = u8[][];
-type D = u8[16][];
-type E = map[str, User];
-type F = *Node;
-type G = fn(A, B) C!;
-type H = (u8[])[];
-type I = Stack[i32];
-type J = pkg.Type;
-type K = ed.Shape.Circle;
-type L = u8[2 + 2];
-type M = T[N];
-type N = fn(A) B;
-type P interface {
+const typesSrc = `alias A = u8[];
+alias B = u8[16];
+alias C = u8[][];
+alias D = u8[16][];
+alias E = map[str, User];
+alias F = *Node;
+alias G = fn(A, B) C!;
+alias H = (u8[])[];
+alias I = Stack[i32];
+alias J = pkg.Type;
+alias K = ed.Shape.Circle;
+alias L = u8[2 + 2];
+alias M = T[N];
+alias N = fn(A) B;
+interface P {
     Close() void;
 };
 `
@@ -1110,7 +1127,7 @@ const specExampleSrc = `use fmt;
 use os;
 use sort;
 
-type User struct {
+struct User {
     Name: str,
     age: u32,
 
@@ -1119,7 +1136,7 @@ type User struct {
     };
 };
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
 };
@@ -1243,16 +1260,16 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 		"match (x) { case => ;",
 		"fn f() void { x = [; };",
 		"@@@ ???",
-		"type X struct { a: int fn };",
+		"struct X { a: int fn };",
 		"test \"x\" {",
 		"(((((((((",
 		"fn f() void { defer 1; };",
-		"type X enum { A { ; } };",
+		"enum X { A { ; } };",
 		"fn f() void { return 1 2; };",
-		"type M = map[str; };",
+		"alias M = map[str; };",
 		"fn f() void { or fail; };",
 		"fn f() void { match (a) { case Circle { radius } => ; }; };",
-		"type X struct { a: };",
+		"struct X { a: };",
 		"fn f() void { case 1 => 2; };",
 	}
 	for _, src := range cases {
@@ -1280,7 +1297,7 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 
 func TestRecoveryKeepsLaterDecls(t *testing.T) {
 	src := `var = ;
-type Good struct {
+struct Good {
     ok: int,
 
     fn Ping() void {
@@ -1308,7 +1325,7 @@ fn fine() void {
 }
 
 func TestInterfaceMethodRejectsFn(t *testing.T) {
-	src := "type Writer interface {\n    fn Write(p: u8[]) int!;\n};\n"
+	src := "interface Writer {\n    fn Write(p: u8[]) int!;\n};\n"
 	f, errs := Parse("iface.ink", []byte(src))
 	if len(errs) != 1 || !strings.Contains(errs[0].Msg, "without 'fn'") {
 		t.Fatalf("errors = %v", errs)
@@ -1378,7 +1395,7 @@ func TestErrorCap(t *testing.T) {
 
 func TestTypedVarDecl(t *testing.T) {
 	f := mustParse(t, `
-type Point struct {
+struct Point {
     X: i32,
 };
 
@@ -1454,7 +1471,7 @@ func FuzzParse(f *testing.F) {
 	for _, src := range []string{
 		"fn f() void {",
 		"match (x) { case => ;",
-		"type X struct { a: int fn };",
+		"struct X { a: int fn };",
 		"@@@",
 	} {
 		f.Add([]byte(src))
@@ -1656,7 +1673,7 @@ func TestMapCtorNil(t *testing.T) {
 }
 
 func TestStrayMethodGetsOneDiagnostic(t *testing.T) {
-	src := "type Ledger struct {\n    Total: i32,\n};\n\nfn (l: *Ledger) Close() void {\n    l.Total = 0;\n};\n\nfn main() void {\n    var l = Ledger { Total: 1 };\n    l.Close();\n};\n"
+	src := "struct Ledger {\n    Total: i32,\n};\n\nfn (l: *Ledger) Close() void {\n    l.Total = 0;\n};\n\nfn main() void {\n    var l = Ledger { Total: 1 };\n    l.Close();\n};\n"
 	_, errs := Parse("method.ink", []byte(src))
 	if len(errs) != 1 {
 		t.Fatalf("errors = %v", errs)

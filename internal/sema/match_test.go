@@ -168,7 +168,7 @@ func TestMatchNilPatternOnAnyRejected(t *testing.T) {
 }
 
 func TestMatchNilPatternOnEnumRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type E enum { A, B };
+	p := checkSrc(t, map[string]string{".": `enum E { A, B };
 
 fn f(e: E) str {
     return match (e) { case nil => "nil"; else => "set"; };

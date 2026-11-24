@@ -3,19 +3,19 @@ use errors;
 use os;
 use slices;
 
-type Item struct {
+struct Item {
     SKU: str,
     Qty: i32,
     Price: f64,
 };
 
-type Order struct {
+struct Order {
     ID: i32,
     SKU: str,
     Qty: i32,
 };
 
-type Store struct {
+struct Store {
     Items: map[str, Item],
     Orders: Order[],
     Next: i32,

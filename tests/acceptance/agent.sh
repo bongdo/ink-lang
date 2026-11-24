@@ -26,7 +26,7 @@ use errors;
 
 const Answer = 42;
 
-type Counter struct {
+struct Counter {
     n: i32,
 
     fn Add(d: i32) void {

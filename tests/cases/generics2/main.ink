@@ -1,7 +1,7 @@
 use fmt;
 use strconv;
 
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {

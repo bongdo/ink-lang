@@ -10,7 +10,7 @@ func TestContractDefaultWireTags(t *testing.T) {
 		"main.ink": `use encoding/json;
 use fmt;
 
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Pass: str,
@@ -46,7 +46,7 @@ func TestContractNamedView(t *testing.T) {
 		"main.ink": `use encoding/json;
 use fmt;
 
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Role: str,
@@ -87,7 +87,7 @@ func TestContractDefaultDecode(t *testing.T) {
 		"main.ink": `use encoding/json;
 use fmt;
 
-type User struct {
+struct User {
     ID: i64,
     Email: str,
     Pass: str,
@@ -119,7 +119,7 @@ func TestContractNoBlocksNoTags(t *testing.T) {
 		"main.ink": `use encoding/json;
 use fmt;
 
-type Plain struct {
+struct Plain {
     A: i32,
     B: str,
 };

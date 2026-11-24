@@ -2,7 +2,7 @@ use fmt;
 use sort;
 use net/http;
 
-type M = map[str, i32];
+alias M = map[str, i32];
 
 fn main() void! {
     var m = M { "B": 2, "A": 1 };

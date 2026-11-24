@@ -7,15 +7,15 @@
 use fmt;
 use strconv;
 
-type Foo struct {
+struct Foo {
     x: i32,
 };
 
-type Stack[T] struct {
+struct Stack[T] {
     data: T[],
 };
 
-type E enum {
+enum E {
     A,
     B,
 };
@@ -153,7 +153,7 @@ fn voidValue() void {
 
 // 15. Interface methods must not use `fn`.
 //     Expected: interface methods are declared without 'fn'.
-// type BadWriter interface {
+// interface BadWriter {
 //     fn Write(p: u8[]) int!;
 // };
 

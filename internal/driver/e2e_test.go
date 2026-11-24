@@ -101,6 +101,34 @@ func TestCheckTypeErrors(t *testing.T) {
 	}
 }
 
+func TestTypeRemovedIsOneDiagnostic(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/removed\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "type User struct {\n    Name: str,\n};\n\nfn main() void {\n    var u = User { Name: \"x\" };\n    _ = u;\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Typecheck: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Errors) != 1 {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+	got := p.Errors[0]
+	if got.Code != "type-removed" || !strings.Contains(got.Msg, "declare struct User") || got.Hint == "" {
+		t.Fatalf("error: %+v", got)
+	}
+	if got.Pos.Line != 1 || got.Pos.Col != 1 {
+		t.Fatalf("position: %+v", got.Pos)
+	}
+}
+
 func TestCheckPathWithSpaces(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "space dir")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -475,7 +503,7 @@ func TestConformanceCases(t *testing.T) {
 func TestFormatCommentFixedPoint(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.ink")
-	src := "use fmt; // note\n\ntype User struct {\n    Name: str,\n}; // point\n\nfn main() void {\n    var x = match (1) {\n    case 1 => fmt.Println(\"one\");\n    else => fmt.Println(\"other\"); // tail\n    };\n    _ = x;\n}; // done\n"
+	src := "use fmt; // note\n\nstruct User {\n    Name: str,\n}; // point\n\nfn main() void {\n    var x = match (1) {\n    case 1 => fmt.Println(\"one\");\n    else => fmt.Println(\"other\"); // tail\n    };\n    _ = x;\n}; // done\n"
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}

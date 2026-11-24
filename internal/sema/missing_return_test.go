@@ -63,7 +63,7 @@ fn main() void {
 		},
 		{
 			name: "match all cases return",
-			src: `type E enum {
+			src: `enum E {
     A,
     B,
 };
@@ -83,7 +83,7 @@ fn main() void {
 		},
 		{
 			name: "match one case falls through",
-			src: `type E enum {
+			src: `enum E {
     A,
     B,
 };
@@ -103,7 +103,7 @@ fn main() void {
 		},
 		{
 			name: "match panic expression and block return",
-			src: `type E enum {
+			src: `enum E {
     A,
     B,
 };
@@ -123,7 +123,7 @@ fn main() void {
 		},
 		{
 			name: "match all panic expressions",
-			src: `type E enum {
+			src: `enum E {
     A,
     B,
 };

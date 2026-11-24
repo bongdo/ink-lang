@@ -7,7 +7,7 @@ import (
 )
 
 func TestTypedVarNil(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct {
+	p := checkSrc(t, map[string]string{".": `struct Point {
     X: i32,
 };
 

@@ -91,7 +91,7 @@ fn main() void! {
 }
 
 func TestStructMethod(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     Name: str,
     age: u32,
 
@@ -114,7 +114,7 @@ fn main() void {
 }
 
 func TestStructLiteralNeedsNamedFields(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type User struct {
+	p := checkSrc(t, map[string]string{".": `struct User {
     Name: str,
 };
 
@@ -127,7 +127,7 @@ fn main() void {
 }
 
 func TestEnumMatch(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Shape enum {
+	p := checkSrc(t, map[string]string{".": `enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
@@ -180,7 +180,7 @@ fn main() void! {
 }
 
 func TestGeneric(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Stack[Item] struct {
+	p := checkSrc(t, map[string]string{".": `struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {
@@ -293,7 +293,7 @@ func TestCheckStopsWhenCancelled(t *testing.T) {
 }
 
 func TestSiblingMethodCallHint(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Counter struct {
+	p := checkSrc(t, map[string]string{".": `struct Counter {
     N: i32,
 
     fn Bump() void {
@@ -387,7 +387,7 @@ fn main() void {
 }
 
 func TestFreeMethodWarning(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type App struct {
+	p := checkSrc(t, map[string]string{".": `struct App {
     N: i32,
 };
 

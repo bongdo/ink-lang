@@ -2,7 +2,7 @@ use fmt;
 
 const RowLen = 4;
 
-type Row = i32[RowLen];
+alias Row = i32[RowLen];
 
 fn fillRow(y: i32) Row {
     var r = Row {};

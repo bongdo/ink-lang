@@ -272,7 +272,7 @@ func TestStructsEnumsMatch(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 
-type User struct {
+struct User {
     Name: str,
     age: i32,
 
@@ -306,13 +306,13 @@ type User struct {
     };
 };
 
-type Shape enum {
+enum Shape {
     Circle { radius: f64 },
     Rect { w: f64, h: f64 },
     Empty,
 };
 
-type Greeter interface {
+interface Greeter {
     Greet() str;
 };
 
@@ -388,12 +388,12 @@ func TestGenerics(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 
-type Pair[A, B] struct {
+struct Pair[A, B] {
     First: A,
     Second: B,
 };
 
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {
@@ -405,7 +405,7 @@ type Stack[Item] struct {
     };
 };
 
-type Maybe[T] = T[];
+alias Maybe[T] = T[];
 
 fn MakePair[A, B](a: A, b: B) Pair[A, B] {
     return Pair[A, B] { First = a, Second = b };
@@ -711,7 +711,7 @@ func TestGoForFusesRowCopy(t *testing.T) {
 
 const N = 4;
 
-type Row = i32[N];
+alias Row = i32[N];
 
 fn fill(y: int) Row {
     var r = Row {};
@@ -757,7 +757,7 @@ func TestFusionRejectsOtherRows(t *testing.T) {
 
 const N = 4;
 
-type Row = i32[N];
+alias Row = i32[N];
 
 fn fill(y: int) Row {
     var r = Row {};
@@ -797,7 +797,7 @@ func TestFusionRejectsClosure(t *testing.T) {
 
 const N = 4;
 
-type Row = i32[N];
+alias Row = i32[N];
 
 fn fill(y: int) Row {
     var r = Row {};
@@ -840,7 +840,7 @@ func TestIntoSkipsDefer(t *testing.T) {
 
 const N = 2;
 
-type Row = i32[N];
+alias Row = i32[N];
 
 fn withDefer() Row {
     defer fmt.Println("cleanup");
@@ -1048,7 +1048,7 @@ fn main() void {
     _, _ = fmt.Println(ed.Double(21), ed.Ctx(), label, label2, label3);
 };
 `,
-		"internal/ed/ed.ink": `type Color enum {
+		"internal/ed/ed.ink": `enum Color {
     Red,
     Blue,
 };

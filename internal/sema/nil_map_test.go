@@ -37,7 +37,7 @@ func TestNilMapWriteAllowsLiteralAndReassign(t *testing.T) {
 }
 
 func TestMapCtorNilValue(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Holder struct {
+	p := checkSrc(t, map[string]string{".": `struct Holder {
     Items: map[str, i32],
 };
 

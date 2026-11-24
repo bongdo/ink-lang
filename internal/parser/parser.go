@@ -65,7 +65,7 @@ func (p *parser) parseFile(f *ast.File) {
 				continue
 			}
 			f.Decls = append(f.Decls, p.parseFuncDecl(nil))
-		case token.Type:
+		case token.Struct, token.Enum, token.Interface, token.Alias, token.Type:
 			f.Decls = append(f.Decls, p.parseTypeDecl())
 		case token.Var, token.Const:
 			f.Decls = append(f.Decls, p.parseVarDecl(true))
@@ -273,7 +273,7 @@ func (p *parser) recoverTop() {
 		case token.Semi, token.RBrace:
 			p.next()
 			return
-		case token.Use, token.Fn, token.Type, token.Var, token.Const, token.Test:
+		case token.Use, token.Fn, token.Struct, token.Enum, token.Interface, token.Alias, token.Type, token.Var, token.Const, token.Test:
 			return
 		}
 		p.next()
@@ -392,7 +392,7 @@ func (p *parser) parseStrayMethod() {
 		owner = receiverName(recv[0].Type)
 	}
 	if owner != "" {
-		p.errorf(start, "method %s is declared at file scope; declare it inside type %s struct { ... };", name, owner)
+		p.errorf(start, "method %s is declared at file scope; declare it inside struct %s { ... };", name, owner)
 		return
 	}
 	p.errorf(start, "methods are declared inside the type body, not at file scope")
@@ -567,6 +567,8 @@ func (p *parser) parseParams() []*ast.Param {
 
 func (p *parser) parseTypeDecl() *ast.TypeDecl {
 	start := p.tok().Pos
+	startEnd := p.tok().End
+	kind := p.kind()
 	p.next()
 	td := &ast.TypeDecl{}
 	if t, ok := p.expectIdent(); ok {
@@ -575,39 +577,68 @@ func (p *parser) parseTypeDecl() *ast.TypeDecl {
 	if p.at(token.LBracket) {
 		td.TypeParams = p.parseTypeParams()
 	}
-	assign := false
-	var assignPos token.Pos
-	if p.at(token.Assign) {
-		assignPos = p.tok().Pos
-		p.next()
-		assign = true
+	if kind == token.Type {
+		p.addError(start, startEnd, removedTypeMsg(td.Name, p.kind()))
+		if p.at(token.Assign) {
+			p.next()
+		}
+		switch p.kind() {
+		case token.Struct:
+			td.Kind = ast.TypeStruct
+			p.next()
+			p.parseStructBody(td)
+		case token.Enum:
+			td.Kind = ast.TypeEnum
+			p.next()
+			p.parseEnumBody(td)
+		case token.Interface:
+			td.Kind = ast.TypeInterface
+			p.next()
+			p.parseInterfaceBody(td)
+		default:
+			td.Kind = ast.TypeAlias
+			td.Target = p.parseType()
+		}
+		p.consumeSemi()
+		td.Span = p.fin(start)
+		return td
 	}
-	if assign && (p.at(token.Struct) || p.at(token.Enum) || p.at(token.Interface)) {
-		p.errorf(assignPos, "type definitions are declared without '='")
-	}
-	switch p.kind() {
+	switch kind {
 	case token.Struct:
 		td.Kind = ast.TypeStruct
-		p.next()
 		p.parseStructBody(td)
 	case token.Enum:
 		td.Kind = ast.TypeEnum
-		p.next()
 		p.parseEnumBody(td)
 	case token.Interface:
 		td.Kind = ast.TypeInterface
-		p.next()
 		p.parseInterfaceBody(td)
 	default:
-		if !assign {
-			p.errorf(p.tok().Pos, "expected '=', found %s", describe(p.tok()))
-		}
 		td.Kind = ast.TypeAlias
+		if !p.at(token.Assign) {
+			p.errorf(p.tok().Pos, "expected '=', found %s", describe(p.tok()))
+		} else {
+			p.next()
+		}
 		td.Target = p.parseType()
 	}
 	p.consumeSemi()
 	td.Span = p.fin(start)
 	return td
+}
+
+func removedTypeMsg(name string, kind token.Kind) string {
+	switch kind {
+	case token.Struct:
+		return "`type` is not an Ink word; declare struct " + name + " { ... }"
+	case token.Enum:
+		return "`type` is not an Ink word; declare enum " + name + " { ... }"
+	case token.Interface:
+		return "`type` is not an Ink word; declare interface " + name + " { ... }"
+	case token.Assign:
+		return "`type` is not an Ink word; declare alias " + name + " = ..."
+	}
+	return "`type` is not an Ink word; declare struct, enum, interface or alias"
 }
 
 func (p *parser) parseStructBody(td *ast.TypeDecl) {

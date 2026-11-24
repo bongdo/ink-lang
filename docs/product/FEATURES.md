@@ -23,13 +23,13 @@ place with status.
 
 | Feature | Status |
 |---|---|
-| `type X struct { ... }` with fields and methods | ✅ |
+| `struct X { ... }` with fields and methods | ✅ |
 | implicit `self`, pointer receivers | ✅ |
-| `type X enum { ... }`, sealed, variant construction | ✅ |
+| `enum X { ... }`, sealed, variant construction | ✅ |
 | exhaustive `match` on enums | ✅ |
-| `type X interface { ... }` | ✅ |
+| `interface X { ... }` | ✅ |
 | interface conformance (local and Go interfaces) | ◐ a method set that cannot be named warns `conformance-unchecked`; `go build` is the backstop |
-| `type X = T` alias | ✅ |
+| `alias X = T` | ✅ |
 | generics `Stack[T]` | ✅ |
 | generic constraints | — every type parameter behaves like `any` |
 | generic enums | — |

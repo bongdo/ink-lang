@@ -29,7 +29,7 @@ func TestGoLimitMustBePositive(t *testing.T) {
 }
 
 func TestArenaAddrOfElementEscapes(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct { X: i32 };
+	p := checkSrc(t, map[string]string{".": `struct Point { X: i32 };
 
 fn work(p: *Point) void { _ = p; };
 
@@ -83,7 +83,7 @@ fn main() void {
 }
 
 func TestArenaReceiverInDetachedGo(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `type Point struct {
+	p := checkSrc(t, map[string]string{".": `struct Point {
     X: i32,
 
     fn Touch() void { X += 1; };

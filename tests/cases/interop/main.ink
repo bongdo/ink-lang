@@ -3,7 +3,7 @@ use sort;
 use strconv;
 use strings;
 
-type User struct {
+struct User {
     name: str,
     age: u32,
 };

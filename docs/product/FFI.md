@@ -122,12 +122,12 @@ Opaque handle выглядит так:
 use context;
 use example.com/app/bindings/httpc as httpc;
 
-type Response struct {
+struct Response {
     Status: i32,
     Body: str,
 };
 
-type Client struct {
+struct Client {
     h: *httpc.Client,
 
     fn Get(ctx: context.Context, url: str) Response! {
@@ -170,7 +170,7 @@ App-код видит `Client`, `Response`, `NewClient`, `Get`, `Close`. Он н
   Go-типы ошибок; если нужна классификация, facade отдаёт Ink-enum:
 
 ```hare
-type ErrorKind enum {
+enum ErrorKind {
     NotFound,
     Timeout,
     Other,
@@ -467,7 +467,7 @@ func (c *Client) Close() error
 ### 7.4. Ошибки как enum
 
 ```hare
-type NetError enum {
+enum NetError {
     NotFound,
     Timeout,
     Closed,

@@ -151,6 +151,81 @@ func TestRename(t *testing.T) {
 	}
 }
 
+func TestRenameDeclKinds(t *testing.T) {
+	src := `struct User { Name: str };
+enum Shape { Empty };
+interface Writer { Write(p: u8[]) int!; };
+alias ID = u64;
+
+fn main() void {
+    var u = User { Name: "x" };
+    var s = Shape.Empty;
+    var id: ID = 1;
+    _ = u;
+    _ = s;
+    _ = id;
+};
+`
+	cases := []struct {
+		name string
+		decl string
+		want []string
+	}{
+		{"User", "struct User", []string{"struct Sum", "Sum { Name"}},
+		{"Shape", "enum Shape", []string{"enum Sum", "Sum.Empty"}},
+		{"Writer", "interface Writer", []string{"interface Sum"}},
+		{"ID", "alias ID", []string{"alias Sum", "var id: Sum"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, _, uri := newProject(t, src)
+			c := startClient(t, root)
+			c.request("initialize", InitializeParams{})
+			openDocument(t, c, uri, src)
+			position := PositionAt([]byte(src), strings.Index(src, tc.decl)+len(tc.decl)-len(tc.name))
+			msg := c.request("textDocument/rename", RenameParams{
+				TextDocumentPositionParams: TextDocumentPositionParams{
+					TextDocument: TextDocumentIdentifier{URI: uri},
+					Position:     position,
+				},
+				NewName: "Sum",
+			})
+			edit := decodeEdit(t, msg.Result)
+			renamed := applyWorkspaceEdit(src, edit.Changes[uri])
+			for _, want := range tc.want {
+				if !strings.Contains(renamed, want) {
+					t.Fatalf("renamed source missing %q:\n%s", want, renamed)
+				}
+			}
+		})
+	}
+}
+
+func TestDocumentSymbolsDeclKinds(t *testing.T) {
+	src := `struct User { Name: str };
+enum Shape { Empty };
+alias ID = u64;
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	msg := c.request("textDocument/documentSymbol", DocumentSymbolParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+	})
+	var docs []DocumentSymbol
+	if err := json.Unmarshal(msg.Result, &docs); err != nil {
+		t.Fatal(err)
+	}
+	kinds := make(map[string]int)
+	for _, symbol := range docs {
+		kinds[symbol.Name] = symbol.Kind
+	}
+	if kinds["User"] != dskStruct || kinds["Shape"] != dskEnum {
+		t.Fatalf("document symbols: %+v", docs)
+	}
+}
+
 func TestRenameMultiName(t *testing.T) {
 	src := `fn pair() i32, bool {
     return 1, true;
@@ -266,17 +341,6 @@ func TestCodeActions(t *testing.T) {
 			notWant: "const N",
 		},
 		{
-			name: "decl-equals",
-			src: `type User = struct {
-    Name: str,
-};
-
-fn main() void {};
-`,
-			code: "decl-equals",
-			want: "type User struct {",
-		},
-		{
 			name: "decl-equals-fn",
 			src: `fn main() void = {
 };
@@ -287,7 +351,7 @@ fn main() void {};
 		},
 		{
 			name: "iface-fn",
-			src: `type Writer interface {
+			src: `interface Writer {
     fn Write(p: u8[]) int!;
 };
 
@@ -592,7 +656,7 @@ fn main() void {
     _ = t;
 };
 `
-	libSrc := `type Thing struct {
+	libSrc := `struct Thing {
     Value: i32,
 };
 
@@ -647,7 +711,7 @@ fn Make() Thing {
 }
 
 func TestFieldReferences(t *testing.T) {
-	src := `type User struct {
+	src := `struct User {
     Name: str,
 
     fn Hello() str {
@@ -703,7 +767,7 @@ func TestWorkspaceSymbols(t *testing.T) {
 	src := `const Answer = 42;
 var Count = 1;
 
-type User struct {
+struct User {
     Name: str,
 
     fn hello() str {
@@ -761,7 +825,7 @@ func TestRenameConflict(t *testing.T) {
 }
 
 func TestRenameFieldInContract(t *testing.T) {
-	src := `type User struct {
+	src := `struct User {
     ID: i64,
     Email: str,
 

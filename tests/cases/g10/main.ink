@@ -11,7 +11,7 @@ fn less(i: int, j: int) bool {
     return xs[i] < xs[j];
 };
 
-type Doubler struct {
+struct Doubler {
     n: i32,
 
     fn Double() i32 {
@@ -23,7 +23,7 @@ type Doubler struct {
     };
 };
 
-type Stringer struct {
+struct Stringer {
     fn String() str {
         var out = u8[1] {};
         par {
@@ -33,7 +33,7 @@ type Stringer struct {
     };
 };
 
-type Doer interface {
+interface Doer {
     Double() i32;
 };
 

@@ -11,12 +11,12 @@ const Answer = 42;
 
 var packageVar = i32(7);
 
-type UserId = u64;
+alias UserId = u64;
 
-type Handler = fn(i32) i32;
+alias Handler = fn(i32) i32;
 
 // Struct: fields, methods with implicit self, JSON contract blocks.
-type User struct {
+struct User {
     Name: str,
     Pass: str,
 
@@ -34,16 +34,16 @@ type User struct {
     };
 };
 
-type Shape enum {
+enum Shape {
     Circle { r: f64 },
     Empty,
 };
 
-type Writer interface {
+interface Writer {
     Write(p: u8[]) int!;
 };
 
-type Buf struct {
+struct Buf {
     data: u8[],
 
     fn Write(p: u8[]) int! {
@@ -52,7 +52,7 @@ type Buf struct {
     };
 };
 
-type Stack[Item] struct {
+struct Stack[Item] {
     data: Item[],
 
     fn Push(x: Item) void {

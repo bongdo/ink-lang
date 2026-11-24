@@ -77,7 +77,7 @@ var builtinFuncs = []string{
 }
 
 var keywords = []string{
-	"use", "as", "fn", "type", "struct", "enum", "interface", "var", "const",
+	"use", "as", "fn", "alias", "struct", "enum", "interface", "var", "const",
 	"return", "if", "else", "for", "in", "match", "case", "par", "spawn", "on",
 	"limit", "defer", "break", "continue", "or", "fail", "arena", "test", "true", "false", "nil", "map",
 }
@@ -1398,16 +1398,16 @@ func funcTypeResultText(results []ast.Type, hasError bool) string {
 func typeDeclText(d *ast.TypeDecl) string {
 	switch d.Kind {
 	case ast.TypeStruct:
-		return "type " + d.Name + " = struct"
+		return "struct " + d.Name
 	case ast.TypeEnum:
-		return "type " + d.Name + " = enum"
+		return "enum " + d.Name
 	case ast.TypeInterface:
-		return "type " + d.Name + " = interface"
+		return "interface " + d.Name
 	}
 	if target := formatType(d.Target); target != "" {
-		return "type " + d.Name + " = " + target
+		return "alias " + d.Name + " = " + target
 	}
-	return "type " + d.Name
+	return "alias " + d.Name
 }
 
 func varDeclText(v *ast.VarDecl) string {

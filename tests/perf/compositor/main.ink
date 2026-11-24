@@ -28,13 +28,13 @@ const ModeMove = 1;
 
 const ModeResize = 2;
 
-type View struct {
+struct View {
     tl: wl.XDGTopLevel,
     xdg: wl.XDGSurface,
     mapped: bool,
 };
 
-type Server struct {
+struct Server {
     display: wl.Display,
     backend: wl.Backend,
     renderer: wl.Renderer,

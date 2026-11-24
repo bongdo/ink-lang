@@ -6,7 +6,7 @@ func TestTypedVarNil(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
 
-type Point struct {
+struct Point {
     X: i32,
 };
 
@@ -59,7 +59,7 @@ fn main() void! {
 
 func TestTypedVarOr(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.ink": `type Point struct {
+		"main.ink": `struct Point {
     X: i32,
 };
 
