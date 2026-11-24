@@ -1651,3 +1651,14 @@ func TestVarWithoutValueHasHint(t *testing.T) {
 		t.Fatalf("code = %q hint = %q (%s)", info.Code, info.Hint, errs[0].Msg)
 	}
 }
+
+func TestOrInsideCallIsOneDiagnostic(t *testing.T) {
+	src := "fn f(n: i32) i32! { return n; };\nfn g(n: i32) i32 { return n; };\n\nfn main() void! {\n    var v = g(f(1) or fail);\n    return;\n};\n"
+	_, errs := Parse("or.ink", []byte(src))
+	if len(errs) != 1 {
+		t.Fatalf("errors = %v", errs)
+	}
+	if info := diag.Classify(errs[0].Msg); info.Code != "or-expr" {
+		t.Fatalf("code = %q (%s)", info.Code, errs[0].Msg)
+	}
+}

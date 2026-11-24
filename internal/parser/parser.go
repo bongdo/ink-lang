@@ -208,16 +208,15 @@ func goOnlyMsg(t token.Token) string {
 }
 
 func (p *parser) expect(k token.Kind) token.Pos {
-	if p.at(k) {
-		return p.next().End
-	}
-	if p.at(token.Or) {
+	if !p.at(k) && p.at(token.Or) {
 		p.errorf(p.tok().Pos, "or is statement-level; put the call on its own line: var v = f() or fail;")
 		p.next()
 		if p.at(token.Fail) {
 			p.next()
 		}
-		return p.lastEnd()
+	}
+	if p.at(k) {
+		return p.next().End
 	}
 	p.errorf(p.tok().Pos, "expected %s, found %s", k, describe(p.tok()))
 	return p.lastEnd()
