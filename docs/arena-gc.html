@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Арена Ink и сборщик мусора</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: transparent;
+    --panel: rgba(127,127,127,.08);
+    --panel2: rgba(127,127,127,.14);
+    --line: rgba(127,127,127,.28);
+    --muted: rgba(127,127,127,.85);
+    --accent: #4f8cff;
+    --warn: #e2703a;
+    --good: #2fa36b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: currentColor; }
+  body {
+    margin: 0 auto;
+    max-width: 980px;
+    padding: 40px 22px 72px;
+    font: 16px/1.62 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.02em; }
+  h2 { font-size: 22px; margin: 48px 0 14px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; margin: 26px 0 8px; }
+  p { margin: 10px 0; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 26px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 8px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; }
+  .kpi b { display: block; font-size: 30px; line-height: 1.1; letter-spacing: -.02em; }
+  .kpi span { display: block; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .kpi .good { color: var(--good); }
+  .kpi .warn { color: var(--warn); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin: 16px 0; }
+  .card p:first-child { margin-top: 0; }
+  .card p:last-child { margin-bottom: 0; }
+  pre {
+    margin: 12px 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: 13px/1.55 var(--mono);
+  }
+  code { font: 13px/1.5 var(--mono); background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .accent { color: var(--accent); }
+  .good { color: var(--good); }
+  .warn { color: var(--warn); }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-right: 6px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; counter-reset: s; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; position: relative; }
+  .step::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+  .step b { display: block; font-size: 14px; }
+  .step span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin: 16px 0; }
+  .poolrow { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .box { border: 1px solid var(--line); background: var(--panel2); border-radius: 8px; padding: 6px 10px; font: 12.5px/1.4 var(--mono); white-space: nowrap; }
+  .box.used { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+  .box.free { border-style: dashed; color: var(--muted); }
+  .arrow { color: var(--muted); font-size: 18px; }
+  .bar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); min-width: 160px; flex: 1; }
+  .bar i { display: block; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+  .timeline { margin: 18px 0 6px; }
+  .tl-track { display: grid; grid-template-columns: 1fr 2fr 3fr 1.4fr; gap: 0; align-items: start; border-top: 2px solid var(--line); padding-top: 0; }
+  .tl-cell { position: relative; padding: 22px 12px 0 0; }
+  .tl-cell::before { content: ""; position: absolute; top: -6px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); border: 2px solid var(--muted); }
+  .tl-cell.hit::before { background: var(--warn); border-color: var(--warn); }
+  .tl-cell.zero::before { background: var(--good); border-color: var(--good); }
+  .tl-cell b { display: block; font-size: 13.5px; }
+  .tl-cell span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--muted); margin: 16px 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  figure { margin: 18px 0; }
+  figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  svg { width: 100%; height: auto; display: block; }
+  .axis { stroke: currentColor; opacity: .45; }
+  .grid { stroke: currentColor; opacity: .14; }
+  .lbl { fill: currentColor; opacity: .65; font-size: 10px; font-family: var(--mono); }
+  .val { fill: currentColor; font-size: 11px; font-weight: 700; font-family: var(--mono); }
+  .naive { fill: var(--warn); }
+  .scratch { fill: var(--good); }
+  .flat { fill: var(--accent); }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  @media (max-width: 760px) {
+    .kpis, .steps, .two { grid-template-columns: 1fr; }
+    .tl-track { grid-template-columns: 1fr; border-top: 0; }
+    .tl-cell { padding: 14px 0 0 22px; border-left: 2px solid var(--line); }
+    .tl-cell::before { top: 16px; left: -6px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Арена Ink: почему GC вызывается 2–3 раза вместо 81</h1>
+<p class="lead">Короткий ответ: арена не отключает сборщик мусора и не просит его «не собирать». Она перестаёт создавать мусор в кадровом цикле. После первого кадра аллокаций нет вообще, поэтому счётчику кучи нечего двигать и GC просто не срабатывает.</p>
+
+<div class="kpis">
+  <div class="kpi"><b class="warn">81</b><span>цикл GC на 240 кадров, когда память выделялась заново каждый кадр (Go-арена на кадр)</span></div>
+  <div class="kpi"><b class="good">2–3</b><span>цикла на те же 240 кадров с переиспользуемым буфером; все — до устойчивого режима</span></div>
+  <div class="kpi"><b>0</b><span>циклов внутри кадрового цикла после первого кадра. На 480×270/60 кадров — 0 за весь прогон</span></div>
+</div>
+
+<h2>1. Что видит пользователь</h2>
+<p>В Ink арена — это блок без имени. Внутри него <code>new[T]()</code> и <code>T[](n)</code> берут память из общего буфера, снаружи те же вызовы остаются обычными аллокациями Go.</p>
+
+<pre><code>for (var frame = 0; ...; frame += 1) {
+    arena {
+        var rows = Row[](H);        // Row = u8[480*4]
+        go for (var y = ...; ...) {
+            rows[y] = shadeRow(y, t);
+        };
+        for (var y = ...; ...) {
+            copy(px[y * RowLen:], rows[y][:]);
+        };
+    };
+};</code></pre>
+
+<p>Главное правило: <b>память арены не покидает блок</b>. Её нельзя вернуть, присвоить внешней переменной, передать в функцию, сохранить в <code>defer</code> или взять <code>&amp;T{}</code>. Читать можно поле, индекс, <code>len</code>/<code>cap</code> и копировать скаляры наружу через <code>copy</code>.</p>
+<p>Это ограничение — не побочный эффект, а доказательство: раз наружу ничего не утекло, буфер гарантированно мёртв на выходе из блока, и его можно отдать следующему выполнению того же блока.</p>
+
+<h2>2. Во что это превращается</h2>
+<p>Для примера <code>tests/cases/arena_reuse</code> компилятор печатает такой Go (сокращено):</p>
+
+<pre><code>var _s_scr1 _s_rt.Scratch[Point]   // один пул на тип
+var _s_scr2 _s_rt.Scratch[int32]
+
+for i := 0; i &lt; 3; i += 1 {
+    _s_mark4 := _s_d.Mark()
+
+    _s_b5 := _s_scr1.Begin()                  // взять batch из пула
+    _s_d.Push(func() { _s_scr1.End(_s_b5) })  // вернуть при любом выходе
+    _s_b6 := _s_scr2.Begin()
+    _s_d.Push(func() { _s_scr2.End(_s_b6) })
+
+    {
+        var p = _s_b5.New()          // bump внутри batch
+        var xs = _s_b6.Slice(4, 4)   // bump внутри batch
+        ...
+    }
+
+    _s_d.RunTo(_s_mark4)             // End: clear + вернуть в пул
+}
+
+_s_scr1.Release()                    // после цикла: отдать GC
+_s_scr2.Release()</code></pre>
+
+<p>Обратите внимание на две вещи:</p>
+<ul>
+  <li><code>Scratch</code> объявлен <b>до</b> цикла, а <code>Release</code> — <b>после</b>. Внутри цикла нет ни одного <code>make</code>: <code>Begin</code> только снимает готовый batch с полки.</li>
+  <li>Блок стоит после <code>Mark()</code>, а <code>RunTo</code> вызывает <code>End</code>. Поэтому <code>return</code>, <code>break</code>, <code>continue</code> и <code>panic</code> возвращают batch в пул, а не теряют его.</li>
+</ul>
+
+<h2>3. Путь от слова <code>arena</code> до памяти</h2>
+<div class="steps">
+  <div class="step"><b>Парсер</b><span><code>arena { ... };</code> → <code>ast.ArenaStmt</code>. Обычный узел, без магии.</span></div>
+  <div class="step"><b>Sema</b><span>Считает глубину арены и отвергает всё, что может унести указатель наружу.</span></div>
+  <div class="step"><b>Кодоген</b><span>Собирает все <code>new</code>/<code>make</code> в блоке, по одному <code>Scratch[T]</code> на тип. В цикле поднимает объявление перед циклом.</span></div>
+  <div class="step"><b>Рантайм</b><span><code>Scratch[T]</code> — пул batch-ей. Batch — bump-аллокатор по <code>[]T</code>.</span></div>
+</div>
+
+<h2>4. Как устроен Scratch</h2>
+<p>Всё, что делает арену дешёвой, — это тридцать строк в <code>runtime/source.go</code>.</p>
+
+<div class="diagram">
+  <div class="poolrow">
+    <span class="box">Scratch[Row]</span>
+    <span class="arrow">→</span>
+    <span class="box free">batch #2 (free)</span>
+    <span class="box free">batch #1 (free)</span>
+    <span class="muted" style="font-size:13px">пул свободных batch-ей, LIFO</span>
+  </div>
+  <div class="poolrow">
+    <span class="muted" style="font-size:13px;min-width:92px">Begin()</span>
+    <span class="arrow">→</span>
+    <span class="box used">batch</span>
+    <span class="muted" style="font-size:13px">снимает последний; если пусто — создаёт пустой</span>
+  </div>
+  <div class="poolrow" style="align-items:stretch">
+    <span class="muted" style="font-size:13px;min-width:92px">batch.buf</span>
+    <div class="bar" style="max-width:520px">
+      <i style="width:12%;background:var(--accent)"></i>
+      <i style="width:12%;background:var(--accent);opacity:.65"></i>
+      <i style="width:12%;background:var(--accent);opacity:.45"></i>
+      <i style="width:64%;background:repeating-linear-gradient(45deg, var(--panel2), var(--panel2) 5px, transparent 5px, transparent 10px)"></i>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i>выдано в этом выполнении (off)</span>
+    <span><i class="dot" style="background:var(--panel2);border:1px solid var(--line)"></i>свободный хвост — будущий bump</span>
+  </div>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Когда <code>off + cap</code> не влезает, буфер удваивается: <code>make([]T, 2*len)</code> + <code>copy</code>. Это происходит только на первых выполнениях, пока не достигнут high-water mark блока.</p>
+</div>
+
+<h3>Четыре операции</h3>
+<table>
+  <thead><tr><th>Операция</th><th>Что делает</th><th>Аллокация?</th></tr></thead>
+  <tbody>
+    <tr><td><code>Begin()</code></td><td>Берёт batch с полки пула или создаёт пустой <code>Batch{}</code></td><td class="good">Нет (после прогрева)</td></tr>
+    <tr><td><code>Slice(n, cap)</code></td><td>Сдвигает <code>off</code> на <code>cap</code>, обнуляет выдаваемый кусок через <code>clear</code></td><td class="warn">Только если не хватает места</td></tr>
+    <tr><td><code>New()</code></td><td><code>Slice(1,1)</code>, возвращает <code>&amp;s[0]</code></td><td class="good">Нет</td></tr>
+    <tr><td><code>End(b)</code></td><td><code>clear(b.buf[:off])</code>, <code>off = 0</code>, кладёт batch обратно в пул</td><td class="good">Нет</td></tr>
+  </tbody>
+</table>
+
+<p>Обнуление на выдаче — это то, что сохраняет семантику <code>new</code> и <code>T[](n)</code>: каждое выполнение блока начинается с нулей, как будто память только что выделили. <code>End</code> обнуляет ещё раз, чтобы не держать ссылки на объекты в мёртвом буфере.</p>
+
+<h2>5. Почему это убирает вызовы GC</h2>
+<p>Go не запускает GC по таймеру. Он запускает его, когда счётчик выделенной кучи доходит до цели, вычисленной от <b>живой</b> кучи после прошлого цикла: примерно <code>live × (1 + GOGC/100)</code>, при <code>GOGC=100</code> — удвоение. Стартовая цель — около 4 MB.</p>
+
+<div class="two">
+  <div class="card">
+    <h3 style="margin-top:0">Без переиспользования</h3>
+    <p>Каждый кадр — новые 14.7 MB. Даже если они сразу становятся мусором, счётчик аллокаций растёт и каждые несколько кадров пробивает цель. Отсюда 81 цикл на 240 кадров: GC занят примерно каждым третьим кадром.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">С ареной</h3>
+    <p>Первый кадр выделяет 14.7 MB один раз. Дальше <code>Begin</code>/<code>End</code> только двигают <code>off</code> внутри уже существующего массива. Счётчик аллокаций стоит на месте, цель не достигается, GC нечего делать.</p>
+  </div>
+</div>
+
+<figure>
+  <svg viewBox="0 0 640 280" role="img" aria-label="Циклы GC за 240 кадров: 81, 3 и 0">
+    <line class="grid" x1="70" y1="40" x2="620" y2="40"></line>
+    <line class="grid" x1="70" y1="95" x2="620" y2="95"></line>
+    <line class="grid" x1="70" y1="150" x2="620" y2="150"></line>
+    <line class="grid" x1="70" y1="205" x2="620" y2="205"></line>
+    <line class="axis" x1="70" y1="240" x2="620" y2="240"></line>
+    <text class="lbl" x="62" y="44" text-anchor="end">80</text>
+    <text class="lbl" x="62" y="99" text-anchor="end">60</text>
+    <text class="lbl" x="62" y="154" text-anchor="end">40</text>
+    <text class="lbl" x="62" y="209" text-anchor="end">20</text>
+    <text class="lbl" x="62" y="244" text-anchor="end">0</text>
+    <rect class="naive" x="110" y="18" width="92" height="222" rx="3"></rect>
+    <rect class="scratch" x="282" y="232" width="92" height="8" rx="3"></rect>
+    <rect class="flat" x="454" y="240" width="92" height="2" rx="1"></rect>
+    <text class="val" x="156" y="12" text-anchor="middle">81</text>
+    <text class="val" x="328" y="226" text-anchor="middle">3</text>
+    <text class="val" x="500" y="234" text-anchor="middle">0</text>
+    <text class="lbl" x="156" y="258" text-anchor="middle">Go-арена на кадр</text>
+    <text class="lbl" x="328" y="258" text-anchor="middle">scratch, 2.5K</text>
+    <text class="lbl" x="500" y="258" text-anchor="middle">scratch, 480p</text>
+    <text class="lbl" x="345" y="274" text-anchor="middle">циклов GC за прогон, 240 кадров (480p — 60 кадров)</text>
+  </svg>
+  <figcaption>Замеры из <code>vault/features/arenas.md</code>: 2.5K, 240 кадров, 4 ядра, LUT-шейдинг, 14.7 MB строк на кадр.</figcaption>
+</figure>
+
+<h2>6. Когда именно были эти два вызова</h2>
+<p>Ни один из них не приходится на устойчивый кадровый цикл. Это прогрев и хвост программы. По шагам:</p>
+
+<div class="timeline">
+  <div class="tl-track">
+    <div class="tl-cell hit">
+      <b>Старт процесса</b>
+      <span>Инициализация рантайма, окно raylib, текстура, пакеты. Если стартовые аллокации пробили первую цель ~4 MB — здесь проходит GC №1.</span>
+    </div>
+    <div class="tl-cell hit">
+      <b>Первый кадр</b>
+      <span><code>Row[](H)</code> впервые выделяет 14.7 MB. Это пробивает следующую цель — GC №2. Дальше буфер живёт в пуле и не выделяется.</span>
+    </div>
+    <div class="tl-cell zero">
+      <b>Кадры 2–240</b>
+      <span>Только <code>Begin</code>, bump внутри <code>buf</code>, <code>End</code>, <code>clear</code>. Ноль <code>make</code>, счётчик кучи стоит. <b>Ноль вызовов GC.</b></span>
+    </div>
+    <div class="tl-cell hit">
+      <b>После цикла</b>
+      <span><code>Release()</code> отдаёт буфер, <code>fmt</code>/ teardown создаёт мусор. Возможен GC №3 — уже без влияния на кадры.</span>
+    </div>
+  </div>
+</div>
+
+<p>Отсюда два числа в замерах:</p>
+<table>
+  <thead><tr><th>Сценарий</th><th class="num">Всего GC</th><th>Где именно</th></tr></thead>
+  <tbody>
+    <tr><td>Постоянный буфер до цикла, 2.5K</td><td class="num">2</td><td>выделение буфера на прогреве + <code>fmt</code>/хвост</td></tr>
+    <tr><td>Типизированный scratch, 2.5K</td><td class="num">3</td><td>старт + первый кадр + <code>fmt</code>/хвост</td></tr>
+    <tr><td>Типизированный scratch, 480×270</td><td class="num">0</td><td>весь прогон укладывается под цель GC</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>Честная оговорка.</b> В репозитории сохранены только итоговые числа и пометка «из них startup/fmt», без лога номеров кадров. Раскладка по четырём фазам выше — механизм Go GC плюс форма кода; точные номера кадров в замере не записаны. Я воспроизвёл тот же паттерн отдельным Go-скриптом (14.7 MB batch, 240 итераций): GC случился ровно на кадре 1, дальше — ни одного; при выделении нового массива каждый кадр — 240 циклов. Это подтверждает механику, но не является повторным замером raylib-примера.
+</div>
+
+<h2>7. Почему Go-арена не дала этого эффекта</h2>
+<p>Первая версия использовала экспериментальный пакет <code>arena</code> из Go: <code>arena.NewArena()</code> на кадр и <code>Free()</code> на выходе. Ожидание было «зона без GC». Реальность:</p>
+<ul>
+  <li>чанки арены — обычные объекты кучи, и пейсер Go считает их аллокациями;</li>
+  <li><code>Free()</code> не возвращает память сразу: полный чанк уходит в карантин и ждёт следующего GC;</li>
+  <li>пока карантин не разобран, следующая арена снова просит у кучи — счётчик растёт, GC запускается.</li>
+</ul>
+<p>Итог: 81 цикл на 240 кадров. Арена уменьшила хвост по сравнению с полностью динамической кучей, но «нулём» не стала. Ноль даёт только переиспользование без аллокаций.</p>
+
+<h2>8. Чем вообще можно управлять GC в Go</h2>
+<p>Способы делятся на два класса: <b>не создавать работу</b> (лучший) и <b>двигать порог</b> (переносит работу, а не убирает).</p>
+
+<table>
+  <thead><tr><th>Приём</th><th>Что делает</th><th>Цена</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Переиспользовать буферы</b><br><span class="muted">арена, <code>sync.Pool</code>, <code>xs[:0]</code></span></td>
+      <td>Убирает аллокации в горячем цикле. Живая куча стабильна, цель GC не достигается.</td>
+      <td class="good">Почти нет; нужен явный жизненный цикл и аккуратность с указателями</td>
+    </tr>
+    <tr>
+      <td><b>Меньше живой кучи</b><br><span class="muted">value-типы, отказ от долгоживущих ссылок</span></td>
+      <td>Цель следующего GC = live × 2. Меньше live — реже циклы и короче маркировка.</td>
+      <td class="good">Нет, это просто хороший код</td>
+    </tr>
+    <tr>
+      <td><b><code>GOGC=400</code></b><br><span class="muted">или <code>debug.SetGCPercent</code></span></td>
+      <td>Поднимает цель в 5 раз: GC реже, но каждый дороже по памяти и паузе.</td>
+      <td class="warn">Пик RSS растёт; в пределе — OOM. Не лечит аллокации</td>
+    </tr>
+    <tr>
+      <td><b><code>GOGC=off</code> + <code>GOMEMLIMIT</code></b></td>
+      <td>GC не запускается от процента, только при приближении к мягкому лимиту памяти.</td>
+      <td class="warn">Годится для коротких batch-процессов; в долгом сервисе — риск</td>
+    </tr>
+    <tr>
+      <td><b>Pointer-free буферы</b></td>
+      <td>Массив без указателей не сканируется: маркировка дешевле.</td>
+      <td class="good">Нет; <code>Row = u8[1920]</code> именно такой</td>
+    </tr>
+    <tr>
+      <td><b>Ballast</b> (устаревший)</td>
+      <td>Большой живой объект поднимает цель GC, как ручной <code>GOGC</code>.</td>
+      <td class="warn">Заменён <code>GOMEMLIMIT</code>; память занята постоянно</td>
+    </tr>
+    <tr>
+      <td><b><code>runtime.GC()</code></b></td>
+      <td>Принудительный цикл.</td>
+      <td class="warn">Только добавить вызов, не убрать</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Ink сознательно не трогает <code>GOGC</code>: это глобальная ручка процесса, она не делает код быстрее и не является свойством языка. Арена решает задачу в одном месте и не требует от пользователя знать про пейсер. <code>GOGC</code> остаётся доступен снаружи, как обычная переменная окружения — им можно пользоваться, но язык на него не опирается.</p>
+
+<h2>9. Что здесь проверено, а что нет</h2>
+<table>
+  <thead><tr><th>Утверждение</th><th>Чем подтверждено</th></tr></thead>
+  <tbody>
+    <tr><td>Кодоген поднимает <code>Scratch</code> перед циклом и вызывает <code>Release</code> после</td><td>Сгенерированный <code>zz_ink.go</code> для <code>tests/cases/arena_reuse</code>, прочитан глазами</td></tr>
+    <tr><td>Повторное выполнение блока даёт нули</td><td><code>tests/cases/arena_reuse</code> (ожидаемый вывод <code>0</code>)</td></tr>
+    <tr><td>Escape-правила</td><td><code>internal/sema/check.go</code>, <code>tests/cases/arena*</code></td></tr>
+    <tr><td>81 → 2/3 и 0 на 480p</td><td>Записано в <code>vault/features/arenas.md</code> и <code>docs/maintain/decisions.md</code>; исходного бенчмарк-харнесса в репозитории нет</td></tr>
+    <tr><td>GC на кадре 1, дальше ноль</td><td>Отдельный Go-скрипт с тем же паттерном (14.7 MB, 240 итераций), не raylib-пример</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Источники: <code>runtime/source.go</code> (<code>Scratch</code>, <code>Batch</code>), <code>internal/gen/stmt.go</code> (<code>arenaStmt</code>, <code>loopScratch</code>), <code>internal/sema/check.go</code>, <code>docs/product/SPEC.md</code> §3.8, <code>vault/features/arenas.md</code>, <code>docs/maintain/decisions.md</code> (2026-11-21 … 2026-11-23).
+</footer>
+
+</body>
+</html>
