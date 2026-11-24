@@ -44,9 +44,18 @@ func openCodeConfig(inkPath string) []byte {
       "command": [%s, "fmt", "-w", "$FILE"],
       "extensions": [".ink"]
     }
+  },
+  "mcp": {
+    "servers": {
+      "ink": {
+        "type": "local",
+        "command": [%s, "mcp"],
+        "codemode": false
+      }
+    }
   }
 }
-`, quoted, quoted))
+`, quoted, quoted, quoted))
 }
 
 func inkCommand() string {
