@@ -153,7 +153,7 @@ type Server struct {
         var h = envInt("INK_OUT_H", 0);
         var hz = envInt("INK_OUT_HZ", 0);
         if (w > 0 && h > 0 && hz > 0) {
-            st.SetCustomMode(w, h, hz);
+            st.SetCustomMode(w, h, i32(hz));
         } else if (len(modes) > 0) {
             st.SetMode(modes[0]);
         };
