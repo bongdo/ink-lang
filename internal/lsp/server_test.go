@@ -905,3 +905,110 @@ fn main() void {
 		t.Fatalf("hover: %+v", hover.Contents.Value)
 	}
 }
+
+func TestCompletionAfterDot(t *testing.T) {
+	src := `type Item struct {
+    Name: str,
+    Qty: i32,
+
+    fn Add(n: i32) void {
+        Qty += n;
+    };
+};
+
+fn main() void {
+    var it = Item { Name: "x", Qty: 0 };
+    it.Add(1);
+};
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	msg := c.request("textDocument/completion", CompletionParams{
+		TextDocumentPositionParams: TextDocumentPositionParams{
+			TextDocument: TextDocumentIdentifier{URI: uri},
+			Position:     PositionAt([]byte(src), strings.Index(src, "it.Add")+3),
+		},
+	})
+	var list CompletionList
+	if err := json.Unmarshal(msg.Result, &list); err != nil {
+		t.Fatal(err)
+	}
+	labels := make([]string, 0, len(list.Items))
+	for _, item := range list.Items {
+		labels = append(labels, item.Label)
+	}
+	for _, want := range []string{"Name", "Qty", "Add"} {
+		found := false
+		for _, label := range labels {
+			if label == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("completion labels = %v, want %s", labels, want)
+		}
+	}
+}
+
+func TestHoverOnSelector(t *testing.T) {
+	lib := "fn Double(n: i32) i32 {\n    return n * 2;\n};\n"
+	main := "use ./lib;\n\nfn main() void {\n    _ = lib.Double(2);\n};\n"
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/sel\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.ink"), []byte(main), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "lib", "lib.ink"), []byte(lib), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	uri := pathToURI(filepath.Join(root, "main.ink"))
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, main)
+	msg := c.request("textDocument/hover", TextDocumentPositionParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Position:     PositionAt([]byte(main), strings.Index(main, "lib.Double")+5),
+	})
+	var hover Hover
+	if err := json.Unmarshal(msg.Result, &hover); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hover.Contents.Value, "fn Double(n: i32) i32") {
+		t.Fatalf("hover = %q", hover.Contents.Value)
+	}
+}
+
+func TestCodeActionMakeRemoved(t *testing.T) {
+	src := "fn main() void {\n    var xs = make[i32](3);\n    _ = xs;\n};\n"
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	published := openDocument(t, c, uri, src)
+	diags := published.Diagnostics
+	if len(diags) == 0 {
+		t.Fatal("no diagnostics")
+	}
+	msg := c.request("textDocument/codeAction", CodeActionParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Range:        diags[0].Range,
+		Context:      CodeActionContext{Diagnostics: diags},
+	})
+	var actions []CodeAction
+	if err := json.Unmarshal(msg.Result, &actions); err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) == 0 {
+		t.Fatalf("no code actions for %+v", diags[0])
+	}
+	edits := actions[0].Edit.Changes[uri]
+	if len(edits) != 1 || !strings.Contains(edits[0].NewText, "i32[](3)") {
+		t.Fatalf("edits = %+v", edits)
+	}
+}

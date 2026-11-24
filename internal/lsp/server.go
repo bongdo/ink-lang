@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1087,7 +1088,35 @@ func (s *server) inferredType(fi *fileInfo, node ast.Node, line, col, offset int
 	if t == "" {
 		return ""
 	}
-	return codeBlock("inferred: " + t)
+	return codeBlock("inferred: " + inkTypeText(t))
+}
+
+var goTypeWord = regexp.MustCompile(`\b(int32|int64|uint8|uint32|uint64|float64|float32|string)\b`)
+
+func inkTypeText(s string) string {
+	s = strings.ReplaceAll(s, "[]byte", "u8[]")
+	s = strings.ReplaceAll(s, "[]rune", "rune[]")
+	return goTypeWord.ReplaceAllStringFunc(s, func(word string) string {
+		switch word {
+		case "int32":
+			return "i32"
+		case "int64":
+			return "i64"
+		case "uint8":
+			return "u8"
+		case "uint32":
+			return "u32"
+		case "uint64":
+			return "u64"
+		case "float64":
+			return "f64"
+		case "float32":
+			return "f32"
+		case "string":
+			return "str"
+		}
+		return word
+	})
 }
 
 func identWordAt(src []byte, offset int) string {
