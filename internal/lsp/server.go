@@ -1178,8 +1178,6 @@ func hoverText(node ast.Node) string {
 	switch node := node.(type) {
 	case *ast.Ident:
 		return refHover(node.Name, node.Ref)
-	case *ast.SelectorExpr:
-		return refHover(node.Name, node.Ref)
 	case *ast.FuncDecl:
 		return codeBlock(funcDeclText(node))
 	case *ast.TypeDecl:

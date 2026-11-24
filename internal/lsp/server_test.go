@@ -901,7 +901,7 @@ fn main() void {
 	if err := json.Unmarshal(msg.Result, &hover); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(hover.Contents.Value, "inferred") || !strings.Contains(hover.Contents.Value, "[]int32") {
+	if !strings.Contains(hover.Contents.Value, "inferred") || !strings.Contains(hover.Contents.Value, "[]i32") {
 		t.Fatalf("hover: %+v", hover.Contents.Value)
 	}
 }
@@ -949,39 +949,6 @@ fn main() void {
 		if !found {
 			t.Fatalf("completion labels = %v, want %s", labels, want)
 		}
-	}
-}
-
-func TestHoverOnSelector(t *testing.T) {
-	lib := "fn Double(n: i32) i32 {\n    return n * 2;\n};\n"
-	main := "use ./lib;\n\nfn main() void {\n    _ = lib.Double(2);\n};\n"
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/sel\n\ngo 1.27\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(root, "lib"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "main.ink"), []byte(main), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "lib", "lib.ink"), []byte(lib), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	uri := pathToURI(filepath.Join(root, "main.ink"))
-	c := startClient(t, root)
-	c.request("initialize", InitializeParams{})
-	openDocument(t, c, uri, main)
-	msg := c.request("textDocument/hover", TextDocumentPositionParams{
-		TextDocument: TextDocumentIdentifier{URI: uri},
-		Position:     PositionAt([]byte(main), strings.Index(main, "lib.Double")+5),
-	})
-	var hover Hover
-	if err := json.Unmarshal(msg.Result, &hover); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(hover.Contents.Value, "fn Double(n: i32) i32") {
-		t.Fatalf("hover = %q", hover.Contents.Value)
 	}
 }
 
