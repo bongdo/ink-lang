@@ -33,10 +33,10 @@ fn main() void! {
     fmt.Println(len(imported), imported[2].y)
         or fail;
 
-    var bytes = Byte[N] {};
-    bytes[0] = 7;
-    bytes[2] = 9;
-    fmt.Println(len(bytes), bytes[0], bytes[2])
+    var raw = Byte[N] {};
+    raw[0] = 7;
+    raw[2] = 9;
+    fmt.Println(len(raw), raw[0], raw[2])
         or fail;
 
     var fixed = Point[2] {};

@@ -493,6 +493,57 @@ func writeIfChanged(path string, data []byte) (bool, error) {
 	return true, nil
 }
 
+func stripNoRace(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	noRace := false
+	for _, a := range args {
+		if a == "--no-race" {
+			noRace = true
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, noRace
+}
+
+func hasRaceArg(args []string) bool {
+	for _, a := range args {
+		if a == "-race" || a == "--race" {
+			return true
+		}
+	}
+	return false
+}
+
+func needsRace(p *sema.Program) bool {
+	if p == nil {
+		return false
+	}
+	for _, pkg := range p.Packages {
+		for _, f := range pkg.Files {
+			found := false
+			ast.Inspect(f, func(n ast.Node) bool {
+				switch n.(type) {
+				case *ast.ParStmt, *ast.GoCallStmt:
+					found = true
+				}
+				return !found
+			})
+			if found {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func cgoEnabled() bool {
+	cmd := exec.Command("go", "env", "CGO_ENABLED")
+	cmd.Env = config.GoEnv()
+	out, err := cmd.Output()
+	return err == nil && strings.TrimSpace(string(out)) == "1"
+}
+
 func filteredTestArgs(args []string) bool {
 	for _, a := range args {
 		for _, flag := range []string{"-run", "--run", "-skip", "--skip", "-bench", "--bench", "-fuzz", "--fuzz"} {
@@ -630,6 +681,7 @@ func execRun(bin, dir string, args []string) (int, error) {
 }
 
 func (p *Project) Test(args []string) (int, error) {
+	args, noRace := stripNoRace(args)
 	if err := p.Check(CheckOptions{Tidy: true, Typecheck: true}); err != nil {
 		return 1, err
 	}
@@ -644,7 +696,16 @@ func (p *Project) Test(args []string) (int, error) {
 		fmt.Fprintln(os.Stderr, "ink: no `test` blocks in .ink sources; declare `test \"name\" { ... };` in any .ink file")
 		return 1, nil
 	}
-	cmd := exec.Command("go", append([]string{"test", "-buildvcs=false", "./..."}, args...)...)
+	goArgs := []string{"test", "-buildvcs=false"}
+	if needsRace(p.Program) && !noRace && !hasRaceArg(args) {
+		if cgoEnabled() {
+			goArgs = append(goArgs, "-race")
+		} else {
+			fmt.Fprintln(os.Stderr, "ink: concurrency present, but the race detector needs cgo; tests run without -race")
+		}
+	}
+	goArgs = append(goArgs, "./...")
+	cmd := exec.Command("go", append(goArgs, args...)...)
 	cmd.Dir = p.Root
 	cmd.Env = p.env()
 	cmd.Stdin = os.Stdin

@@ -410,3 +410,19 @@ fn main() void {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }
+
+func TestBuiltinShadowRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f(len: i32) void {
+    var f64 = 1.5;
+    _ = len;
+    _ = f64;
+};
+
+fn main() void {
+    f(1);
+};
+`})
+	if !hasError(p, "len is a builtin name") || !hasError(p, "f64 is a builtin name") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}

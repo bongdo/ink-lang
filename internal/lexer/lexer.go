@@ -180,6 +180,9 @@ func (l *lexer) ident() {
 		first = false
 	}
 	lit := string(l.src[off:l.i])
+	if !asciiIdent(lit) {
+		l.errorAt(start, "identifiers are ASCII: a-z, A-Z, 0-9, _")
+	}
 	if kind := token.Lookup(lit); kind != token.Ident {
 		l.emitKind(kind, start)
 		if kind == token.Use {
@@ -512,6 +515,15 @@ func (l *lexer) symbol() {
 
 	l.advanceN(size)
 	l.emitKind(kind, start)
+}
+
+func asciiIdent(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 func isLetter(c byte) bool {

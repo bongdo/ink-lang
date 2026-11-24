@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"github.com/bongdo/ink/internal/diag"
 	"strings"
 	"testing"
 
@@ -95,23 +96,19 @@ func TestGoReservedWordsAreIdentifiers(t *testing.T) {
 }
 
 func TestUnicodeIdentifiers(t *testing.T) {
-	words := []string{"héllo", "世界", "_x1", "x_1", "_", "__", "ünïcode"}
-	toks, _, errs := mustLex(t, strings.Join(words, " "))
-	if len(errs) != 0 {
-		t.Fatalf("unexpected errors: %v", errs)
+	_, _, errs := mustLex(t, "héllo 世界")
+	if len(errs) == 0 {
+		t.Fatal("expected errors for non-ASCII identifiers")
 	}
-	if len(toks) != len(words)+1 {
-		t.Fatalf("got %d tokens, want %d", len(toks), len(words)+1)
-	}
-	for i, word := range words {
-		if toks[i].Kind != token.Ident || toks[i].Lit != word {
-			t.Fatalf("token %d = %v (%q), want ident %q", i, toks[i].Kind, toks[i].Lit, word)
+	for _, e := range errs {
+		if info := diag.Classify(e.Msg); info.Code != "ident-ascii" {
+			t.Fatalf("code = %q (%s)", info.Code, e.Msg)
 		}
 	}
 }
 
 func TestPositionsUTF8AndCRLF(t *testing.T) {
-	src := "héllo\r\n世界 x"
+	src := "hello\r\nworld x"
 	toks, _, errs := mustLex(t, src)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -120,10 +117,10 @@ func TestPositionsUTF8AndCRLF(t *testing.T) {
 		pos token.Pos
 		end token.Pos
 	}{
-		{token.Pos{Offset: 0, Line: 1, Col: 1}, token.Pos{Offset: 6, Line: 1, Col: 7}},
-		{token.Pos{Offset: 8, Line: 2, Col: 1}, token.Pos{Offset: 14, Line: 2, Col: 7}},
-		{token.Pos{Offset: 15, Line: 2, Col: 8}, token.Pos{Offset: 16, Line: 2, Col: 9}},
-		{token.Pos{Offset: 16, Line: 2, Col: 9}, token.Pos{Offset: 16, Line: 2, Col: 9}},
+		{token.Pos{Offset: 0, Line: 1, Col: 1}, token.Pos{Offset: 5, Line: 1, Col: 6}},
+		{token.Pos{Offset: 7, Line: 2, Col: 1}, token.Pos{Offset: 12, Line: 2, Col: 6}},
+		{token.Pos{Offset: 13, Line: 2, Col: 7}, token.Pos{Offset: 14, Line: 2, Col: 8}},
+		{token.Pos{Offset: 14, Line: 2, Col: 8}, token.Pos{Offset: 14, Line: 2, Col: 8}},
 	}
 	if len(toks) != len(want) {
 		t.Fatalf("got %d tokens, want %d", len(toks), len(want))
@@ -533,5 +530,15 @@ fn load(xs: Node[]) void or error = {
 	}
 	if toks[42].Lit != "0" || toks[53].Lit != "1" {
 		t.Fatalf("int lits = %q, %q", toks[42].Lit, toks[53].Lit)
+	}
+}
+
+func TestUnicodeIdentifierRejected(t *testing.T) {
+	_, _, errs := mustLex(t, "fn привет() void {\n};\n")
+	if len(errs) == 0 {
+		t.Fatal("expected an error")
+	}
+	if info := diag.Classify(errs[0].Msg); info.Code != "ident-ascii" {
+		t.Fatalf("code = %q (%s)", info.Code, errs[0].Msg)
 	}
 }

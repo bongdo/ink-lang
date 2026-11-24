@@ -698,3 +698,31 @@ func TestPrintErrorsIncludesHint(t *testing.T) {
 		t.Fatalf("output = %q", buf.String())
 	}
 }
+
+func TestNeedsRace(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/race\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "fn work() void {\n};\n\nfn main() void {\n    par {\n        work();\n        work();\n    };\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Fast: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !needsRace(p.Program) {
+		t.Fatal("par should need race")
+	}
+}
+
+func TestStripNoRace(t *testing.T) {
+	args, no := stripNoRace([]string{"-v", "--no-race", "-count=1"})
+	if !no || len(args) != 2 {
+		t.Fatalf("args = %v no = %v", args, no)
+	}
+}

@@ -73,6 +73,13 @@ func (c *checker) declare(sym *symbol) {
 	if sym.name == "_" {
 		return
 	}
+	if builtinReserved(sym.name) {
+		pos := token.Pos{}
+		if sym.decl != nil {
+			pos = sym.decl.Pos()
+		}
+		c.p.errorf(c.fc.file.Path, pos, "%s is a builtin name; rename it", sym.name)
+	}
 	sym.arenaDepth = c.inArena
 	if sc := c.top(); sc != nil {
 		sc.names[sym.name] = sym
@@ -139,6 +146,13 @@ func isMapType(t ast.Type) bool {
 func isNilLit(e ast.Expr) bool {
 	_, ok := unparen(e).(*ast.NilLit)
 	return ok
+}
+
+func builtinReserved(name string) bool {
+	if _, ok := builtinTypes[name]; ok {
+		return true
+	}
+	return isBuiltinFunc(name)
 }
 
 func isBuiltinFunc(name string) bool {

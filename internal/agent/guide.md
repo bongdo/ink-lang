@@ -79,7 +79,9 @@ test "load fails on bad json" {
   assertion or panic fails only that test; the remaining tests still run.
 - `fail("msg")` exists only as the shorthand after `or`; a new error is
   `errors.New("msg")`.
-- `ink test [go test flags]`: `-run`, `-v`, `-count=1`, `-race`.
+- `ink test [go test flags]`: `-run`, `-v`, `-count=1`. When the package uses
+  `par` or `spawn`, `ink test` adds `-race` itself; `--no-race` opts out. The
+  race detector needs cgo; without it tests run without `-race` and say so.
 - With no `test` block, `ink test` prints `[no test files]` plus a hint on how
   to declare one; that is not a passing suite.
 
@@ -241,6 +243,9 @@ for (var i, x in xs) { ... };
 - A conversion is the type as a function: `i32(x)`, `f64(n)`, `str(b)` for
   bytes, `bytes(s)`, `runes(s)`. `str(65)` follows Go's `string(rune)` and is
   `"A"`, not `"65"`; format numbers with `fmt.Sprint(n)`.
+- Identifiers are ASCII: `a-z`, `A-Z`, `0-9`, `_`. An identifier does not
+  start with a digit. Builtin type and function names (`i32`, `len`, `min`, …)
+  are reserved and cannot be shadowed anywhere.
 - Reserved words cannot be identifiers: `use`, `fail`, `as`, `fn`, `type`,
   `struct`, `enum`, `interface`, `var`, `const`, `return`, `if`, `else`,
   `for`, `in`, `match`, `case`, `par`, `spawn`, `on`, `arena`, `defer`, `break`,
