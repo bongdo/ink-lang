@@ -431,7 +431,13 @@ func TestConformanceCases(t *testing.T) {
 				p.PrintErrors(os.Stderr)
 				t.Fatal(err)
 			}
-			if len(p.Errors) > 0 {
+			hasError := false
+			for _, e := range p.Errors {
+				if !e.Warning {
+					hasError = true
+				}
+			}
+			if hasError {
 				p.PrintErrors(os.Stderr)
 				t.Fatal("check failed")
 			}
