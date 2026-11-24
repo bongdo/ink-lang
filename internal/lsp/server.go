@@ -45,6 +45,7 @@ const (
 	ciEnum     = 13
 	ciConstant = 21
 	ciStruct   = 22
+	ciField    = 5
 )
 
 const (
@@ -1147,7 +1148,9 @@ func (s *server) inspectFile(fi *fileInfo, fn func(ast.Node) bool) {
 func hoverText(node ast.Node) string {
 	switch node := node.(type) {
 	case *ast.Ident:
-		return identHover(node)
+		return refHover(node.Name, node.Ref)
+	case *ast.SelectorExpr:
+		return refHover(node.Name, node.Ref)
 	case *ast.FuncDecl:
 		return codeBlock(funcDeclText(node))
 	case *ast.TypeDecl:
@@ -1162,8 +1165,7 @@ func codeBlock(text string) string {
 	return "```ink\n" + text + "\n```"
 }
 
-func identHover(id *ast.Ident) string {
-	ref := id.Ref
+func refHover(name string, ref *ast.Ref) string {
 	if ref == nil {
 		return ""
 	}
@@ -1175,7 +1177,7 @@ func identHover(id *ast.Ident) string {
 		} else if t := formatType(ref.TypeVal); t != "" {
 			code = t
 		} else {
-			code = id.Name
+			code = name
 		}
 		kind = "function"
 	case ast.RefType:
@@ -1186,24 +1188,24 @@ func identHover(id *ast.Ident) string {
 			if named, ok := ref.TypeVal.(*ast.NamedType); ok && named.Decl != nil {
 				code = typeDeclText(named.Decl)
 			} else {
-				code = id.Name
+				code = name
 			}
 		}
 		kind = "type"
 	case ast.RefPackage:
-		code = id.Name
+		code = name
 		kind = "package"
 	case ast.RefBuiltin:
-		code = id.Name
+		code = name
 		kind = "builtin"
 	case ast.RefSelf:
-		code = id.Name
+		code = name
 		if t := formatType(ref.TypeVal); t != "" {
 			code += ": " + t
 		}
 		kind = "self"
 	default:
-		code = id.Name
+		code = name
 		if t := formatType(ref.TypeVal); t != "" {
 			code += ": " + t
 		}
@@ -1607,6 +1609,9 @@ func (s *server) completion(p CompletionParams) (any, error) {
 		if alias == "" {
 			return CompletionList{Items: items}, nil
 		}
+		if id := s.valueBeforeDot(fi, offset-len(alias)-1); id != nil {
+			return CompletionList{Items: s.fieldItems(id)}, nil
+		}
 		return CompletionList{Items: s.memberItems(fi, alias)}, nil
 	}
 	return CompletionList{Items: s.allItems(fi, offset)}, nil
@@ -1629,6 +1634,42 @@ func prefixAt(src []byte, offset int) string {
 		break
 	}
 	return string(src[start:offset])
+}
+
+func (s *server) valueBeforeDot(fi *fileInfo, offset int) *ast.Ident {
+	if offset < 0 {
+		return nil
+	}
+	node := s.nodeAt(fi, offset)
+	for node != nil {
+		if id, ok := node.(*ast.Ident); ok {
+			if id.Ref != nil && (id.Ref.Kind == ast.RefLocal || id.Ref.Kind == ast.RefParam || id.Ref.Kind == ast.RefSelf || id.Ref.Kind == ast.RefGlobal) {
+				return id
+			}
+			return nil
+		}
+		return nil
+	}
+	return nil
+}
+
+func (s *server) fieldItems(id *ast.Ident) []CompletionItem {
+	items := []CompletionItem{}
+	typ := id.Ref.TypeVal
+	if p, ok := typ.(*ast.PointerType); ok {
+		typ = p.Elem
+	}
+	named, ok := typ.(*ast.NamedType)
+	if !ok || named.Decl == nil {
+		return items
+	}
+	for _, f := range named.Decl.Fields {
+		items = append(items, CompletionItem{Label: f.Name, Kind: ciField, Detail: formatType(f.Type), SortText: "0" + strings.ToLower(f.Name)})
+	}
+	for _, m := range named.Decl.Methods {
+		items = append(items, CompletionItem{Label: m.Name, Kind: ciFunction, Detail: funcDeclText(m), SortText: "1" + strings.ToLower(m.Name)})
+	}
+	return sortItems(items)
 }
 
 func (s *server) memberItems(fi *fileInfo, alias string) []CompletionItem {

@@ -520,6 +520,9 @@ func InferTypes(p *sema.Program, files map[string][]*ast.File, opt Options) *Inf
 		for id, inst := range pkg.TypesInfo.Instances {
 			pos := pkg.Fset.Position(id.Pos())
 			text := types.TypeString(inst.Type, qual)
+			if strings.Contains(text, "invalid type") {
+				continue
+			}
 			out.At[resolvePosKey(opt.Root, dirs, pos)] = text
 			out.ByName[resolveNameKey(opt.Root, dirs, pos, id.Name)] = text
 		}
@@ -530,6 +533,9 @@ func InferTypes(p *sema.Program, files map[string][]*ast.File, opt Options) *Inf
 				continue
 			}
 			text := types.TypeString(obj.Type(), qual)
+			if strings.Contains(text, "invalid type") {
+				continue
+			}
 			out.At[key] = text
 			out.ByName[resolveNameKey(opt.Root, dirs, pos, obj.Name())] = text
 		}

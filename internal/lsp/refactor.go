@@ -655,8 +655,114 @@ func (s *server) codeActionFix(fi *fileInfo, diagnostic Diagnostic, code string)
 		return "Use or fail", fixErrManual(fi, diagnostic)
 	case "nil-untyped":
 		return "Add explicit nil type", fixNilUntyped(fi, diagnostic)
+	case "make-removed":
+		return "Replace make with T[](n)", fixMakeRemoved(fi, diagnostic)
+	case "for-cond":
+		return "Write for (; cond; )", fixForCond(fi, diagnostic)
 	}
 	return "", nil
+}
+
+func fixMakeRemoved(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
+	src := fi.src
+	start, ok := diagnosticOffset(fi, diagnostic)
+	if !ok {
+		return nil
+	}
+	i := bytes.Index(src[start:], []byte("make["))
+	if i < 0 {
+		return nil
+	}
+	i += start
+	openB := i + len("make")
+	closeB := matchBracket(src, openB, '[', ']')
+	if closeB < 0 || closeB+1 >= len(src) || src[closeB+1] != '(' {
+		return nil
+	}
+	openP := closeB + 1
+	closeP := matchBracket(src, openP, '(', ')')
+	if closeP < 0 {
+		return nil
+	}
+	typ := strings.TrimSpace(string(src[openB+1 : closeB]))
+	args := splitTopLevel(string(src[openP+1 : closeP]))
+	if typ == "" || len(args) == 0 || len(args) > 2 {
+		return nil
+	}
+	out := typ + "[](" + args[0]
+	if len(args) == 2 {
+		out += ", cap: " + args[1]
+	}
+	out += ")"
+	return []TextEdit{{
+		Range:   Range{Start: PositionAt(src, i), End: PositionAt(src, closeP+1)},
+		NewText: out,
+	}}
+}
+
+func fixForCond(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
+	src := fi.src
+	start, ok := diagnosticOffset(fi, diagnostic)
+	if !ok {
+		return nil
+	}
+	lineStart := bytes.LastIndexByte(src[:start], '\n') + 1
+	i := bytes.Index(src[lineStart:], []byte("for ("))
+	if i < 0 {
+		return nil
+	}
+	i += lineStart
+	openP := i + len("for ")
+	closeP := matchBracket(src, openP, '(', ')')
+	if closeP < 0 {
+		return nil
+	}
+	return []TextEdit{
+		{Range: Range{Start: PositionAt(src, openP+1), End: PositionAt(src, openP+1)}, NewText: "; "},
+		{Range: Range{Start: PositionAt(src, closeP), End: PositionAt(src, closeP)}, NewText: "; "},
+	}
+}
+
+func matchBracket(src []byte, open int, o, c byte) int {
+	depth := 0
+	for i := open; i < len(src); i++ {
+		switch src[i] {
+		case o:
+			depth++
+		case c:
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func splitTopLevel(s string) []string {
+	var out []string
+	depth := 0
+	cur := strings.Builder{}
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch ch {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, strings.TrimSpace(cur.String()))
+				cur.Reset()
+				continue
+			}
+		}
+		cur.WriteByte(ch)
+	}
+	if strings.TrimSpace(cur.String()) != "" {
+		out = append(out, strings.TrimSpace(cur.String()))
+	}
+	return out
 }
 
 func diagnosticOffset(fi *fileInfo, diagnostic Diagnostic) (int, bool) {
