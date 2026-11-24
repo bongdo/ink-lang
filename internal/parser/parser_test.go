@@ -1664,7 +1664,7 @@ func TestOrInsideCallIsOneDiagnostic(t *testing.T) {
 }
 
 func TestReservedWordParameter(t *testing.T) {
-	_, errs := Parse("param.ink", []byte("fn f(limit: i32) void {\n};\n\nfn main() void {\n    f(1);\n};\n"))
+	_, errs := Parse("param.ink", []byte("fn f(on: i32) void {\n};\n\nfn main() void {\n    f(1);\n};\n"))
 	if len(errs) != 1 {
 		t.Fatalf("errors = %v", errs)
 	}
