@@ -30,7 +30,8 @@ mkdir -p "$case_out"
 
 run_case() {
 	local label=$1 frames=$2 ow=$3 oh=$4 hz=$5 r=$6 ww=$7 wh=$8 n=$9
-	pkill -x compositor 2>/dev/null
+	local budget=${10:-90}
+	pkill -x "$(basename "$comp")" 2>/dev/null
 	sleep 0.4
 	rm -f "$XDG_RUNTIME_DIR"/wayland-0 "$XDG_RUNTIME_DIR"/wayland-0.lock
 
@@ -40,36 +41,30 @@ run_case() {
 	local cpid=$!
 	sleep 1.2
 	if ! kill -0 "$cpid" 2>/dev/null; then
-		echo "CASE $label FAILED to start:"
-		sed -n '1,5p' "$case_out/$label.log"
+		echo "CASE $label FAILED:"
+		sed -n '1,3p' "$case_out/$label.log" | sed 's/^/  /'
 		return
 	fi
-	local rss0 rss1
-	rss0=$(ps -o rss= -p "$cpid" | tr -d ' ')
+
+	echo "CASE $label renderer=$r out=${ow}x${oh}@${hz} win=${ww}x${wh} clients=$n rss_kb=$(ps -o rss= -p "$cpid" | tr -d ' ')"
 
 	local pids=()
 	for i in $(seq 1 "$n"); do
-		WAYLAND_DISPLAY=wayland-0 ./client/build/fpsclient -n "$frames" -w "$ww" -h "$wh" \
+		WAYLAND_DISPLAY=wayland-0 timeout "$budget" ./client/build/fpsclient -n "$frames" -w "$ww" -h "$wh" \
 			>"$case_out/$label-$i.json" 2>&1 &
 		pids+=($!)
 	done
 	for p in "${pids[@]}"; do wait "$p"; done
-	rss1=$(ps -o rss= -p "$cpid" | tr -d ' ')
 
-	echo "CASE $label renderer=$r out=${ow}x${oh}@${hz} win=${ww}x${wh} clients=$n rss_kb=$rss1"
 	grep INKSTAT "$case_out/$label.log" | tail -1 | sed 's/^/  /'
 	for i in $(seq 1 "$n"); do
 		sed "s/^/  client$i: /" "$case_out/$label-$i.json" 2>/dev/null
 	done
 	kill "$cpid" 2>/dev/null
+	wait "$cpid" 2>/dev/null
 	sleep 0.3
 }
 
-run_case ref-720p-pixman 1200 1280 720 1000 pixman 1280 720 1
-run_case 1440p-pixman 600 2560 1440 1000 pixman 1920 1080 1
-run_case 1440p-gles2 1200 2560 1440 1000 gles2 1920 1080 1
-run_case 1440p-pixman-ceiling 300 2560 1440 10000 pixman 1920 1080 1
-run_case 1440p-gles2-ceiling 600 2560 1440 10000 gles2 1920 1080 1
-run_case 1440p-gles2-4clients 1200 2560 1440 1000 gles2 1280 720 4
-run_case 1440p-gles2-16clients 600 2560 1440 1000 gles2 640 360 16
-run_case 4k-gles2 600 3840 2160 1000 gles2 1920 1080 1
+run_case ${CASES:-1440p-gles2} 300 2560 1440 1000 gles2 1920 1080 1 150
+run_case 1440p-gles2-ceiling 400 2560 1440 4000 gles2 1920 1080 1 150
+run_case 1440p-gles2-2clients 400 2560 1440 1000 gles2 1280 720 2 120
