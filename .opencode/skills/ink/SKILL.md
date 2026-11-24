@@ -150,6 +150,9 @@ fn pair() i32, bool { return 1, true; };
   `json.Unmarshal(data, &u)`, `rows.Scan(&name)`.
 - `xs[i]` indexes; `xs[a:b]`, `xs[:b]`, `xs[a:]`, `xs[:]` slice and share
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
+- A Go named type whose underlying type is a map, slice or array is used like
+  that type: `r.URL.Query()` is `map[str, str[]]`, so `q["done"]` and
+  `var v, ok = q["done"]` work.
 - Assignment and arguments copy the value: structs and arrays copy, while a
   slice shares its backing array until `append` grows past `cap`; a map,
   pointer and interface share. Map iteration order is unspecified, so collect

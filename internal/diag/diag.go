@@ -96,6 +96,9 @@ func Typecheck(msg string) Info {
 	if info.Code == "semantic" || info.Code == "syntax" {
 		info.Code = "go-type"
 	}
+	if info.Code == "go-type" && info.Hint == "" {
+		info.Hint = "go-types: []byte is u8[], string is str, int32 is i32; convert at the boundary with str(x) or i32(x)"
+	}
 	return info
 }
 

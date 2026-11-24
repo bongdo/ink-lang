@@ -322,7 +322,7 @@ test "wrong method is 405 and unknown path is 404" {
     store = newStore();
     assert_eq(call("DELETE", "/items", "").Code, 405);
     assert_eq(call("POST", "/healthz", "").Code, 405);
-    assert_eq(call("PUT", "/items/1", "").Code, 405);
+    assert_eq(call("TRACE", "/items/1", "").Code, 405);
     assert_eq(call("GET", "/nope", "").Code, 404);
 };
 
