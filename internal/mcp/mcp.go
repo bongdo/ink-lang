@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -152,8 +153,10 @@ func Run(stdin io.Reader, stdout io.Writer, root string) error {
 }
 
 type session struct {
-	root string
-	lsp  *lspClient
+	root      string
+	lsp       *lspClient
+	diagKey   string
+	diagCache []driver.JSONError
 }
 
 func (s *session) close() {
@@ -247,6 +250,54 @@ func (s *session) rename(a renameArgs) (string, error) {
 		return "", fmt.Errorf("rename rejected: %v", err)
 	}
 	return formatEdits(raw), nil
+}
+
+func (s *session) allDiagnostics(fast bool) ([]driver.JSONError, error) {
+	key := fingerprint(s.root)
+	if !fast && s.diagCache != nil && key == s.diagKey {
+		return s.diagCache, nil
+	}
+	p, err := driver.Open(s.root)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.Check(driver.CheckOptions{Tidy: true, Typecheck: !fast, Fast: fast}); err != nil {
+		return nil, err
+	}
+	diags := p.Diagnostics()
+	if !fast {
+		s.diagKey, s.diagCache = key, diags
+	}
+	return diags, nil
+}
+
+func fingerprint(root string) string {
+	var b strings.Builder
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if path == root {
+				return nil
+			}
+			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(name, ".ink") && name != "go.mod" && name != "go.sum" {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		fmt.Fprintf(&b, "%s:%d:%d\n", path, info.Size(), info.ModTime().UnixNano())
+		return nil
+	})
+	return b.String()
 }
 
 func (s *session) quickfix(a positionArgs) (string, error) {
@@ -401,14 +452,10 @@ func textResult(text string) map[string]any {
 }
 
 func (s *session) diagnose(a diagnoseArgs) (string, error) {
-	p, err := driver.Open(s.root)
+	diags, err := s.allDiagnostics(a.Fast)
 	if err != nil {
 		return "", err
 	}
-	if err := p.Check(driver.CheckOptions{Tidy: true, Typecheck: !a.Fast, Fast: a.Fast}); err != nil {
-		return "", err
-	}
-	diags := p.Diagnostics()
 	path := a.Path
 	if path != "" {
 		abs, err := filepath.Abs(path)
