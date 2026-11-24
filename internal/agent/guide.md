@@ -114,9 +114,13 @@ fn pair() i32, bool { return 1, true; };
   view names in this version, not validators or database schemas.
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - A method is declared inside the type body, after its fields; there is no
-  file-scope receiver clause. Inside a method a sibling is called on `self`:
-  `self.Add(1)`, not `Add(1)`. A call on a value takes its address, so
-  `c.Add(1)` mutates `c`; passing `c` to a Go function still needs `&c`.
+  file-scope receiver clause. `self` is a pointer: mutating `Items`, `Orders`
+  or any field inside a method changes the value the caller holds, and a map or
+  slice field is shared even when the struct is copied. Return `void!` when the
+  method can fail; a plain `void` cannot use `or fail`. Inside a method a
+  sibling is called on `self`: `self.Add(1)`, not `Add(1)`. A call on a value
+  takes its address, so `c.Add(1)` mutates `c`; passing `c` to a Go function
+  still needs `&c`.
 - `var x = value;`; `var p: *T = nil;`; no `:=`. Every `var` has a value —
   there is no uninitialized declaration, so the zero value is written out:
   `var n = 0;`, `var u = User {};`, `var m = map[str, i32](nil);`.
