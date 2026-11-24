@@ -114,7 +114,9 @@ fn pair() i32, bool { return 1, true; };
   view names in this version, not validators or database schemas.
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - A method is declared inside the type body, after its fields; there is no
-  file-scope receiver clause. `self` is a pointer: mutating `Items`, `Orders`
+  file-scope receiver clause, and methods are never split across files. A big
+  type is split by composition: `type SessionAPI struct { App: *App };` with
+  its methods in the body, and `App` holds `Sessions: *SessionAPI`. `self` is a pointer: mutating `Items`, `Orders`
   or any field inside a method changes the value the caller holds, and a map or
   slice field is shared even when the struct is copied. Return `void!` when the
   method can fail; a plain `void` cannot use `or fail`. Inside a method a
