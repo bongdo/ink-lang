@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -139,6 +140,15 @@ func dirArgBeforeSeparator(args []string) (string, bool) {
 	return "", false
 }
 
+func flagErr(err error) int {
+	if errors.Is(err, flag.ErrHelp) {
+		usage()
+		return 0
+	}
+	usage()
+	return 2
+}
+
 func run(args []string) int {
 	if dir, ok := dirArgBeforeSeparator(args); ok {
 		fmt.Fprintf(os.Stderr, "ink: %q is a directory; cd into the project and put program args after --\n", dir)
@@ -146,8 +156,7 @@ func run(args []string) int {
 	}
 	race, progArgs, err := parseRunArgs(args)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "ink:", err)
-		return 2
+		return flagErr(err)
 	}
 	p, code := open()
 	if p == nil {
@@ -181,11 +190,12 @@ func parseRunArgs(args []string) (bool, []string, error) {
 
 func check(args []string) int {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	asJSON := fs.Bool("json", false, "print diagnostics as JSON")
 	fast := fs.Bool("fast", false, "parse and check without the generated Go typecheck")
 	race := fs.Bool("race", false, "typecheck with the race detector")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return flagErr(err)
 	}
 	p, code := open()
 	if p == nil {
@@ -236,11 +246,12 @@ func test(args []string) int {
 
 func fmtCmd(args []string) int {
 	fs := flag.NewFlagSet("fmt", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	write := fs.Bool("w", false, "write result to source files")
 	list := fs.Bool("l", false, "list files whose formatting differs")
 	asJSON := fs.Bool("json", false, "print differing paths as JSON")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return flagErr(err)
 	}
 	if err := driver.Format(*write, *list, *asJSON, fs.Args(), os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "ink:", err)
@@ -251,9 +262,10 @@ func fmtCmd(args []string) int {
 
 func serve(args []string) int {
 	fs := flag.NewFlagSet("lsp", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	root := fs.String("root", "", "project root")
 	if err := fs.Parse(args); err != nil {
-		return 2
+		return flagErr(err)
 	}
 	dir := *root
 	if dir == "" {

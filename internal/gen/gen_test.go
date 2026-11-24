@@ -146,6 +146,36 @@ func contains(t *testing.T, src, want string) {
 	}
 }
 
+func TestFailedTestDoesNotStopTheSuite(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `fn main() void {
+};
+
+test "first fails" {
+    assert_eq(1, 2);
+};
+
+test "second panics" {
+    var xs = i32[] {};
+    assert_eq(xs[0], 1);
+};
+
+test "still passes" {
+    assert_eq(1, 1);
+};
+`,
+	})
+	out, err := goCommand(t, p.dir, "test", "-v", "./...")
+	if err == nil {
+		t.Fatalf("go test passed, want failure:\n%s", out)
+	}
+	for _, want := range []string{"--- FAIL: TestFirstFails", "--- FAIL: TestSecondPanics", "--- PASS: TestStillPasses"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
 func TestTypeStr(t *testing.T) {
 	g := &generator{opt: Options{Module: "example.com/p"}, p: &sema.Program{Module: "example.com/p"}}
 	f := &fileGen{g: g, pkg: &sema.Package{Imports: map[string]*sema.Import{"ed": {Alias: "ed", Path: "example.com/p/ed"}}}, need: map[string]bool{}, used: map[string]bool{}}
@@ -787,6 +817,7 @@ test "imports and or fail" {
 	contains(t, src, "func _s_testTickWorks() error")
 	contains(t, src, "strings \"strings\"")
 	contains(t, src, "t.Fatal(_s_err)")
+	contains(t, src, "recover()")
 	contains(t, src, "_s_rt.AssertEq")
 	out := p.test(t)
 	if !strings.Contains(out, "ok") {

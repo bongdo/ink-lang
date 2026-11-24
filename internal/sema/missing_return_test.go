@@ -171,6 +171,68 @@ fn main() void {
 			want: true,
 		},
 		{
+			name: "literal falls through",
+			src: `fn main() void {
+    var f = fn(n: i32) i32 {
+        if (n > 0) {
+            return 1;
+        };
+    };
+    _ = f(1);
+};
+`,
+			want: true,
+		},
+		{
+			name: "literal all paths return",
+			src: `fn main() void {
+    var f = fn(n: i32) i32 {
+        if (n > 0) {
+            return 1;
+        } else {
+            return 2;
+        };
+    };
+    _ = f(1);
+};
+`,
+			want: false,
+		},
+		{
+			name: "arrow literal",
+			src: `fn main() void {
+    var f = fn(n: i32) i32 => n + 1;
+    _ = f(1);
+};
+`,
+			want: false,
+		},
+		{
+			name: "void literal",
+			src: `fn main() void {
+    var f = fn() void {
+    };
+    f();
+};
+`,
+			want: false,
+		},
+		{
+			name: "callback literal falls through",
+			src: `use slices;
+
+fn main() void {
+    var xs = i32[] { 2, 1 };
+    slices.SortFunc(xs, fn(a: i32, b: i32) int {
+        if (a < b) {
+            return -1;
+        };
+    });
+};
+`,
+			want: true,
+		},
+		{
 			name: "error only",
 			src: `fn f() void! {
 };

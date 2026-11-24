@@ -60,7 +60,7 @@ place with status.
 | `switch` | — use `if` or `match` |
 | `void` as a value | — result only |
 | non-void function that can fall off its end | ✅ `missing-return` |
-| `missing-return` inside a function literal | ◐ not checked; runtime `panic: unreachable` |
+| `missing-return` inside a function literal | ✅ checked when the literal has results |
 | `T!` with `or fail` and `on err { }` | ✅ |
 | `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
 | `errors.New("msg")` fresh error; `error("msg")` rejected | ✅ |

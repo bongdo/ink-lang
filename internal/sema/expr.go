@@ -911,6 +911,9 @@ func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.T
 		}
 	} else {
 		c.checkBlock(lit.Body)
+		if len(results) > 0 && !terminatesBlock(lit.Body) {
+			c.p.errorf(c.fc.file.Path, lit.Body.End, "missing return in function literal returning %s", resultName(results))
+		}
 	}
 	c.pop()
 	c.fn = savedFn

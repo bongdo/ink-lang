@@ -8,9 +8,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/bongdo/ink/internal/agent"
 	"github.com/bongdo/ink/internal/ast"
@@ -519,7 +521,19 @@ func execRun(bin, dir string, args []string) (int, error) {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return 1, err
+	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		for sig := range sigs {
+			_ = cmd.Process.Signal(sig)
+		}
+	}()
+	err := cmd.Wait()
+	signal.Stop(sigs)
+	close(sigs)
 	if err == nil {
 		return 0, nil
 	}
@@ -540,6 +554,9 @@ func (p *Project) Test(args []string) (int, error) {
 	if err := p.Generate(true); err != nil {
 		return 1, err
 	}
+	if !p.hasTests() {
+		fmt.Fprintln(os.Stderr, "ink: no `test` blocks in .ink sources; declare `test \"name\" { ... };` in any .ink file")
+	}
 	cmd := exec.Command("go", append([]string{"test", "-buildvcs=false", "./..."}, args...)...)
 	cmd.Dir = p.Root
 	cmd.Env = p.env()
@@ -555,6 +572,22 @@ func (p *Project) Test(args []string) (int, error) {
 		return exit.ExitCode(), nil
 	}
 	return 1, err
+}
+
+func (p *Project) hasTests() bool {
+	if p.Program == nil {
+		return false
+	}
+	for _, pkg := range p.Program.Packages {
+		for _, f := range pkg.Files {
+			for _, d := range f.Decls {
+				if _, ok := d.(*ast.TestDecl); ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func Format(write, list, jsonOut bool, paths []string, stdout io.Writer) error {

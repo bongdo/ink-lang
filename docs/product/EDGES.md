@@ -13,8 +13,7 @@ not re-file.
 
 | # | Symptom | Today | Workaround |
 |---|---|---|---|
-| 1 | `ink check` is clean, then the program panics with `panic: unreachable`. | `missing-return` is syntactic and not checked inside function literals. | Keep the literal's every path ending in `return`; the runtime message points at the literal. |
-| 3 | `//go:embed` does not exist; templates and static files are read from disk. | No attributes. | `os.DirFS` or a Go binding. Needs a decision. |
+| 3 | `//go:embed` does not exist; templates and static files are read from disk. | Decided: embed is a build concern, not syntax; no attributes and no builtin. | `os.DirFS` or a Go binding until `ink build` gains the flag. |
 | 4 | `ink check` misses an initialization cycle that goes through a free function call. | The cycle graph does not traverse calls. | Full `ink check` (without `--fast`) still reports it through Go. |
 | 5 | Conformance checking silently skips some signatures. | Generic types, enum variants, arrays, function values, variadic methods and multi-result calls are not compared. | `go build` is the backstop. |
 | 6 | Rename can produce a name conflict; references cover project declarations only. | No conflict analysis; Go library symbols are out of scope. | Run `ink check` after rename; use editor search for Go symbols. |

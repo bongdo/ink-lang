@@ -357,6 +357,7 @@ func TestUseCanonical(t *testing.T) {
 		`use net/http as http;`,
 		`use ./lib as lib;`,
 		`use ../x;`,
+		`use modernc.org/sqlite as _;`,
 	} {
 		f, errs := Parse("use.ink", []byte(src))
 		if len(errs) != 0 {
@@ -370,6 +371,7 @@ func TestUseCanonical(t *testing.T) {
 	for _, c := range []struct{ src, hint string }{
 		{`use "fmt";`, "without quotes"},
 		{"use `os`;", "without quotes"},
+		{`use _ modernc.org/sqlite;`, "as _"},
 	} {
 		_, errs := Parse("use.ink", []byte(c.src))
 		if len(errs) != 1 || !strings.Contains(errs[0].Msg, c.hint) {

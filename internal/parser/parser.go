@@ -288,18 +288,27 @@ func (p *parser) parseUse() *ast.Use {
 	p.next()
 	u := &ast.Use{}
 	pathPos := start
-	switch p.kind() {
-	case token.Path:
-		u.Path = p.next().Lit
-	case token.Ident:
-		u.Path = p.next().Lit
-	case token.String, token.RawString:
-		t := p.next()
-		pathPos = t.Pos
-		u.Path = p.stringLit(t)
-		p.errorf(t.Pos, "import paths are written without quotes: use %s;", u.Path)
-	default:
-		p.errorf(p.tok().Pos, "expected import path, found %s", describe(p.tok()))
+	if (p.at(token.Path) || p.at(token.Ident)) && p.tok().Lit == "_" &&
+		(p.peek(1) == token.Path || p.peek(1) == token.Ident) {
+		p.errorf(p.tok().Pos, "blank import is written use <path> as _;")
+		for !p.at(token.Semi) && !p.at(token.EOF) {
+			p.next()
+		}
+		u.Path = "_"
+	} else {
+		switch p.kind() {
+		case token.Path:
+			u.Path = p.next().Lit
+		case token.Ident:
+			u.Path = p.next().Lit
+		case token.String, token.RawString:
+			t := p.next()
+			pathPos = t.Pos
+			u.Path = p.stringLit(t)
+			p.errorf(t.Pos, "import paths are written without quotes: use %s;", u.Path)
+		default:
+			p.errorf(p.tok().Pos, "expected import path, found %s", describe(p.tok()))
+		}
 	}
 	u.Local = strings.HasPrefix(u.Path, "./") || strings.HasPrefix(u.Path, "../")
 	if p.at(token.As) {

@@ -320,7 +320,8 @@ String indexing follows Go: `s[i]` is the byte at `i`. Use `runes(s)` when
 code points are needed.
 
 Conversions use the type as a function: `i32(x)`, `u64(x)`, `f64(x)`,
-`str(runes)`, `bytes(text)`.
+`str(runes)`, `bytes(text)`. `str` on an integer follows Go's `string(rune)`:
+`str(65)` is `"A"`, not `"65"`; format numbers with `fmt.Sprint`.
 
 Multiple names are allowed for multi-result calls:
 
@@ -444,7 +445,8 @@ valid for inspection, logging, retry and `errors.Is`; only the pure manual
 propagation pattern is an error.
 
 `defer` is block-scoped. Deferred calls run when the enclosing block exits,
-including through `return`, `break`, `continue`, `or fail` and panic.
+including through `return`, `break`, `continue`, `or fail` and panic. A deferred
+call takes no handler: its result and its error are discarded.
 
 ## 7. Control flow
 
@@ -652,7 +654,9 @@ test "append grows the slice" {
 ```
 
 `assert(cond)` and `assert_eq(got, want)` are builtins. In tests they report a
-failure with `file:line`; outside tests they panic.
+failure with `file:line`; outside tests they panic. A failed assertion or a
+panic in one test fails that test only; the remaining tests in the package
+still run.
 
 ## 10. Deliberately absent
 

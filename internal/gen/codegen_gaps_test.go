@@ -71,17 +71,11 @@ fn viaEnumMatch(e: E) i32 {
 };
 
 fn main() void {
-    var fall = fn(n: i32) i32 {
-        if (n > 0) {
-            return 1;
-        };
-    };
     fmt.Println(viaReturn()) on err { panic("print"); };
     fmt.Println(viaIfElse(1)) on err { panic("print"); };
     fmt.Println(viaFor()) on err { panic("print"); };
     fmt.Println(viaTypeMatch(i32(1))) on err { panic("print"); };
     fmt.Println(viaEnumMatch(E.A)) on err { panic("print"); };
-    fmt.Println(fall(0)) on err { panic("print"); };
 };
 `,
 	})
@@ -94,18 +88,12 @@ fn main() void {
 	if body := functionBody(t, src, "viaEnumMatch"); !strings.Contains(body, "default:") {
 		t.Errorf("enum match lost its default guard:\n%s", body)
 	}
-	if body := functionBody(t, src, "_s_main"); !strings.Contains(body, `panic("unreachable")`) {
-		t.Errorf("function literal lost its panic:\n%s", body)
-	}
 	if out, err := goCommand(t, p.dir, "vet", "."); err != nil {
 		t.Fatalf("go vet: %v\n%s", err, out)
 	}
 	stdout, stderr, err := p.run(t)
-	if err == nil {
-		t.Fatalf("expected the falling-through literal to panic, stdout:\n%s", stdout)
-	}
-	if !strings.Contains(stderr, "panic: unreachable") {
-		t.Fatalf("expected panic: unreachable, stderr:\n%s", stderr)
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, stderr)
 	}
 	expect(t, stdout, "1\n2\n4\n5\n7\n")
 }

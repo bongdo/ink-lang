@@ -657,3 +657,40 @@ Go: goroutines and their `defer`s do not run. `go { ... }` or an explicit
 runtime wait would be a language rule Go does not have.
 **Что отвергли:** a program wait group at exit, a root-scope join.
 **Цена:** fire-and-forget work can be lost at exit; this is documented in EDGES.
+
+## 2026-11-23 — Blind-test round: per-test failures, docs for what agents missed
+
+**Контекст:** five parallel blind agents (HTTP service, raylib Snake, planted
+data-layer bugs, SQLite ledger, Go port) scored 6-7/10. All five lost time on
+the same undocumented essentials: the `test "name" { ... };` form (three wrote
+`Test*` functions, which silently compile), `str(65)` being `"A"`, block
+parentheses and `};`, `int` vs `i32`, import aliases and `use pkg as _;`, and
+`GOFLAGS=-tags=nocgo` for raylib. One `assert_eq` panic killed the test binary,
+so only the first of four failing tests was visible.
+**Решение:** `ink guide` and the generated project guide now document tests,
+control flow, literals, conversions, imports/dependencies, reserved words and
+the deliberately absent set. The generated test wrapper recovers panics into
+`t.Fatalf`. `ink test` explains an empty suite. `ink run` forwards
+SIGINT/SIGTERM. Unused-import and `use _ pkg;` hints name the fix, and `error`
+is nameable, so `ctx.Err() != nil` checks work. The tasks live in `tests/blind/`.
+**Почему:** the agent is the main consumer; a silent wrong result costs more
+than a longer guide, and a panic should not hide the remaining failures.
+**Что отвергли:** changing `str(int)` to decimal, warning on it, rejecting a
+fallible `defer`, adding channels. All are language decisions left open.
+**Цена:** the guide grew by about a third; recovering a panic loses its stack
+trace; a terminal Ctrl-C can reach the child twice, once from the group and
+once forwarded.
+
+## 2026-11-24 — `//go:embed` — флаг сборки, а не язык
+
+**Контекст:** EDGES #3. В языке нет `//go:embed`, поэтому шаблоны и статика
+живут рядом с бинарём. Варианты из `docs/proposals/edges.md`: атрибут в
+исходнике (3b), встроенная форма `assets("dir")` (3a), флаг `ink build` (3d).
+**Решение:** embed — забота сборки, не синтаксиса. Ни атрибута, ни встроенной
+формы в языке не будет; переключатель — во флагах `ink build`.
+**Почему:** всё происходит только на сборке, и владелец сказал, что тащить это
+в язык избыточно: «место галочкам для сборки в флаги для инк билд».
+**Что отвергли:** `//go:embed` как атрибут (открывает attributes вне §10),
+builtin `assets("dir")` (лишняя поверхность языка).
+**Цена:** до появления флага статика читается с диска или через Go-биндинг с
+`embed.FS`; форма доступа к встроенному FS определится при реализации флага.

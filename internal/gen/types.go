@@ -98,6 +98,9 @@ func nameableGoType(t types.Type) bool {
 	case *types.TypeParam:
 		return false
 	case *types.Named:
+		if t.Obj().Pkg() == nil {
+			return true
+		}
 		if !t.Obj().Exported() {
 			return false
 		}

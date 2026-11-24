@@ -181,15 +181,18 @@ func (c *checker) checkFunction(fn *ast.FuncDecl, outer *checker) {
 		if fn.Body != nil {
 			pos = fn.Body.End
 		}
-		name := inkTypeName(c.fn.results[0])
-		if len(c.fn.results) > 1 {
-			name = "multiple values"
-		}
-		c.p.errorf(c.fc.file.Path, pos, "missing return in function returning %s", name)
+		c.p.errorf(c.fc.file.Path, pos, "missing return in function returning %s", resultName(c.fn.results))
 	}
 	if outer != nil {
 		c.scopes = nil
 	}
+}
+
+func resultName(results []ast.Type) string {
+	if len(results) > 1 {
+		return "multiple values"
+	}
+	return inkTypeName(results[0])
 }
 
 func inkTypeName(t ast.Type) string {

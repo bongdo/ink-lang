@@ -28,6 +28,15 @@ One directory is one package; no package clause. Local imports:
 `use ./lib;`. Generated and never edited: `zz_ink.go`,
 `zz_ink_test.go`, `.ink/`.
 
+## Tests
+
+`test "name" { assert_eq(got, want); };` in any `.ink` file; run `ink test`.
+A `Test*` function is not a test. A failed assertion fails only its own test.
+`str(65)` is the rune `"A"`, not `"65"`: format numbers with `fmt.Sprint`.
+Every block keeps parentheses and ends with `};`. An import's local name is
+the last path element; alias it when the Go package name differs, and use
+`use pkg as _;` for a blank import.
+
 OpenCode starts `ink lsp` for `.ink` and formats on edit when configured.
-Build `bin/ink` first in this repository (`bin/build`); installed projects use
-`ink` from `PATH`.
+In the compiler repository, build `bin/ink` first (`bin/build`); installed
+projects use `ink` from `PATH`.

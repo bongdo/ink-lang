@@ -204,6 +204,7 @@ func (g *generator) funcBody(w *writer, body *ast.Block, results []ast.Type, err
 		w.line("return nil")
 	}
 	if len(results) > 0 && !terminates {
+		// shortcut: sema and gen each decide termination; unify them when the two ever disagree.
 		w.line(`panic("unreachable")`)
 	}
 }
@@ -515,6 +516,15 @@ func (g *generator) testDecl(w *writer, t *ast.TestDecl) {
 	w.directive(t)
 	w.line("func " + wrapper + "(t *" + w.f.std("testing") + ".T) {")
 	w.indent++
+	w.line("defer func() {")
+	w.indent++
+	w.line("if r := recover(); r != nil {")
+	w.indent++
+	w.line("t.Fatalf(\"%v\", r)")
+	w.indent--
+	w.line("}")
+	w.indent--
+	w.line("}()")
 	args := ""
 	if needsCtx {
 		args = w.f.background()
