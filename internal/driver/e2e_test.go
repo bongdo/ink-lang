@@ -652,3 +652,12 @@ func TestSanitizeGeneratedNames(t *testing.T) {
 		}
 	}
 }
+
+func TestPrintErrorsIncludesHint(t *testing.T) {
+	p := &Project{Errors: []Error{{Path: "main.ink", Pos: token.Pos{Line: 1, Col: 1}, Msg: "boom", Hint: "fix it"}}}
+	var buf bytes.Buffer
+	p.PrintErrors(&buf)
+	if !strings.Contains(buf.String(), "hint: fix it") {
+		t.Fatalf("output = %q", buf.String())
+	}
+}

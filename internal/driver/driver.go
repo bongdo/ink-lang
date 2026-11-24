@@ -548,7 +548,7 @@ func (p *Project) HasErrors() bool {
 }
 
 func (p *Project) Build(out string, goArgs []string) error {
-	if err := p.Check(CheckOptions{Tidy: true}); err != nil {
+	if err := p.Check(CheckOptions{Tidy: true, Typecheck: true}); err != nil {
 		return err
 	}
 	if p.HasErrors() {
@@ -627,7 +627,7 @@ func execRun(bin, dir string, args []string) (int, error) {
 }
 
 func (p *Project) Test(args []string) (int, error) {
-	if err := p.Check(CheckOptions{Tidy: true}); err != nil {
+	if err := p.Check(CheckOptions{Tidy: true, Typecheck: true}); err != nil {
 		return 1, err
 	}
 	if p.HasErrors() {
@@ -924,6 +924,9 @@ func absPath(path string) string {
 func (p *Project) PrintErrors(w io.Writer) {
 	for _, e := range p.Errors {
 		fmt.Fprintln(w, e.String())
+		if e.Hint != "" {
+			fmt.Fprintln(w, "  hint: "+e.Hint)
+		}
 	}
 }
 
