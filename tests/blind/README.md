@@ -172,7 +172,7 @@ and `ink mcp` (`codemode: false`). The agent could use shell and the eight
 | task | score | cycles | what worked |
 |---|---|---|---|
 | edit-web | 9/10 | 1, no diagnostics | `ink_complete` listed the new `Store.Replace` next to existing methods; `ink_symbols` fixed the naming style; `ink_references` found the only call site |
-| edit-store | 7/10 → 8/10 after the fixes | 1 (`int` vs `i32`) | `ink_definition`, `ink_references` (all 6 call sites) and `ink_hover` found `Transfer` across files |
+| edit-store | 7/10 → 8/10 (two retests) | 1 (`int` vs `i32`) | `ink_definition`, `ink_references` (all 6 call sites) and `ink_hover` found `Transfer` across files |
 
 ### Fixed from round 4
 
@@ -186,6 +186,9 @@ and `ink mcp` (`codemode: false`). The agent could use shell and the eight
 - Hover on a literal shows its type (`str literal`, `int literal`, `f64`).
 - Guide: `self` is a pointer (a method mutates the caller's fields, maps and
   slices are shared), and a fallible method returns `void!`, not `void`.
+- `ink build` and `ink test` typecheck before Go, so a type error shows the
+  Ink code and hint instead of a Go build failure.
+- Text diagnostics print `hint: …` under the message, not only in `--json`.
 
 ### Measured tool mix (web / store)
 
