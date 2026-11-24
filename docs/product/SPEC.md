@@ -68,7 +68,7 @@ rejected.
 `void`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `int`,
 `uint`, `f32`, `f64`, `str`, `rune` (alias `i32`), `byte` (alias `u8`),
 `any`, `error`, `Duration` (alias `i64`), `Type` (runtime type value, for
-reflection interop). `usize` and `isize` were removed; use `uint` and `int`.
+reflection interop).
 
 `void` is allowed only as a function result. It is not a value type: variables,
 fields, parameters, arguments, returns with values and composite elements

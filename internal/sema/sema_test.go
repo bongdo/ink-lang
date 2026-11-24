@@ -344,8 +344,8 @@ fn main() void! {
 
 func TestRemovedTypeAliases(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"var a: usize = 0;", "usize was removed; use uint"},
-		{"var a: isize = 0;", "isize was removed; use int"},
+		{"var a: usize = 0;", "unknown type usize"},
+		{"var a: isize = 0;", "unknown type isize"},
 	} {
 		p := checkSrc(t, map[string]string{".": "fn main() void {\n    " + tc.src + "\n    _ = a;\n};\n"})
 		if !hasError(p, tc.want) {
@@ -382,6 +382,31 @@ fn main() void {
 };
 `})
 	if !hasError(p, "just or fail") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestFreeMethodWarning(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type App struct {
+    N: i32,
+};
+
+fn bump(a: *App) void {
+    a.N += 1;
+};
+
+fn main() void {
+    var a = App { N: 0 };
+    bump(&a);
+};
+`})
+	found := false
+	for _, e := range p.Errors {
+		if e.Warning && strings.Contains(e.Msg, "state and behaviour belong") {
+			found = true
+		}
+	}
+	if !found {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }

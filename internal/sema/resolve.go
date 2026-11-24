@@ -33,11 +33,6 @@ var builtinTypes = map[string]string{
 	"Type":     "reflect.Type",
 }
 
-var removedTypes = map[string]string{
-	"usize": "uint",
-	"isize": "int",
-}
-
 func IsBuiltinType(name string) bool {
 	_, ok := builtinTypes[name]
 	return ok
@@ -245,10 +240,6 @@ func (p *Program) resolveNamed(fc *fileCtx, t *ast.NamedType, tparams map[string
 		if d, ok := fc.pkg.Types[t.Name]; ok {
 			t.Decl = d
 			t.GoName = d.GoName
-			return t
-		}
-		if repl, ok := removedTypes[t.Name]; ok {
-			p.errorf(fc.file.Path, t.Pos(), "%s was removed; use %s", t.Name, repl)
 			return t
 		}
 		p.errorf(fc.file.Path, t.Pos(), "unknown type %s", t.Name)

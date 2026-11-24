@@ -150,6 +150,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 		return p
 	}
 	p.checkVarCyclesAll()
+	p.checkFreeMethods()
 	p.checkTests()
 	p.checkMain()
 	p.colorContext()

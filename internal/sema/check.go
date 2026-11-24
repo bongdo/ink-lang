@@ -2,6 +2,7 @@ package sema
 
 import (
 	"go/types"
+	"sort"
 	"strconv"
 
 	"github.com/bongdo/ink/internal/ast"
@@ -146,6 +147,51 @@ func isBuiltinFunc(name string) bool {
 		return true
 	}
 	return false
+}
+
+func (p *Program) checkFreeMethods() {
+	for _, pkg := range p.Packages {
+		count := make(map[*ast.TypeDecl]int)
+		names := make([]string, 0, len(pkg.Funcs))
+		for name := range pkg.Funcs {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			fn := pkg.Funcs[name]
+			if fn == nil || fn.Owner != nil || len(fn.Params) == 0 || fn.Params[0].Type == nil {
+				continue
+			}
+			ptr, ok := fn.Params[0].Type.(*ast.PointerType)
+			if !ok {
+				continue
+			}
+			named, ok := ptr.Elem.(*ast.NamedType)
+			if !ok || named.Decl == nil || named.Decl.Kind != ast.TypeStruct || p.declPkg[named.Decl] != pkg {
+				continue
+			}
+			count[named.Decl]++
+		}
+		decls := make([]*ast.TypeDecl, 0, len(count))
+		for decl := range count {
+			decls = append(decls, decl)
+		}
+		sort.Slice(decls, func(i, j int) bool { return decls[i].Pos().Offset < decls[j].Pos().Offset })
+		for _, decl := range decls {
+			p.warnf(p.fileOfDecl(pkg, decl), decl.Pos(), "type %s is passed as *%s to %d free functions; state and behaviour belong in the type body", decl.Name, decl.Name, count[decl])
+		}
+	}
+}
+
+func (p *Program) fileOfDecl(pkg *Package, decl *ast.TypeDecl) string {
+	for _, f := range pkg.Files {
+		for _, d := range f.Decls {
+			if d == ast.Decl(decl) {
+				return f.Path
+			}
+		}
+	}
+	return pkg.Files[0].Path
 }
 
 func (p *Program) checkFuncs() {

@@ -49,6 +49,9 @@ func newProject(t *testing.T, srcs map[string]string) *project {
 	}
 	prog := sema.Check(parsed, sema.Options{Root: dir, Module: "example.com/p"})
 	for _, e := range prog.Errors {
+		if e.Warning {
+			continue
+		}
 		t.Fatalf("sema: %s", e.String())
 	}
 	files, errs := Generate(prog, parsed, Options{Root: dir, Module: "example.com/p", IncludeTests: true})
