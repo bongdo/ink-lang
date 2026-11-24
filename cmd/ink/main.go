@@ -49,8 +49,6 @@ func main() {
 	case "lsp":
 		os.Exit(serve(args))
 	case "mcp":
-		os.Exit(mcp(args))
-	case "mcp":
 		os.Exit(mcpCmd(args))
 	case "new":
 		os.Exit(newCmd(args))
@@ -69,28 +67,6 @@ func main() {
 	}
 }
 
-func mcp(args []string) int {
-	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	root := fs.String("root", "", "project directory (default: the current directory)")
-	if err := fs.Parse(args); err != nil {
-		return flagErr(err)
-	}
-	dir, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "ink:", err)
-		return 1
-	}
-	if *root != "" {
-		dir = *root
-	}
-	if err := lsp.RunMCP(os.Stdin, os.Stdout, os.Stderr, dir); err != nil {
-		fmt.Fprintln(os.Stderr, "ink:", err)
-		return 1
-	}
-	return 0
-}
-
 func usage() {
 	fmt.Fprint(os.Stderr, `ink — the Ink compiler
 
@@ -102,7 +78,6 @@ usage:
   ink test [go test flags]
   ink fmt [-l] [-w] [--json] [paths]
   ink lsp [--root dir]
-  ink mcp [--root dir]
   ink mcp [--root dir]
   ink new <dir>
   ink init [dir]

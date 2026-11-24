@@ -536,6 +536,21 @@ func TestNewWritesAgentGuide(t *testing.T) {
 	if len(cmd) != 2 || cmd[0] == "" || cmd[1] != "lsp" {
 		t.Fatalf("lsp command: %+v", cmd)
 	}
+	var mcpCfg struct {
+		MCP struct {
+			Servers map[string]struct {
+				Type    string   `json:"type"`
+				Command []string `json:"command"`
+			} `json:"servers"`
+		} `json:"mcp"`
+	}
+	if err := json.Unmarshal(cfg, &mcpCfg); err != nil {
+		t.Fatalf("opencode.json: %v", err)
+	}
+	mcpCmd := mcpCfg.MCP.Servers["ink"]
+	if mcpCmd.Type != "local" || len(mcpCmd.Command) != 2 || mcpCmd.Command[1] != "mcp" {
+		t.Fatalf("mcp config: %+v", mcpCmd)
+	}
 	skill, err := os.ReadFile(filepath.Join(dir, ".opencode", "skills", "ink", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)

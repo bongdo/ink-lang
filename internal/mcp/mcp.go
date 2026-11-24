@@ -81,6 +81,26 @@ var tools = []tool{
 		Description: "Completion candidates at a position: locals, declarations, fields and methods after a dot.",
 		InputSchema: json.RawMessage(`{"type":"object","required":["path","line","column"],"properties":{"path":{"type":"string"},"line":{"type":"integer","description":"1-based"},"column":{"type":"integer","description":"1-based"}}}`),
 	},
+	{
+		Name:        "symbols",
+		Description: "Declarations in one file: types, functions, methods, tests.",
+		InputSchema: json.RawMessage(`{"type":"object","required":["path"],"properties":{"path":{"type":"string"}}}`),
+	},
+	{
+		Name:        "rename",
+		Description: "Edits for renaming the symbol at a position; rejected when it would break or rebind. Returns edits, does not apply them.",
+		InputSchema: json.RawMessage(`{"type":"object","required":["path","line","column","newName"],"properties":{"path":{"type":"string"},"line":{"type":"integer","description":"1-based"},"column":{"type":"integer","description":"1-based"},"newName":{"type":"string"}}}`),
+	},
+	{
+		Name:        "quickfix",
+		Description: "Quick fixes for the diagnostic at a position: make to T[](n), for (cond) to for (; cond; ), import and const repairs. Returns edits, does not apply them.",
+		InputSchema: json.RawMessage(`{"type":"object","required":["path","line","column"],"properties":{"path":{"type":"string"},"line":{"type":"integer","description":"1-based"},"column":{"type":"integer","description":"1-based"}}}`),
+	},
+}
+
+type renameArgs struct {
+	positionArgs
+	NewName string `json:"newName"`
 }
 
 func Run(stdin io.Reader, stdout io.Writer, root string) error {
@@ -155,6 +175,39 @@ func (s *session) call(raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return textResult(text), nil
+	case "rename":
+		var a renameArgs
+		if err := json.Unmarshal(p.Arguments, &a); err != nil {
+			return nil, err
+		}
+		if a.Path == "" || a.Line < 1 || a.Column < 1 || a.NewName == "" {
+			return nil, errors.New("path, line, column and newName are required")
+		}
+		text, err := s.rename(a)
+		if err != nil {
+			return nil, err
+		}
+		return textResult(text), nil
+	case "quickfix":
+		var a positionArgs
+		if err := json.Unmarshal(p.Arguments, &a); err != nil {
+			return nil, err
+		}
+		text, err := s.quickfix(a)
+		if err != nil {
+			return nil, err
+		}
+		return textResult(text), nil
+	case "symbols":
+		var a positionArgs
+		if err := json.Unmarshal(p.Arguments, &a); err != nil {
+			return nil, err
+		}
+		text, err := s.symbols(a.Path)
+		if err != nil {
+			return nil, err
+		}
+		return textResult(text), nil
 	case "hover", "definition", "references", "complete":
 		var a positionArgs
 		if err := json.Unmarshal(p.Arguments, &a); err != nil {
@@ -170,6 +223,176 @@ func (s *session) call(raw json.RawMessage) (any, error) {
 		return textResult(text), nil
 	}
 	return nil, fmt.Errorf("unknown tool %q", p.Name)
+}
+
+func (s *session) rename(a renameArgs) (string, error) {
+	if s.lsp == nil {
+		c, err := startLSP(s.root)
+		if err != nil {
+			return "", err
+		}
+		s.lsp = c
+	}
+	uri, err := s.lsp.openFile(a.Path)
+	if err != nil {
+		return "", err
+	}
+	raw, err := s.lsp.request("textDocument/rename", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"position":     map[string]any{"line": a.Line - 1, "character": a.Column - 1},
+		"newName":      a.NewName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("rename rejected: %v", err)
+	}
+	return formatEdits(raw), nil
+}
+
+func (s *session) quickfix(a positionArgs) (string, error) {
+	diags, err := s.diagnosticsAt(a)
+	if err != nil {
+		return "", err
+	}
+	if len(diags) == 0 {
+		return "no diagnostics at this position", nil
+	}
+	if s.lsp == nil {
+		c, err := startLSP(s.root)
+		if err != nil {
+			return "", err
+		}
+		s.lsp = c
+	}
+	uri, err := s.lsp.openFile(a.Path)
+	if err != nil {
+		return "", err
+	}
+	raw, err := s.lsp.request("textDocument/codeAction", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"range":        diags[0]["range"],
+		"context":      map[string]any{"diagnostics": diags},
+	})
+	if err != nil {
+		return "", err
+	}
+	var actions []struct {
+		Title string `json:"title"`
+		Edit  struct {
+			Changes map[string][]struct {
+				NewText string
+				Range   struct {
+					Start struct{ Line, Character int }
+				}
+			} `json:"changes"`
+		} `json:"edit"`
+	}
+	if err := json.Unmarshal(raw, &actions); err != nil || len(actions) == 0 {
+		return "no quick fixes", nil
+	}
+	var b strings.Builder
+	for _, action := range actions {
+		b.WriteString(action.Title)
+		for uri, edits := range action.Edit.Changes {
+			path := strings.TrimPrefix(uri, "file://")
+			for _, e := range edits {
+				b.WriteString("\n  " + path + ":" + strconv.Itoa(e.Range.Start.Line+1) + ":" + strconv.Itoa(e.Range.Start.Character+1) + " -> " + e.NewText)
+			}
+		}
+		b.WriteByte('\n')
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+func (s *session) diagnosticsAt(a positionArgs) ([]map[string]any, error) {
+	p, err := driver.Open(s.root)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.Check(driver.CheckOptions{Tidy: true, Typecheck: true}); err != nil {
+		return nil, err
+	}
+	abs, _ := filepath.Abs(a.Path)
+	var out []map[string]any
+	for _, d := range p.Diagnostics() {
+		if d.File != abs {
+			continue
+		}
+		if a.Line < d.Line || a.Line > d.EndLine {
+			continue
+		}
+		out = append(out, map[string]any{
+			"range": map[string]any{
+				"start": map[string]any{"line": d.Line - 1, "character": d.Col - 1},
+				"end":   map[string]any{"line": d.EndLine - 1, "character": d.EndCol - 1},
+			},
+			"severity": 1,
+			"code":     d.Code,
+			"message":  d.Message,
+			"source":   "ink",
+		})
+	}
+	return out, nil
+}
+
+func (s *session) symbols(path string) (string, error) {
+	if s.lsp == nil {
+		c, err := startLSP(s.root)
+		if err != nil {
+			return "", err
+		}
+		s.lsp = c
+	}
+	uri, err := s.lsp.openFile(path)
+	if err != nil {
+		return "", err
+	}
+	raw, err := s.lsp.request("textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": uri}})
+	if err != nil {
+		return "", err
+	}
+	var syms []struct {
+		Name  string `json:"name"`
+		Kind  int    `json:"kind"`
+		Range struct {
+			Start struct{ Line int }
+		} `json:"range"`
+	}
+	if err := json.Unmarshal(raw, &syms); err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, sym := range syms {
+		fmt.Fprintf(&b, "%s %s:%d\n", sym.Name, path, sym.Range.Start.Line+1)
+	}
+	if b.Len() == 0 {
+		return "no symbols", nil
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+func formatEdits(raw json.RawMessage) string {
+	var edit struct {
+		Changes map[string][]struct {
+			Range struct {
+				Start struct{ Line, Character int }
+			}
+			NewText string `json:"newText"`
+		} `json:"changes"`
+	}
+	if err := json.Unmarshal(raw, &edit); err != nil {
+		return "no edits"
+	}
+	var b strings.Builder
+	for uri, edits := range edit.Changes {
+		path := strings.TrimPrefix(uri, "file://")
+		for _, e := range edits {
+			fmt.Fprintf(&b, "%s:%d:%d -> %s\n", path, e.Range.Start.Line+1, e.Range.Start.Character+1, e.NewText)
+		}
+	}
+	if b.Len() == 0 {
+		return "no edits"
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func textResult(text string) map[string]any {

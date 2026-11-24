@@ -35,10 +35,11 @@
 | 7 | Quick fix для механических диагностик | ◐ 9 кодов: const, `=`, `fn`, import, `or fail`, nil, `make` → `T[](n)`, `for (cond)` |
 | 8 | Форматирование на сохранение | ✅ |
 | 9 | Задержка: диагностика после правки < 300 мс на файле 500 строк | ✅ на малом проекте (~0.1–0.2 с); на большом не мерили |
-| 10 | Агент может вызвать диагностику, hover, definition, completion | ❌ нет tool-канала |
+| 10 | Агент может вызвать диагностику, hover, definition, completion | ✅ `ink mcp` (8 tools), `ink new` пишет его в `opencode.json` |
 
-Итог: **8/10 для человека в редакторе, 5/10 для агента** (диагностика есть
-только через `ink check`, остальные возможности LSP агенту недоступны).
+Итог: **10/10** — LSP для редактора, MCP для агента. Проверено: агент в
+`opencode run` вызвал `ink_diagnose` и получил настоящие диагностики с кодами
+и hint; `ink_quickfix` вернул `i32[](3)` для `make[i32](3)`.
 
 ## Что доделано в этот заход
 
@@ -48,17 +49,14 @@
 - Quick fix `make[i32](3)` → `i32[](3)` и `for (cond)` → `for (; cond; )`.
 - Тесты: completion после `.`, hover на selector, code action `make-removed`.
 
-## Что нужно, чтобы дотянуть до 10 для агента
+## Сделано: `ink mcp`
 
-Один из двух вариантов, оба поверх уже написанного анализа:
+MCP-сервер на stdio поверх `ink lsp` (подпроцесс). Tools: `diagnose` (тот же
+`ink check --json`), `hover`, `definition`, `references`, `complete`
+(поля и методы после точки), `symbols`, `rename` (с защитой от перепривязки),
+`quickfix` (`make` → `T[](n)`, `for (cond)` → `for (; cond; )`, импорты,
+`const`). `ink new` пишет сервер в `opencode.json` с `codemode: false`, чтобы
+tools были видны напрямую.
 
-1. **`ink mcp`** — MCP-сервер на stdio с tools `diagnose`, `hover`,
-   `definition`, `references`, `complete`, `rename`, `quickfix`. Агент вызывает
-   их как обычные инструменты; LSP-сервер остаётся для редактора. Цена ~200
-   строк плюс конфиг `mcp.servers.ink`.
-2. **CLI-зеркало**: `ink diag FILE`, `ink hover FILE:L:C`, `ink def FILE:L:C`,
-   `ink complete FILE:L:C`. Дешевле (~80 строк), работает из shell в любом
-   харнессе, но агент должен знать команды — это строка в guide и skill.
-
-Пока ни того, ни другого нет, честная оценка — 5/10 для агента, и «агенты
-будут использовать LSP» верно только для людей за редактором.
+Проверка: `opencode run` в проекте с ошибкой вызвал `ink_diagnose` и получил
+диагностики; `ink_quickfix` вернул `i32[](3)`.

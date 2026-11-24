@@ -310,7 +310,12 @@ go save(1, "hello");            // detached, program-owned
 | `unused-var` | use the variable or replace it with `_` |
 | `syntax` / `go-type` | read `message` and `hint` |
 
-## Editor
+## Editor and agents
+
+`ink mcp` is an MCP server on stdio for harnesses: `diagnose`, `hover`,
+`definition`, `references`, `complete`, `symbols`, `rename`, `quickfix`.
+`ink new` writes it into `opencode.json`, so an agent calls the compiler
+directly. Not needed in a terminal.
 
 `ink lsp` speaks LSP on stdio: diagnostics, hover, definition, completion,
 document/workspace symbols, signature help, formatting, references, rename and
