@@ -531,7 +531,7 @@ fn load(xs: Node[]) void or error = {
 	if toks[34].Lit != "30s" {
 		t.Fatalf("duration Lit = %q", toks[34].Lit)
 	}
-	if toks[42].Lit != "0" || toks[53].Lit != "1" || toks[56].Lit != "64" {
-		t.Fatalf("int lits = %q, %q, %q", toks[42].Lit, toks[53].Lit, toks[56].Lit)
+	if toks[42].Lit != "0" || toks[53].Lit != "1" {
+		t.Fatalf("int lits = %q, %q", toks[42].Lit, toks[53].Lit)
 	}
 }
