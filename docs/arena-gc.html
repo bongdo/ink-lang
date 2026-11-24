@@ -6,19 +6,21 @@
 <title>Арена Ink и сборщик мусора</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: transparent;
-    --panel: rgba(127,127,127,.08);
-    --panel2: rgba(127,127,127,.14);
-    --line: rgba(127,127,127,.28);
-    --muted: rgba(127,127,127,.85);
-    --accent: #4f8cff;
-    --warn: #e2703a;
-    --good: #2fa36b;
+    color-scheme: dark;
+    --bg: #14161c;
+    --text: #e8eaf0;
+    --panel: #1b1e26;
+    --panel2: #232733;
+    --line: #343a48;
+    --muted: #a6adbb;
+    --accent: #6aa6ff;
+    --warn: #f08a5d;
+    --good: #4cc38a;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  html, body { background: var(--bg); color: currentColor; }
+  html { background: var(--bg); }
+  html, body { background: var(--bg); color: var(--text); }
   body {
     margin: 0 auto;
     max-width: 980px;
@@ -352,7 +354,39 @@ _s_scr2.Release()</code></pre>
 
 <p>Ink сознательно не трогает <code>GOGC</code>: это глобальная ручка процесса, она не делает код быстрее и не является свойством языка. Арена решает задачу в одном месте и не требует от пользователя знать про пейсер. <code>GOGC</code> остаётся доступен снаружи, как обычная переменная окружения — им можно пользоваться, но язык на него не опирается.</p>
 
-<h2>9. Что здесь проверено, а что нет</h2>
+<h2>9. Скорость: 2–3 вызова GC — это ещё не C/Rust</h2>
+<p>Да, в текущей реализации это 2–3 вызова <b>за весь прогон</b> на 240 кадров, а не за кадр. В устойчивом режиме — ноль. Но из этого не следует, что программа стала такой же быстрой, как на C или Rust: число вызовов GC говорит только о том, что сборщик перестал быть узким местом.</p>
+
+<h3>Что реально дало снижение 81 → 2/3</h3>
+<table>
+  <thead><tr><th>Бэкенд</th><th class="num">p50</th><th class="num">p99</th><th class="num">GC</th></tr></thead>
+  <tbody>
+    <tr><td>Go-арена на кадр</td><td class="num">11.1 ms</td><td class="num">15.3 ms</td><td class="num warn">81</td></tr>
+    <tr><td>Переиспользуемый scratch</td><td class="num">10.9 ms</td><td class="num">13.7 ms</td><td class="num good">3</td></tr>
+  </tbody>
+</table>
+<p>Вызовов стало в 27 раз меньше, а p50 улучшился всего на 0.2 ms. Выигрыш — в хвосте (p99 минус 1.6 ms) и в освобождённом CPU: GC больше не отбирает ядра у кадров. Это важный вывод: <b>81 цикл выглядит страшно, но сам по себе не был главным тормозом</b>. Основное время уходило в заполнение и копирование строк.</p>
+
+<h3>Прямое сравнение с C на том же цикле</h3>
+<p>Я собрал синтетический LUT-шейдер: 2560×1440, строка 10 KB, 240 кадров, один буфер на всё, 4 записи на пиксель. Одинаковая работа, одинаковый объём — 14.7 MB на кадр.</p>
+<table>
+  <thead><tr><th>Вариант</th><th class="num">ms/кадр</th><th class="num">GC за прогон</th><th class="num">скорость записи</th></tr></thead>
+  <tbody>
+    <tr><td>Go, как в Ink: строка возвращается по значению + <code>copy</code></td><td class="num">12.3</td><td class="num good">0</td><td class="num">1.1 GB/s</td></tr>
+    <tr><td>Go, заполнение на месте через срез</td><td class="num">11.8</td><td class="num good">0</td><td class="num">1.2 GB/s</td></tr>
+    <tr><td>Go, фиксированный массив-указатель (без bounds check)</td><td class="num">10.4</td><td class="num good">0</td><td class="num">1.3 GB/s</td></tr>
+    <tr><td>C, <code>gcc -O2</code></td><td class="num good">1.5–1.7</td><td class="num good">0</td><td class="num">8.3–9.5 GB/s</td></tr>
+  </tbody>
+</table>
+<p>Разница в 6–8 раз, и это <b>не GC</b>: у обоих ноль циклов. Причина — gcc автоматически векторизует побайтовый цикл (SIMD), а Go этого не делает. Go упирается в скалярные записи с проверками границ; C пишет блоками по 16–32 байта. Rust, скорее всего, оказался бы ближе к C: LLVM тоже умеет автовекторизацию, но я это не замерял — <code>rustc</code> на машине нет.</p>
+
+<div class="note">
+  <b>Как это читать.</b> Это худший случай для Go: чистая вычислительная петля, идеально ложащаяся на SIMD. Реальный кадр ещё включает <code>UpdateTexture</code>, копирование и raylib, а исходный замер 2.5K — LUT-шейдинг, а не ровно этот цикл. Так что 6–8× нельзя переносить на всё приложение. Но и говорить «GC стал 3, значит скорость как в C» нельзя: разница в кодогенерации никуда не делась.
+</div>
+
+<p>Что могло бы сократить разрыв: писать горячий цикл с явным SIMD (ассемблер или C-функция через FFI), убрать построчную копию и возврат строки по значению, либо оставить как есть и упираться в 60 fps с запасом. Последнее для 2.5K уже почти выполняется: 10.9 ms p50 при бюджете 16.7 ms.</p>
+
+<h2>10. Что здесь проверено, а что нет</h2>
 <table>
   <thead><tr><th>Утверждение</th><th>Чем подтверждено</th></tr></thead>
   <tbody>
@@ -361,6 +395,8 @@ _s_scr2.Release()</code></pre>
     <tr><td>Escape-правила</td><td><code>internal/sema/check.go</code>, <code>tests/cases/arena*</code></td></tr>
     <tr><td>81 → 2/3 и 0 на 480p</td><td>Записано в <code>vault/features/arenas.md</code> и <code>docs/maintain/decisions.md</code>; исходного бенчмарк-харнесса в репозитории нет</td></tr>
     <tr><td>GC на кадре 1, дальше ноль</td><td>Отдельный Go-скрипт с тем же паттерном (14.7 MB, 240 итераций), не raylib-пример</td></tr>
+    <tr><td>Go 10.4–12.3 ms/кадр против C 1.5–1.7 ms/кадр</td><td>Синтетический LUT-цикл, gcc 15 <code>-O2</code>, эта машина; не raylib-пример и не полный кадр</td></tr>
+    <tr><td>Ускорение p50 всего 11.1 → 10.9 ms</td><td>Замеры в <code>vault/features/arenas.md</code></td></tr>
   </tbody>
 </table>
 
