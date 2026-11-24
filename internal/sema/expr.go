@@ -773,6 +773,13 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 		}
 		c.push()
 		c.declare(&symbol{name: or.Name, kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: or})
+		if len(or.Block.Stmts) == 1 {
+			if fail, ok := or.Block.Stmts[0].(*ast.FailStmt); ok && fail.Msg == nil {
+				if id, ok := unparen(fail.Err).(*ast.Ident); ok && id.Name == or.Name {
+					c.p.errorf(c.fc.file.Path, fail.Pos(), "on err that only re-raises the error is just or fail; write the call with or fail")
+				}
+			}
+		}
 		c.inInlineHandler++
 		c.checkBlock(or.Block)
 		c.inInlineHandler--

@@ -365,3 +365,23 @@ func TestLimitIsNotReserved(t *testing.T) {
 `})
 	noErrors(t, p)
 }
+
+func TestOrHandlerReraiseRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn mk() i32! { return 1; };
+
+fn g() i32! {
+    var v = mk()
+        on err {
+            fail(err);
+        };
+    return v;
+};
+
+fn main() void {
+    _ = g() on err { _ = err; };
+};
+`})
+	if !hasError(p, "just or fail") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}

@@ -100,6 +100,7 @@ var rules = []struct {
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
 	{"err-return", "return in on err turns the failure into success", "use fail(err) to propagate, or return a value only if success is intended", true},
 	{"reserved", "is a reserved word", "rename it; the word is part of the syntax", false},
+	{"or-handler-fail", "just or fail", "replace the on err block with `or fail` on the call", false},
 	{"or-expr", "or is statement-level", "split it: var v = f() or fail; then pass v", false},
 	{"for-cond", "condition-only loop", "write for (; cond; ): for (; rows.Next(); ) { ... }", false},
 	{"import-path", "is not in std", "use the full Go path: path/filepath, net/http, encoding/json, database/sql", false},
