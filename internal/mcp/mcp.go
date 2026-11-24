@@ -51,6 +51,7 @@ type positionArgs struct {
 
 type diagnoseArgs struct {
 	Path string `json:"path"`
+	Fast bool   `json:"fast"`
 }
 
 const protocolVersion = "2025-06-18"
@@ -58,8 +59,8 @@ const protocolVersion = "2025-06-18"
 var tools = []tool{
 	{
 		Name:        "diagnose",
-		Description: "Compile the Ink project and return ink check diagnostics as JSON (empty array is clean).",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"optional absolute path to filter diagnostics"}}}`),
+		Description: "Compile the Ink project and return ink check diagnostics as JSON (empty array is clean). fast=true skips the generated-Go typecheck and go vet.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"optional absolute path to filter diagnostics"},"fast":{"type":"boolean","description":"sema only, skips Go typecheck and vet"}}}`),
 	},
 	{
 		Name:        "hover",
@@ -170,7 +171,7 @@ func (s *session) call(raw json.RawMessage) (any, error) {
 	case "diagnose":
 		var a diagnoseArgs
 		_ = json.Unmarshal(p.Arguments, &a)
-		text, err := s.diagnose(a.Path)
+		text, err := s.diagnose(a)
 		if err != nil {
 			return nil, err
 		}
@@ -399,15 +400,16 @@ func textResult(text string) map[string]any {
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}}
 }
 
-func (s *session) diagnose(path string) (string, error) {
+func (s *session) diagnose(a diagnoseArgs) (string, error) {
 	p, err := driver.Open(s.root)
 	if err != nil {
 		return "", err
 	}
-	if err := p.Check(driver.CheckOptions{Tidy: true, Typecheck: true}); err != nil {
+	if err := p.Check(driver.CheckOptions{Tidy: true, Typecheck: !a.Fast, Fast: a.Fast}); err != nil {
 		return "", err
 	}
 	diags := p.Diagnostics()
+	path := a.Path
 	if path != "" {
 		abs, err := filepath.Abs(path)
 		if err == nil {

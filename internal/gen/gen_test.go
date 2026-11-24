@@ -686,7 +686,11 @@ fn main() void! {
     go for (var i = 1; i < 10; i += 2) limit 3 {
         out[i] = i * 10;
     };
-    fmt.Println(out[1], out[3], out[5], out[7], out[9])
+    var small = int[3] {};
+    go for (var j = 0; j < 3; j += 1) limit 8 {
+        small[j] = j + 1;
+    };
+    fmt.Println(out[1], out[3], out[5], out[7], out[9], small[0], small[1], small[2])
         or fail;
 };
 `,
@@ -697,7 +701,7 @@ fn main() void! {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
-	expect(t, stdout, "10 30 50 70 90\n")
+	expect(t, stdout, "10 30 50 70 90 1 2 3\n")
 }
 
 func TestParErrors(t *testing.T) {
