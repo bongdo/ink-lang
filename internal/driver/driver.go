@@ -29,22 +29,35 @@ import (
 
 const Version = "0.2.0"
 
-const openCodeConfig = `{
+func openCodeConfig(inkPath string) []byte {
+	quoted, _ := json.Marshal(inkPath)
+	return []byte(fmt.Sprintf(`{
   "$schema": "https://opencode.ai/config.json",
   "lsp": {
     "ink": {
-      "command": ["ink", "lsp"],
+      "command": [%s, "lsp"],
       "extensions": [".ink"]
     }
   },
   "formatter": {
     "ink": {
-      "command": ["ink", "fmt", "-w", "$FILE"],
+      "command": [%s, "fmt", "-w", "$FILE"],
       "extensions": [".ink"]
     }
   }
 }
-`
+`, quoted, quoted))
+}
+
+func inkCommand() string {
+	if _, err := exec.LookPath("ink"); err == nil {
+		return "ink"
+	}
+	if exe, err := os.Executable(); err == nil {
+		return exe
+	}
+	return "ink"
+}
 
 var ErrCheck = errors.New("check failed")
 
@@ -872,7 +885,7 @@ func New(dir string) error {
 	if err := os.WriteFile(filepath.Join(abs, ".gitignore"), []byte(gitignore), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(abs, "opencode.json"), []byte(openCodeConfig), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(abs, "opencode.json"), openCodeConfig(inkCommand()), 0o644); err != nil {
 		return err
 	}
 	skillDir := filepath.Join(abs, ".opencode", "skills", "ink")

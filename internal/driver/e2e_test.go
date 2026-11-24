@@ -518,6 +518,18 @@ func TestNewWritesAgentGuide(t *testing.T) {
 	if !json.Valid(cfg) || !strings.Contains(string(cfg), `"extensions": [".ink"]`) {
 		t.Fatalf("opencode.json: %s", cfg)
 	}
+	var lspCfg struct {
+		LSP map[string]struct {
+			Command []string `json:"command"`
+		} `json:"lsp"`
+	}
+	if err := json.Unmarshal(cfg, &lspCfg); err != nil {
+		t.Fatalf("opencode.json: %v", err)
+	}
+	cmd := lspCfg.LSP["ink"].Command
+	if len(cmd) != 2 || cmd[0] == "" || cmd[1] != "lsp" {
+		t.Fatalf("lsp command: %+v", cmd)
+	}
 	skill, err := os.ReadFile(filepath.Join(dir, ".opencode", "skills", "ink", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
