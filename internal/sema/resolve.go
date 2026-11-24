@@ -567,7 +567,6 @@ func (p *Program) checkPackageVars() {
 				break
 			}
 		}
-		p.checkVarCycles(pkg, vars)
 	}
 	p.dedupeLitCalls()
 }
@@ -665,6 +664,21 @@ func (p *Program) packageVarUnresolved(pkg *Package, item packageVar) bool {
 	return false
 }
 
+func (p *Program) checkVarCyclesAll() {
+	for _, pkg := range p.Packages {
+		var vars []packageVar
+		for _, f := range pkg.Files {
+			fc := p.fileCtx(pkg, f)
+			for _, d := range f.Decls {
+				if v, ok := d.(*ast.VarDecl); ok {
+					vars = append(vars, packageVar{fc: fc, decl: v})
+				}
+			}
+		}
+		p.checkVarCycles(pkg, vars)
+	}
+}
+
 func (p *Program) checkVarCycles(pkg *Package, vars []packageVar) {
 	if len(vars) == 0 {
 		return
@@ -722,40 +736,55 @@ func walkVarCycle(cur, start *ast.VarDecl, members map[*ast.VarDecl]bool, seen m
 }
 
 func varRefs(v *ast.VarDecl) []*ast.VarDecl {
-	invoked := make(map[*ast.FuncLit]bool)
-	for _, val := range v.Values {
-		ast.Inspect(val, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
+	var refs []*ast.VarDecl
+	seen := make(map[*ast.VarDecl]bool)
+	funcs := make(map[*ast.FuncDecl]bool)
+	var scan func(ast.Node)
+	scan = func(root ast.Node) {
+		if root == nil {
+			return
+		}
+		invoked := invokedFuncLits(root)
+		ast.Inspect(root, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.FuncLit:
+				return invoked[n]
+			case *ast.CallExpr:
+				id, ok := unparen(n.Fun).(*ast.Ident)
+				if !ok || id.Ref == nil || id.Ref.Func == nil || funcs[id.Ref.Func] {
+					return true
+				}
+				funcs[id.Ref.Func] = true
+				scan(id.Ref.Func.Body)
+			case *ast.Ident:
+				if n.Ref == nil || n.Ref.Kind != ast.RefGlobal {
+					return true
+				}
+				if d, ok := n.Ref.Decl.(*ast.VarDecl); ok && !seen[d] {
+					seen[d] = true
+					refs = append(refs, d)
+				}
 			}
+			return true
+		})
+	}
+	for _, val := range v.Values {
+		scan(val)
+	}
+	return refs
+}
+
+func invokedFuncLits(n ast.Node) map[*ast.FuncLit]bool {
+	invoked := make(map[*ast.FuncLit]bool)
+	ast.Inspect(n, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
 			if lit := calleeFuncLit(call.Fun); lit != nil {
 				invoked[lit] = true
 			}
-			return true
-		})
-	}
-	var refs []*ast.VarDecl
-	seen := make(map[*ast.VarDecl]bool)
-	for _, val := range v.Values {
-		ast.Inspect(val, func(n ast.Node) bool {
-			if lit, ok := n.(*ast.FuncLit); ok && !invoked[lit] {
-				return false
-			}
-			id, ok := n.(*ast.Ident)
-			if !ok || id.Ref == nil || id.Ref.Kind != ast.RefGlobal {
-				return true
-			}
-			d, ok := id.Ref.Decl.(*ast.VarDecl)
-			if !ok || d == nil || seen[d] {
-				return true
-			}
-			seen[d] = true
-			refs = append(refs, d)
-			return true
-		})
-	}
-	return refs
+		}
+		return true
+	})
+	return invoked
 }
 
 func calleeFuncLit(e ast.Expr) *ast.FuncLit {

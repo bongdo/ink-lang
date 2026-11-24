@@ -91,10 +91,7 @@ func spanEnd(pos, end token.Pos) token.Pos {
 	if end.Valid() && end.Offset > pos.Offset {
 		return end
 	}
-	if !pos.Valid() {
-		return token.Pos{Line: 1, Col: 2}
-	}
-	return token.Pos{Offset: pos.Offset + 1, Line: pos.Line, Col: pos.Col + 1}
+	return token.Pos{}
 }
 
 type Project struct {
@@ -684,13 +681,6 @@ func (p *Project) Diagnostics() []JSONError {
 		if col < 1 {
 			col = 1
 		}
-		endLine, endCol := e.End.Line, e.End.Col
-		if endLine < 1 {
-			endLine = line
-		}
-		if endCol < 1 {
-			endCol = col + 1
-		}
 		severity := "error"
 		if e.Warning {
 			severity = "warning"
@@ -699,6 +689,24 @@ func (p *Project) Diagnostics() []JSONError {
 		if code == "" {
 			info := diag.Classify(e.Msg)
 			code, hint = info.Code, info.Hint
+		}
+		pos := e.Pos
+		if code == "go-type" {
+			if snapped := p.snapStart(e.Path, e.Pos, 8); snapped.Valid() {
+				pos = snapped
+				line, col = snapped.Line, snapped.Col
+			}
+		}
+		end := e.End
+		if !end.Valid() || pos != e.Pos {
+			end = p.nodeEnd(e.Path, pos)
+		}
+		endLine, endCol := end.Line, end.Col
+		if endLine < 1 {
+			endLine = line
+		}
+		if endCol < 1 {
+			endCol = col + 1
 		}
 		out = append(out, JSONError{
 			File:     absPath(e.Path),
@@ -713,6 +721,87 @@ func (p *Project) Diagnostics() []JSONError {
 		})
 	}
 	return out
+}
+
+func (p *Project) nodeEnd(path string, pos token.Pos) token.Pos {
+	if !pos.Valid() {
+		return token.Pos{}
+	}
+	for _, files := range p.Parsed {
+		for _, f := range files {
+			if filepath.Clean(f.Path) != filepath.Clean(path) {
+				continue
+			}
+			var best ast.Node
+			ast.Inspect(f, func(n ast.Node) bool {
+				if n == nil || !n.Pos().Valid() || !n.EndPos().Valid() {
+					return true
+				}
+				if !spanHas(n.Pos(), n.EndPos(), pos) {
+					return true
+				}
+				if best == nil || spanSize(n.Pos(), n.EndPos()) < spanSize(best.Pos(), best.EndPos()) {
+					best = n
+				}
+				return true
+			})
+			if best != nil {
+				return best.EndPos()
+			}
+			return token.Pos{}
+		}
+	}
+	return token.Pos{}
+}
+
+func (p *Project) snapStart(path string, pos token.Pos, limit int) token.Pos {
+	if !pos.Valid() {
+		return token.Pos{}
+	}
+	best := pos
+	bestDist := limit + 1
+	for _, files := range p.Parsed {
+		for _, f := range files {
+			if filepath.Clean(f.Path) != filepath.Clean(path) {
+				continue
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				if n == nil || !n.Pos().Valid() || n.Pos().Line != pos.Line {
+					return true
+				}
+				dist := n.Pos().Col - pos.Col
+				if dist < 0 {
+					dist = -dist
+				}
+				if dist < bestDist {
+					best = n.Pos()
+					bestDist = dist
+				}
+				return true
+			})
+		}
+	}
+	if bestDist > limit {
+		return token.Pos{}
+	}
+	return best
+}
+
+func spanHas(start, end, pos token.Pos) bool {
+	if pos.Line < start.Line || pos.Line > end.Line {
+		return false
+	}
+	if pos.Line == start.Line && pos.Col < start.Col {
+		return false
+	}
+	if pos.Line == end.Line && pos.Col > end.Col {
+		return false
+	}
+	return true
+}
+
+func spanSize(start, end token.Pos) int {
+	return (end.Line-start.Line)*1_000_000 + end.Col - start.Col
 }
 
 func (p *Project) WriteJSON(w io.Writer) error {

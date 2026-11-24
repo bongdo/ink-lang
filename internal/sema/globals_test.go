@@ -127,3 +127,61 @@ func TestStringIndexIsByte(t *testing.T) {
 		t.Fatalf("index type = %#v", p.ExprTypes[index])
 	}
 }
+
+func TestGlobalCycleThroughFunctions(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = f();
+var b = g();
+
+fn f() i32 {
+    return b;
+};
+
+fn g() i32 {
+    return a;
+};
+
+fn main() void {
+    _ = a;
+    _ = b;
+};
+`})
+	if !hasError(p, "initialization cycle") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestGlobalCycleThroughNestedCall(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = f();
+
+fn f() i32 {
+    return g();
+};
+
+fn g() i32 {
+    return a;
+};
+
+fn main() void {
+    _ = a;
+};
+`})
+	if !hasError(p, "initialization cycle") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}
+
+func TestGlobalFunctionReadIsNotACycle(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `var a = f();
+var b = 1;
+
+fn f() i32 {
+    return b;
+};
+
+fn main() void {
+    _ = a;
+    _ = b;
+};
+`})
+	noErrors(t, p)
+}

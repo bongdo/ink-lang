@@ -81,7 +81,7 @@ func Check(p *sema.Program, files map[string][]*ast.File, opt Options) (out []Er
 		return errs
 	}
 	out = load(opt.Root, module, generated, knownFiles(files), opt.Tests, opt.Race)
-	cachePut(key, out)
+	cachePut(opt.Root, key, out)
 	return out
 }
 
@@ -142,9 +142,9 @@ func cacheGet(key string) ([]Error, bool) {
 	return append([]Error(nil), errs...), true
 }
 
-func cachePut(key string, errs []Error) {
+func cachePut(root, key string, errs []Error) {
 	for _, e := range errs {
-		if !strings.HasSuffix(e.Path, ".ink") {
+		if !underRoot(root, e.Path) {
 			return
 		}
 	}

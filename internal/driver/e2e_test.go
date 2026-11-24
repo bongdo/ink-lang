@@ -128,6 +128,32 @@ func TestCheckPathWithSpaces(t *testing.T) {
 	}
 }
 
+func TestGoTypeSpanSnapsToToken(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/span\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "fn main() void {\n    var word = \"hello\";\n    var n: i32 = word;\n    _ = n;\n};\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Typecheck: true}); err != nil {
+		t.Fatal(err)
+	}
+	diags := p.Diagnostics()
+	if len(diags) != 1 {
+		t.Fatalf("diags: %+v", diags)
+	}
+	d := diags[0]
+	if d.Line != 3 || d.Col != 18 || d.EndCol != 22 {
+		t.Fatalf("span = %d:%d-%d, want 3:18-22", d.Line, d.Col, d.EndCol)
+	}
+}
+
 func TestMissingReturnDiagnostic(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/ret\n\ngo 1.27\n"), 0o644); err != nil {
@@ -243,9 +269,6 @@ func TestCheckFastAndJSON(t *testing.T) {
 	if got.Pos.Line != 2 || got.Pos.Col < 2 {
 		t.Fatalf("position: %+v", got.Pos)
 	}
-	if got.End.Line != got.Pos.Line || got.End.Col <= got.Pos.Col {
-		t.Fatalf("end: %+v", got.End)
-	}
 	var buf bytes.Buffer
 	if err := p.WriteJSON(&buf); err != nil {
 		t.Fatal(err)
@@ -258,7 +281,7 @@ func TestCheckFastAndJSON(t *testing.T) {
 		t.Fatalf("json: %s", buf.String())
 	}
 	d := diags[0]
-	if d.File != libPath || d.Line != 2 || d.Col != got.Pos.Col || d.EndLine != 2 || d.EndCol != d.Col+1 {
+	if d.File != libPath || d.Line != 2 || d.Col < 1 || d.EndLine != 2 || d.EndCol <= d.Col {
 		t.Fatalf("json diagnostic: %+v", d)
 	}
 	if d.Severity != "error" || d.Code == "" || !strings.Contains(d.Message, "mismatched types") {

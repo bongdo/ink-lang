@@ -14,14 +14,11 @@ not re-file.
 | # | Symptom | Today | Workaround |
 |---|---|---|---|
 | 3 | `//go:embed` does not exist; templates and static files are read from disk. | Decided: embed is a build concern, not syntax; no attributes and no builtin. | `os.DirFS` or a Go binding until `ink build` gains the flag. |
-| 4 | `ink check` misses an initialization cycle that goes through a free function call. | The cycle graph does not traverse calls. | Full `ink check` (without `--fast`) still reports it through Go. |
-| 5 | Conformance checking silently skips some signatures. | Generic types, enum variants, arrays, function values, variadic methods and multi-result calls are not compared. | `go build` is the backstop. |
-| 6 | Rename can produce a name conflict; references cover project declarations only. | No conflict analysis; Go library symbols are out of scope. | Run `ink check` after rename; use editor search for Go symbols. |
-| 7 | Sema and typecheck diagnostics end one character after their start. | Parser and lexer ends are exact; Go diagnostics carry no end column. | Use the start position; end spans are cosmetic. |
-| 8 | LSP waits for the current sema pass even after a newer edit. | A running analysis is not cancelled mid-pass. | None; the newer generation runs next. |
-| 9 | `ink check` re-type-checks every package on each run. | No per-package cache. | `--fast` for rename-level feedback. |
+| 5 | Conformance checking silently skips some signatures. | Arrays are compared now; a method set that cannot be named (generic or variadic) emits the warning `conformance-unchecked`. | `go build` is the backstop; the warning marks the silent case. |
+| 6 | A rename can silently change which name a reference binds to. | The rename is rejected when a sema pass over the edited snapshot reports a new error; a rename that only shadows with no error is not caught, and Go symbols are out of scope. | Read the produced edit; run `ink check` after rename. |
+| 8 | LSP waits for the current sema pass even after a newer edit. | The file walk stops on a newer generation; one large file still completes its sema pass. | None; the newer generation runs next. |
+| 9 | `ink check` re-type-checks every package on each run. | Results are cached in the process, keyed by the whole project; errors under the root are cached now, outside the root are not. | `--fast` for rename-level feedback. |
 | 10 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
-| 11 | `ink check --fast` is clean, then `m[k].f = v`, `&m[k]` or a pointer method on `m[k]` fails in the Go typecheck. | Go does not address map elements, and Ink has no diagnostic of its own. | Copy out, mutate, write back: `var p = m[k]; p.f = v; m[k] = p;`. |
 | 12 | Writing to a nil map panics at run time; `ink check` stays clean. | `nil` is a valid map value; only writes need storage. | Reads, `len`, `has`, `delete` and `for` are safe on nil. Start with `map[K, V] {}`. |
 | 13 | `str(42)` is `"*"`, the rune, not `"42"`; no builtin formats a number. | `str` keeps Go's rune/byte conversion, and `rune` is an alias of `i32`. | Use `strconv.Itoa`, `strconv.FormatFloat` or `fmt.Sprint`. Needs a decision. |
 

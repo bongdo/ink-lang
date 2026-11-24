@@ -99,6 +99,15 @@ func (p *Program) typeKey(t ast.Type) (string, bool) {
 			return "", false
 		}
 		return "[]" + k, true
+	case *ast.ArrayType:
+		if lit, ok := t.Len.(*ast.BasicLit); ok {
+			k, ok := p.typeKey(t.Elem)
+			if !ok {
+				return "", false
+			}
+			return "[" + lit.Value + "]" + k, true
+		}
+		return "", false
 	case *ast.MapType:
 		key, ok := p.typeKey(t.Key)
 		if !ok {
@@ -477,6 +486,7 @@ func (c *checker) checkAssign(dst ast.Type, e ast.Expr) {
 	}
 	got, decl, known := c.p.methodSet(src)
 	if !known {
+		c.p.warnf(c.fc.file.Path, e.Pos(), "conformance not checked: the method set is not nameable; go build is the backstop")
 		return
 	}
 	var problems []string

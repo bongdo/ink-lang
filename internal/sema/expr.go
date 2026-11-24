@@ -46,6 +46,9 @@ func (c *checker) resolveExprInner(e ast.Expr, top bool) ast.Type {
 		xt := c.resolveExpr(e.X, false)
 		switch e.Op {
 		case token.Amp:
+			if c.mapIndex(e.X) {
+				c.p.errorf(c.fc.file.Path, e.X.Pos(), "cannot take the address of a map element; copy out, mutate, then write back")
+			}
 			if c.inArena > 0 {
 				if _, ok := unparen(e.X).(*ast.CompositeLit); ok {
 					c.p.errorf(c.fc.file.Path, e.Pos(), "&T{} allocates outside the arena; use new[T]()")
@@ -840,6 +843,27 @@ func fieldByName2(fields []*ast.Field, name string) *ast.Field {
 		}
 	}
 	return nil
+}
+
+func (c *checker) mapIndex(e ast.Expr) bool {
+	idx, ok := unparen(e).(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	_, ok = c.p.ExprTypes[idx.X].(*ast.MapType)
+	return ok
+}
+
+func (c *checker) mapStructElement(e ast.Expr) bool {
+	idx, ok := unparen(e).(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	if _, ok := c.p.ExprTypes[idx.X].(*ast.MapType); !ok {
+		return false
+	}
+	n, ok := c.p.ExprTypes[idx].(*ast.NamedType)
+	return ok && n.Decl != nil && n.Decl.Kind == ast.TypeStruct
 }
 
 func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.Type {

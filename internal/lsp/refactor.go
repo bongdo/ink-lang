@@ -3,6 +3,7 @@ package lsp
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -388,7 +389,71 @@ func (s *server) rename(p RenameParams) (any, error) {
 	for _, location := range locations {
 		changes[location.URI] = append(changes[location.URI], TextEdit{Range: location.Range, NewText: p.NewName})
 	}
+	if err := s.renameBreaks(changes); err != nil {
+		return nil, err
+	}
 	return WorkspaceEdit{Changes: changes}, nil
+}
+
+func (s *server) renameBreaks(changes map[string][]TextEdit) error {
+	if s.last == nil {
+		return nil
+	}
+	docs := make(map[string]*document, len(s.docs))
+	for path, doc := range s.docs {
+		copied := *doc
+		docs[path] = &copied
+	}
+	for uri, edits := range changes {
+		path, err := uriToPath(uri)
+		if err != nil {
+			continue
+		}
+		if doc := docs[path]; doc != nil {
+			doc.text = applyEdits(doc.text, edits)
+			continue
+		}
+		if fi := s.last.files[path]; fi != nil {
+			docs[path] = &document{text: applyEdits(string(fi.src), edits)}
+		}
+	}
+	next := s.analyze(docs, s.root, s.module, false, 0)
+	if next == nil {
+		return nil
+	}
+	before := make(map[string]int)
+	for _, diags := range s.last.diags {
+		for _, d := range diags {
+			before[d.Message]++
+		}
+	}
+	for path, diags := range next.diags {
+		for _, d := range diags {
+			if before[d.Message] == 0 {
+				return fmt.Errorf("rename would break %s: %s", filepath.Base(path), d.Message)
+			}
+			before[d.Message]--
+		}
+	}
+	return nil
+}
+
+func applyEdits(text string, edits []TextEdit) string {
+	sorted := append([]TextEdit(nil), edits...)
+	sort.Slice(sorted, func(i, j int) bool {
+		a, b := sorted[i].Range.Start, sorted[j].Range.Start
+		return a.Line > b.Line || (a.Line == b.Line && a.Character > b.Character)
+	})
+	src := []byte(text)
+	for _, edit := range sorted {
+		start := OffsetAt(src, edit.Range.Start)
+		end := OffsetAt(src, edit.Range.End)
+		if start > end {
+			start, end = end, start
+		}
+		src = append(append(append([]byte{}, src[:start]...), edit.NewText...), src[end:]...)
+	}
+	return string(src)
 }
 
 func validIdent(name string) bool {

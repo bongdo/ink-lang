@@ -258,6 +258,9 @@ go save(1, "hello");            // detached, program-owned
 | `comment-block` | use `//`; block comments are rejected |
 | `void-value` | return or store a value; `void` is a result only |
 | `missing-return` | end every path with `return;` |
+| `init-cycle` | break the cycle: initialize in `main` or in a function |
+| `map-addressable` | copy out, mutate, write back: `var p = m[k]; p.F = v; m[k] = p;` |
+| `conformance-unchecked` | warning: the method set is not nameable; `go build` is the backstop |
 | `unused-import` | remove the import or use it |
 | `unused-var` | use the variable or replace it with `_` |
 | `syntax` / `go-type` | read `message` and `hint` |

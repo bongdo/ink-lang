@@ -140,6 +140,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 	p.resolveDecls()
 	p.checkPackageVars()
 	p.checkFuncs()
+	p.checkVarCyclesAll()
 	p.checkTests()
 	p.checkMain()
 	p.colorContext()

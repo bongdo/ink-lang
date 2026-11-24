@@ -640,6 +640,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		var lhsTypes []ast.Type
 		for _, e := range s.Lhs {
 			lhsTypes = append(lhsTypes, c.resolveExpr(e, false))
+			if sel, ok := unparen(e).(*ast.SelectorExpr); ok && c.mapStructElement(sel.X) {
+				c.p.errorf(c.fc.file.Path, e.Pos(), "cannot assign to a field of a map element; copy out, mutate, then write back")
+			}
 		}
 		for i, e := range s.Rhs {
 			c.checkMatchValue(e)

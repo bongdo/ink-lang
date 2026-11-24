@@ -525,7 +525,7 @@ func (s *server) reload(typecheckOn bool) error {
 	}
 	root, module := s.root, s.module
 	s.worker.submit(gen, func() any {
-		return s.analyze(docs, root, module, typecheckOn)
+		return s.analyze(docs, root, module, typecheckOn, gen)
 	})
 	return nil
 }
@@ -539,6 +539,15 @@ func (s *server) stop() {
 		s.timer.Stop()
 		s.timer = nil
 	}
+}
+
+func (s *server) stale(gen int) bool {
+	if gen == 0 {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return gen != s.gen
 }
 
 func (s *server) publishAnalysis(gen int, result any) {
@@ -559,7 +568,7 @@ func (s *server) publishAnalysis(gen int, result any) {
 	}
 }
 
-func (s *server) analyze(docs map[string]*document, root, module string, typecheckOn bool) *analysis {
+func (s *server) analyze(docs map[string]*document, root, module string, typecheckOn bool, gen int) *analysis {
 	a := &analysis{
 		files:    make(map[string]*fileInfo),
 		nodeFile: make(map[ast.Node]string),
@@ -595,6 +604,9 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 				return nil
 			}
 			full := filepath.Clean(path)
+			if s.stale(gen) {
+				return filepath.SkipAll
+			}
 			src, err := s.source(docs, full)
 			if err != nil {
 				s.logf("%v", err)
@@ -649,6 +661,9 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 		parseErrs[path] = errs
 	}
 
+	if s.stale(gen) {
+		return a
+	}
 	if len(parsed) > 0 {
 		prog := s.check(parsed, root, module)
 		if prog != nil {
@@ -664,6 +679,9 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 				}
 				a.files[f.Path] = fi
 			}
+		}
+		if s.stale(gen) {
+			return a
 		}
 		if prog != nil && canTypecheck(root, module) && !hasFatalErrors(parseErrs, prog.Errors) {
 			if typecheckOn {

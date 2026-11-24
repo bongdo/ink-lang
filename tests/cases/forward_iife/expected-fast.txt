@@ -1,1 +1,1 @@
-1:1:semantic:initialization cycle: a -> b
+1:1:init-cycle:initialization cycle: a -> b

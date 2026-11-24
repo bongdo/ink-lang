@@ -28,7 +28,7 @@ place with status.
 | `type X enum { ... }`, sealed, variant construction | ✅ |
 | exhaustive `match` on enums | ✅ |
 | `type X interface { ... }` | ✅ |
-| interface conformance (local and Go interfaces) | ◐ signatures that cannot be named are left to `go build` |
+| interface conformance (local and Go interfaces) | ◐ a method set that cannot be named warns `conformance-unchecked`; `go build` is the backstop |
 | `type X = T` alias | ✅ |
 | generics `Stack[T]` | ✅ |
 | generic constraints | — every type parameter behaves like `any` |
@@ -39,7 +39,7 @@ place with status.
 | package-level `const`, untyped | ✅ |
 | typed `var`, bare `nil`, `nil[T]` escape hatch | ✅ |
 | top-level forward references, direct init cycles | ✅ |
-| init cycle through a free function call | ◐ only full `ink check` reports it |
+| init cycle through a free function call | ✅ the cycle graph follows free functions |
 | `T[]`, `T[N]`, `map[K, V]`, `*T`, `fn(A) R` | ✅ |
 | user-declared variadic functions | — Go variadics are callable with `...` |
 | tuples as values | — multiple results only |
@@ -125,9 +125,9 @@ place with status.
 | `check --race` (type-check with `-race`) | ✅ |
 | generated-Go typecheck in `check` and LSP | ✅ |
 | per-package typecheck cache | ○ |
-| exact end spans in sema/typecheck diagnostics | ◐ one-character fallback |
+| exact end spans in sema/typecheck diagnostics | ✅ the enclosing AST node supplies the end; `go-type` starts snap to the token |
 | LSP diagnostics, hover, definition, completion, symbols, signature help | ✅ |
-| LSP references and rename | ◐ project declarations only; no conflict check |
+| LSP references and rename | ◐ project declarations only; a sema pass over the edited snapshot rejects breaking renames, silent shadowing is not caught |
 | LSP code actions and quick fixes | ✅ |
 | formatter, idempotent, trailing comments | ✅ |
 | formatter line wrapping | ○ |

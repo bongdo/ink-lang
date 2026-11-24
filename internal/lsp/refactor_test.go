@@ -801,3 +801,30 @@ fn main() void {
 		t.Fatalf("expected renamed contract entry:\n%s", renamed)
 	}
 }
+
+func TestRenameShadowingPackageRejected(t *testing.T) {
+	src := `use fmt;
+
+fn main() void! {
+    var total = 1;
+    fmt.Println(total)
+        or fail;
+    return;
+};
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	position := PositionAt([]byte(src), strings.Index(src, "total = 1"))
+	msg := c.requestRaw("textDocument/rename", RenameParams{
+		TextDocumentPositionParams: TextDocumentPositionParams{
+			TextDocument: TextDocumentIdentifier{URI: uri},
+			Position:     position,
+		},
+		NewName: "fmt",
+	})
+	if msg.Error == nil {
+		t.Fatalf("rename that shadows a package was accepted: %s", msg.Result)
+	}
+}
