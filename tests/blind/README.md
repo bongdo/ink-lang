@@ -27,6 +27,12 @@ diagnostic said, and what would have saved a cycle.
 | `bugs` | five planted logic bugs in an inventory data layer | `check` clean, tests green, CLI transcript |
 | `sqlite` | SQLite ledger CLI with transactions and rollback | `check` clean, tests green, CLI transcript |
 | `port` | port a concurrent Go word-frequency CLI | byte-identical output vs the Go binary |
+| `edit-web` | extend an existing HTTP service: filter, replace, stats | `check` clean, old tests untouched and green, new tests |
+| `edit-store` | add `transfer` to an existing CLI + library | invariants tested, old tests untouched and green |
+
+The `edit-*` tasks are the realistic case: the agent reads an existing Ink
+project first and adds a feature. Score the edit experience, not from-scratch
+creation — most agent work is editing, not bootstrapping.
 
 `bugs` is deliberately red: `ink test` fails until the five bugs are fixed.
 `port` contains a nested Go module with the reference implementation.
