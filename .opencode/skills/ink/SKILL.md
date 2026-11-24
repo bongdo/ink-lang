@@ -148,7 +148,8 @@ fn pair() i32, bool { return 1, true; };
 - A fresh error is `errors.New("msg")` (`use errors;`); `fail(errors.New("msg"));`
   inside a handler constructs it and returns. `fail("msg")` is only the
   shorthand after `or`; it wraps the call error, it does not create one.
-- A fallible call as a bare statement (`f();`) is a compile error. Use
+- A bare statement call is fine when the call has no error result (`doIt();`);
+  only a fallible call must be handled. A fallible call as a bare statement (`f();`) is a compile error. Use
   `f() on err { ... };` or `f() or fail;`; `_ = f();` discards deliberately.
   The rule also applies inside `par` bodies.
 - `panic(...)` is Go's panic: not caught by `on err`, not recovered by `par`.
@@ -173,8 +174,9 @@ fn pair() i32, bool { return 1, true; };
   statement (`f();`), so `_ = f()` is an error.
 - JSON key order follows the struct field order, not the order inside the
   `wire` block.
-- `q.Get("k")` returns `""` when the key is absent; `var v, ok = q["k"]`
-  distinguishes absent from present.
+- `q.Get("k")` returns `""` when the key is absent and when it is present but
+  empty (`?k=`); `var v, ok = q["k"]` gives `[""]` and `true` for `?k=`. Absent
+  and empty are different — decide which one your route accepts.
 - A Go named type whose underlying type is a map, slice or array is used like
   that type and keeps its methods: `r.URL.Query().Get("done")` is a `str`,
   `q["done"]` is a `str[]`.
@@ -230,7 +232,9 @@ for (var i, x in xs) { ... };
   explicitly before returning.
 - A function literal may be an expression `fn(a: i32) i32 => a + 1;` or a
   block; it captures locals. A block literal with results must end every path
-  in `return;`, same as a function. `func` is Go, not Ink.
+  in `return;`, same as a function. A method may share its type's name; method
+  names live in the type's method set, not in the package scope. `func` is Go,
+  not Ink.
 - Types: slice `T[]`, array `T[N]`, map `map[K, V]`, pointer `*T`. Literals:
   `i32[] { 1, 2 }`, `T[N] {}`, `map[str, i32] { "a": 1 }`,
   `User { Name: "a" }`. There is no `[1, 2]` form.
