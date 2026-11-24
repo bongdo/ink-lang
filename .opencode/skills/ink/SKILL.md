@@ -240,7 +240,7 @@ for (var i, x in xs) { ... };
   `"A"`, not `"65"`; format numbers with `fmt.Sprint(n)`.
 - Reserved words cannot be identifiers: `use`, `fail`, `as`, `fn`, `type`,
   `struct`, `enum`, `interface`, `var`, `const`, `return`, `if`, `else`,
-  `for`, `in`, `match`, `case`, `go`, `on`, `arena`, `limit`, `defer`, `break`,
+  `for`, `in`, `match`, `case`, `go`, `on`, `arena`, `defer`, `break`,
   `continue`, `or`, `test`, `true`, `false`, `nil`, `map`. `par` and `within`
   are removed keywords with their own diagnostics.
 

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "ink": {
+      "command": ["/home/ubuntu/Projects/Ink/bin/ink", "lsp"],
+      "extensions": [".ink"]
+    }
+  },
+  "formatter": {
+    "ink": {
+      "command": ["/home/ubuntu/Projects/Ink/bin/ink", "fmt", "-w", "$FILE"],
+      "extensions": [".ink"]
+    }
+  },
+  "mcp": {
+    "servers": {
+      "ink": {
+        "type": "local",
+        "command": ["/home/ubuntu/Projects/Ink/bin/ink", "mcp"],
+        "codemode": false
+      }
+    }
+  }
+}

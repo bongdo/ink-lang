@@ -172,7 +172,6 @@ var names = map[Kind]string{
 	On:            "on",
 	Within:        "within",
 	Arena:         "arena",
-	Limit:         "limit",
 	Defer:         "defer",
 	Break:         "break",
 	Continue:      "continue",

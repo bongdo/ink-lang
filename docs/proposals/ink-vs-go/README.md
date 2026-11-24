@@ -24,7 +24,9 @@ wrapper. `//line` directives add 62 lines.
 | Ink (generated Go) | **3.1 ms** | 5–7 ms | arena + `go for` + copy, fused |
 | hand Go, same shape | 3.3 ms | 6–14 ms | rows buffer + copy, no fusion |
 | hand Go, direct | **2.3 ms** | 4.5–4.9 ms | workers write straight into `px` |
-| C, one thread | 1.5 ms | — | earlier synthetic fill, not this harness |
+| C, one thread, direct | 1.0 ms | 1.2 ms | `-O3 -march=native`, compiler vectorizes |
+| C, four threads, hot | **0.28 ms** best, 0.37 median | 0.57–0.97 ms | contiguous chunks, buffer in cache |
+| C, four threads, cold | 0.57 ms | 0.88 ms | cache evicted before each frame |
 
 All versions produce the same checksum `2114150400`.
 
@@ -74,8 +76,32 @@ cleanup on `return`/`break`/`panic`, and the result copy.
 - The direct Go version is 69 lines, the same as the Ink source, but the
   concurrency is explicit. Ink hides ~15 lines of worker machinery and a class
   of races; it does not hide the shader or the memory traffic.
-- C/SIMD is the only route to ~1.5 ms; Go without SIMD stops around 2.3 ms with
-  four workers, and Ink around 3.1 ms with the arena rule.
+- C is not at 1.5 ms either: the optimized direct version is **0.28 ms hot /
+  0.57 ms cold**. The 1.5 ms number was one thread plus a per-row `memcpy`.
+- Go without SIMD stops around 2.3 ms with four workers, Ink around 3.1 ms with
+  the arena rule. The gap to C is mostly vectorization plus the extra copy, not
+  the language syntax.
+
+## The C ceiling
+
+The earlier C number (1.5 ms) was one thread, a row buffer and `memcpy` per row.
+The direct version writes into `px`, lets the compiler vectorize, and splits
+rows over four pthreads:
+
+```sh
+cd docs/proposals/ink-vs-go/c
+gcc -O3 -march=native -funroll-loops -pthread main.c -o c_frame
+./c_frame 4          # hot
+./c_frame 4 cold     # evict the buffer before every frame
+```
+
+Four threads: **0.28 ms p50 best, 0.37 ms median** when the 14.7 MB buffer stays
+in cache; **0.57 ms p50** cold. Store-only is ~0.18 ms hot and ~0.26 ms cold, so
+the shader is close to the memory floor. One thread is ~1.0 ms; without
+auto-vectorization it is ~3.6 ms.
+
+Hand-written NEON was slower than the compiler's auto-vectorized scalar loop
+(3.2 ms vs 1.0 ms single-thread). On this CPU, let the compiler vectorize.
 
 ## Run
 

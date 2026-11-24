@@ -74,6 +74,8 @@ var rules = []struct {
 	{"void-value", "void is not a value", "void is a result only; use a value-returning call", false},
 	{"result-bang", "fallible results are marked", "write T! instead of T or error", false},
 	{"go-int", "mismatched types int32 and int", "both sides need one width: declare the variable as i32 (var n: i32 = 0) or convert with int(x)", false},
+	{"byte-arg", "as byte value", "the parameter is a byte: pass 102 or u8('f')", false},
+	{"byte-arg", "as uint8 value", "the parameter is a byte: pass 102 or u8('f')", false},
 	{"type-removed", "usize was removed", "use uint", false},
 	{"type-removed", "isize was removed", "use int", false},
 	{"go-int", "mismatched types int and int32", "both sides need one width: declare the variable as i32 (var n: i32 = 0) or convert with i32(x)", false},

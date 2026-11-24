@@ -1135,7 +1135,7 @@ func (p *parser) parseForStmt(par bool, start token.Pos) *ast.ForStmt {
 		}
 	}
 	p.expect(token.RParen)
-	if p.at(token.Limit) {
+	if p.at(token.Ident) && p.tok().Lit == "limit" {
 		p.next()
 		fs.Limit = p.parseExprNoLit()
 	}

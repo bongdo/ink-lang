@@ -5,6 +5,7 @@ go 1.27
 require (
 	charm.land/bubbletea/v2 v2.1.2
 	github.com/gen2brain/raylib-go/raylib v0.63.0
+	github.com/swaywm/go-wlroots v0.0.0-20250523114853-368024c750af
 	golang.org/x/tools v0.52.0
 )
 

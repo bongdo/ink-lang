@@ -353,3 +353,15 @@ func TestRemovedTypeAliases(t *testing.T) {
 		}
 	}
 }
+
+func TestLimitIsNotReserved(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
+    var limit = 4;
+    var xs = i32[] { 1, 2 };
+    go for (var i = 0; i < len(xs); i += 1) limit 1 {
+        xs[i] = i32(limit);
+    };
+};
+`})
+	noErrors(t, p)
+}

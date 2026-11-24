@@ -1,0 +1,4 @@
+.ink/
+bin/
+zz_ink.go
+zz_ink_test.go
