@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bongdo/ink/internal/token"
 )
 
 func copyTree(t *testing.T, src, dst string) {

@@ -37,9 +37,156 @@ func (w *writer) bodyContents(b *ast.Block, mark bool) {
 }
 
 func (w *writer) genStmts(stmts []ast.Stmt) {
-	for _, s := range stmts {
+	for i := 0; i < len(stmts); i++ {
+		s := stmts[i]
+		if w.skip[s] {
+			continue
+		}
+		if n := w.storeQuad(stmts[i:]); n > 0 {
+			i += n - 1
+			continue
+		}
 		w.stmt(s)
 	}
+}
+
+func (w *writer) storeQuad(stmts []ast.Stmt) int {
+	if len(stmts) < 4 {
+		return 0
+	}
+	var base ast.Expr
+	var idx ast.Expr
+	var rhs [4]ast.Expr
+	for k := 0; k < 4; k++ {
+		a, ok := stmts[k].(*ast.AssignStmt)
+		if !ok || a.Op != token.Assign || len(a.Lhs) != 1 || len(a.Rhs) != 1 {
+			return 0
+		}
+		ix, ok := unparen(a.Lhs[0]).(*ast.IndexExpr)
+		if !ok {
+			return 0
+		}
+		if k == 0 {
+			base, idx = ix.X, ix.Index
+			if !sideEffectFree(base) || !sideEffectFree(idx) || !w.byteContainer(base) {
+				return 0
+			}
+		} else {
+			if w.expr(ix.X) != w.expr(base) || !indexPlus(ix.Index, idx, k, w) {
+				return 0
+			}
+		}
+		if !pureValue(a.Rhs[0]) || exprHasIdent(a.Rhs[0], rootIdent(base)) {
+			return 0
+		}
+		rhs[k] = a.Rhs[0]
+	}
+	vals := make([]string, 4)
+	for k, e := range rhs {
+		vals[k] = w.next("v")
+		w.linef("%s := %s", vals[k], w.expr(e))
+	}
+	w.f.needPkg("binary")
+	w.linef("%s.LittleEndian.PutUint32(%s[int(%s):], uint32(%s) | uint32(%s)<<8 | uint32(%s)<<16 | uint32(%s)<<24)",
+		w.f.std("binary"), w.expr(base), w.expr(idx), vals[0], vals[1], vals[2], vals[3])
+	return 4
+}
+
+func indexPlus(e, base ast.Expr, k int, w *writer) bool {
+	b, ok := unparen(e).(*ast.BinaryExpr)
+	if !ok || b.Op != token.Plus {
+		return false
+	}
+	lit := strconv.Itoa(k)
+	if w.expr(b.Y) == lit && w.expr(b.X) == w.expr(base) {
+		return true
+	}
+	return w.expr(b.X) == lit && w.expr(b.Y) == w.expr(base)
+}
+
+func pureValue(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.BasicLit, *ast.Ident:
+		return true
+	case *ast.ParenExpr:
+		return pureValue(e.X)
+	case *ast.UnaryExpr:
+		switch e.Op {
+		case token.Add, token.Sub, token.Xor:
+			return pureValue(e.X)
+		}
+	case *ast.BinaryExpr:
+		switch e.Op {
+		case token.Add, token.Sub, token.Mul, token.And, token.Or, token.Xor, token.Shl, token.Shr, token.AndNot:
+			return pureValue(e.X) && pureValue(e.Y)
+		}
+	case *ast.CallExpr:
+		if e.Info == nil || e.Info.Kind != ast.CallConversion {
+			return false
+		}
+		for _, a := range e.Args {
+			if !pureValue(a) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func rootIdent(e ast.Expr) string {
+	for {
+		switch x := unparen(e).(type) {
+		case *ast.Ident:
+			return x.Name
+		case *ast.IndexExpr:
+			e = x.X
+		case *ast.SelectorExpr:
+			e = x.X
+		case *ast.SliceExpr:
+			e = x.X
+		default:
+			return ""
+		}
+	}
+}
+
+func exprHasIdent(e ast.Expr, name string) bool {
+	if name == "" {
+		return false
+	}
+	found := false
+	ast.Inspect(e, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func (w *writer) byteContainer(e ast.Expr) bool {
+	return w.byteType(w.f.g.p.ExprTypes[e])
+}
+
+func (w *writer) byteType(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.SliceType:
+		return w.byteElem(t.Elem)
+	case *ast.ArrayType:
+		return w.byteElem(t.Elem)
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Target != nil {
+			return w.byteType(t.Decl.Target)
+		}
+	}
+	return false
+}
+
+func (w *writer) byteElem(t ast.Type) bool {
+	n, ok := t.(*ast.NamedType)
+	return ok && (n.Name == "u8" || n.GoName == "uint8")
 }
 
 func (w *writer) stmt(s ast.Stmt) {

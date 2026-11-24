@@ -346,6 +346,7 @@ var stdImports = map[string]string{
 	"reflect": "reflect",
 	"testing": "testing",
 	"errors":  "errors",
+	"binary":  "encoding/binary",
 }
 
 type importSpec struct {
@@ -461,6 +462,8 @@ type writer struct {
 	scratch    map[*ast.CallExpr]string
 	onErr      string
 	self       string
+	skip       map[ast.Stmt]bool
+	fuse       map[*ast.ForStmt]*ast.ForStmt
 }
 
 type rename struct {
