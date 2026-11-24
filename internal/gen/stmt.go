@@ -320,11 +320,16 @@ func (w *writer) addressable(e ast.Expr) bool {
 	case *ast.Ident:
 		return x.Name != "_"
 	case *ast.IndexExpr:
-		return !w.mapType(w.f.g.p.ExprTypes[x.X]) && w.addressable(x.X)
+		return !w.namedGo(w.f.g.p.ExprTypes[x.X]) && !w.mapType(w.f.g.p.ExprTypes[x.X]) && w.addressable(x.X)
 	case *ast.SelectorExpr:
 		return w.addressable(x.X)
 	}
 	return false
+}
+
+func (w *writer) namedGo(t ast.Type) bool {
+	n, ok := t.(*ast.NamedType)
+	return ok && n.Decl == nil
 }
 
 func (w *writer) mapType(t ast.Type) bool {
@@ -747,7 +752,7 @@ func (w *writer) fuseCopy(b *ast.Block) {
 		if !ok || cp.Par || cp.Range != nil || len(cp.Body.Stmts) != 1 {
 			continue
 		}
-		if !w.sameLoop(par, cp) || !w.rowCopy(par, cp) {
+		if !loopPure(cp) || !w.sameLoop(par, cp) || !w.rowCopy(par, cp) {
 			continue
 		}
 		if w.skip == nil {
@@ -760,10 +765,31 @@ func (w *writer) fuseCopy(b *ast.Block) {
 }
 
 func (w *writer) sameLoop(a, b *ast.ForStmt) bool {
-	return loopVar(a) != "" && loopVar(a) == loopVar(b) &&
-		w.initString(a.Init) == w.initString(b.Init) &&
-		w.expr(a.Cond) == w.expr(b.Cond) &&
-		w.postString(a.Post) == w.postString(b.Post)
+	return loopVar(a) != "" && loopVar(a) == loopVar(b) && w.loopHead(a) == w.loopHead(b)
+}
+
+func (w *writer) loopHead(s *ast.ForStmt) string {
+	sub := w.sub()
+	return sub.initString(s.Init) + "|" + sub.expr(s.Cond) + "|" + sub.postString(s.Post)
+}
+
+func loopPure(s *ast.ForStmt) bool {
+	d, ok := s.Init.(*ast.DeclStmt)
+	if !ok || d.Decl == nil || len(d.Decl.Names) != 1 || len(d.Decl.Values) != 1 || !isIntLit(d.Decl.Values[0]) {
+		return false
+	}
+	if s.Cond == nil || !sideEffectFree(s.Cond) {
+		return false
+	}
+	post, ok := s.Post.(*ast.AssignStmt)
+	if !ok || post.Op != token.PlusAssign || len(post.Lhs) != 1 || len(post.Rhs) != 1 {
+		return false
+	}
+	lhs, ok := unparen(post.Lhs[0]).(*ast.Ident)
+	if !ok || lhs.Name != d.Decl.Names[0] {
+		return false
+	}
+	return isPosIntLit(post.Rhs[0])
 }
 
 func loopVar(s *ast.ForStmt) string {
@@ -807,7 +833,7 @@ func (w *writer) rowCopy(par, cp *ast.ForStmt) bool {
 	if id, ok := unparen(stride.X).(*ast.Ident); !ok || id.Name != y {
 		return false
 	}
-	if !writesRow(par.Body, rows, y) || usesIdent(par.Body, px) || !constExpr(stride.Y) {
+	if hasFuncLit(par.Body) || shadows(par.Body, rows, px, y) || !writesRow(par.Body, rows, y) || !onlyRowsY(par.Body, rows, y) || usesIdent(par.Body, px) || !constExpr(stride.Y) {
 		return false
 	}
 	n := w.rowLen(w.f.g.p.ExprTypes[src.X])
@@ -858,10 +884,55 @@ func rowIndex(e ast.Expr, rows, y string) bool {
 	}
 }
 
+// shortcut: any closure disables row-copy fusion; widen only with symbol-aware effects.
+func hasFuncLit(b *ast.Block) bool {
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if _, ok := n.(*ast.FuncLit); ok {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func shadows(b *ast.Block, names ...string) bool {
+	found := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.DeclStmt:
+			if n.Decl != nil {
+				for _, name := range n.Decl.Names {
+					for _, want := range names {
+						if name == want {
+							found = true
+							return false
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
 func writesRow(b *ast.Block, rows, y string) bool {
 	found := false
 	ast.Inspect(b, func(n ast.Node) bool {
 		if found {
+			return false
+		}
+		if _, ok := n.(*ast.FuncLit); ok {
 			return false
 		}
 		if a, ok := n.(*ast.AssignStmt); ok {
@@ -877,9 +948,49 @@ func writesRow(b *ast.Block, rows, y string) bool {
 	return found
 }
 
+// shortcut: any rows use other than rows[y] disables fusion, including len(rows).
+func onlyRowsY(b *ast.Block, rows, y string) bool {
+	allowed := make(map[*ast.Ident]bool)
+	ast.Inspect(b, func(n ast.Node) bool {
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		ix, ok := n.(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+		id, ok := unparen(ix.X).(*ast.Ident)
+		if !ok || id.Name != rows {
+			return true
+		}
+		if yi, ok := unparen(ix.Index).(*ast.Ident); ok && yi.Name == y {
+			allowed[id] = true
+		}
+		return true
+	})
+	ok := true
+	ast.Inspect(b, func(n ast.Node) bool {
+		if !ok {
+			return false
+		}
+		if _, isLit := n.(*ast.FuncLit); isLit {
+			return false
+		}
+		if id, isID := n.(*ast.Ident); isID && id.Name == rows && !allowed[id] {
+			ok = false
+			return false
+		}
+		return true
+	})
+	return ok
+}
+
 func usesIdent(b *ast.Block, name string) bool {
 	found := false
 	ast.Inspect(b, func(n ast.Node) bool {
+		if _, isLit := n.(*ast.FuncLit); isLit {
+			return false
+		}
 		if id, ok := n.(*ast.Ident); ok && id.Name == name {
 			found = true
 			return false
@@ -902,6 +1013,8 @@ func (w *writer) rowLen(t ast.Type) ast.Expr {
 }
 
 func (w *writer) arenaStmt(s *ast.ArenaStmt) {
+	savedSkip, savedFuse := w.skip, w.fuse
+	defer func() { w.skip, w.fuse = savedSkip, savedFuse }()
 	w.fuseCopy(s.Body)
 	sites := arenaSites(s.Body)
 	saved := w.scratch
@@ -1643,6 +1756,7 @@ func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 	w.linef("%s := %s", start, w.expr(cl.start))
 	w.linef("%s := int(%s)", end, w.expr(cl.end))
 	w.linef("%s := %s", step, w.expr(cl.step))
+	// shortcut: int range arithmetic overflows near MaxInt; frame loops are small.
 	n := w.next("n")
 	per := w.next("per")
 	w.linef("%s := (%s - %s + %s - 1) / %s", n, end, start, step, step)

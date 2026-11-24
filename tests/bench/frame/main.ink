@@ -52,11 +52,18 @@ fn main() void! {
         total[f] = f64(time.Since(start).Microseconds()) / 1000.0;
     };
 
+    var sum = u64(0);
+    for (var i = 0; i < len(px); i += 1) {
+        sum += u64(px[i]);
+    };
+
     sort.Float64s(total);
     fmt.Println("frames", Frames)
         or fail;
     fmt.Println("avg ms", f64(time.Since(t0).Milliseconds()) / f64(Frames))
         or fail;
     fmt.Println("p50 ms", p50(total), "p99 ms", p99(total), "max ms", total[Frames - 1])
+        or fail;
+    fmt.Println("sum", sum)
         or fail;
 };

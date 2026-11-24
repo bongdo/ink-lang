@@ -39,10 +39,14 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 "$INK" build
 
-xml="$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/xdg-shell/xdg-shell.xml"
+scanner=$(command -v wayland-scanner || true)
+	if [ -z "$scanner" ]; then
+		scanner=$(ls /nix/store/*/bin/wayland-scanner 2>/dev/null | head -1)
+	fi
+	xml="$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/xdg-shell/xdg-shell.xml"
 mkdir -p client/build
-wayland-scanner client-header "$xml" client/build/xdg-shell-client-protocol.h
-wayland-scanner private-code "$xml" client/build/xdg-shell-protocol.c
+"$scanner" client-header "$xml" client/build/xdg-shell-client-protocol.h
+"$scanner" private-code "$xml" client/build/xdg-shell-protocol.c
 cc -O2 -o client/build/fpsclient client/fpsclient.c client/build/xdg-shell-protocol.c \
 	-Iclient/build $(pkg-config --cflags --libs wayland-client)
 
@@ -55,7 +59,7 @@ export INK_OUT_H="${INK_OUT_H:-720}"
 export INK_OUT_HZ="${INK_OUT_HZ:-1000}"
 
 rm -f "$XDG_RUNTIME_DIR/wayland-0" "$XDG_RUNTIME_DIR/wayland-0.lock"
-./bin/compositor > compositor.log 2>&1 &
+"$comp" > compositor.log 2>&1 &
 pid=$!
 trap 'kill "$pid" 2>/dev/null || true' EXIT
 sleep 1

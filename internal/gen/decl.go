@@ -135,6 +135,9 @@ func (g *generator) intoFunc(w *writer, fd *ast.FuncDecl) {
 	}
 	sub.indent--
 	sub.line("}")
+	if !blockTerminates(fd.Body) {
+		sub.line(`panic("unreachable")`)
+	}
 	w.buf.WriteString(sub.buf.String())
 	w.indent--
 	w.line("}")

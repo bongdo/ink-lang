@@ -748,6 +748,118 @@ fn main() void! {
 	expect(t, stdout, "[0 1 2 3 10 11 12 13 20 21 22 23] 90\n")
 }
 
+func TestFusionRejectsOtherRows(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+
+const N = 4;
+
+type Row = i32[N];
+
+fn fill(y: int) Row {
+    var r = Row {};
+    r[0] = i32(y);
+    return r;
+};
+
+fn main() void! {
+    var out = i32[](N * 3);
+    arena {
+        var rows = Row[](3);
+        go for (var y = 0; y < 3; y += 1) limit 2 {
+            rows[y] = fill(y);
+            if (y < 2) {
+                rows[y + 1] = fill(y + 10);
+            };
+        };
+        for (var y = 0; y < 3; y += 1) {
+            copy(out[y * N:], rows[y][:]);
+        };
+    };
+    fmt.Println(out[0])
+        or fail;
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, "copy(out[")
+	if strings.Index(src, "copy(out[") < strings.Index(src, ".Wait()") {
+		t.Fatalf("copy was fused despite writes to another row:\n%s", src)
+	}
+}
+
+func TestFusionRejectsClosure(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+
+const N = 4;
+
+type Row = i32[N];
+
+fn fill(y: int) Row {
+    var r = Row {};
+    r[0] = i32(y);
+    return r;
+};
+
+fn main() void! {
+    var out = i32[](N * 3);
+    arena {
+        var rows = Row[](3);
+        go for (var y = 0; y < 3; y += 1) limit 2 {
+            rows[y] = fill(y);
+            var touch = fn () void {
+                out[0] = i32(9);
+            };
+            if (y == 2) {
+                touch();
+            };
+        };
+        for (var y = 0; y < 3; y += 1) {
+            copy(out[y * N:], rows[y][:]);
+        };
+    };
+    fmt.Println(out[0])
+        or fail;
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	contains(t, src, "copy(out[")
+	if strings.Index(src, "copy(out[") < strings.Index(src, ".Wait()") {
+		t.Fatalf("copy was fused despite a closure in the body:\n%s", src)
+	}
+}
+
+func TestIntoSkipsDefer(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `use fmt;
+
+const N = 2;
+
+type Row = i32[N];
+
+fn withDefer() Row {
+    defer fmt.Println("cleanup");
+    var r = Row {};
+    r[0] = 1;
+    return r;
+};
+
+fn main() void! {
+    var r = Row {};
+    r = withDefer();
+    fmt.Println(r[0])
+        or fail;
+};
+`,
+	})
+	src := p.source(t, "zz_ink.go")
+	if strings.Contains(src, "_s_into_withDefer") {
+		t.Fatalf("deferred function got an into variant:\n%s", src)
+	}
+}
+
 func TestParErrors(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
