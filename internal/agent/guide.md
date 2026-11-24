@@ -149,6 +149,12 @@ fn pair() i32, bool { return 1, true; };
 - A package used only for its side effects is a blank import:
   `use modernc.org/sqlite as _;` before `sql.Open`, otherwise the binary fails
   at run time with `unknown driver`.
+- `_ = x` discards a value you do not need. A `void` call is already a
+  statement (`f();`), so `_ = f()` is an error.
+- JSON key order follows the struct field order, not the order inside the
+  `wire` block.
+- `q.Get("k")` returns `""` when the key is absent; `var v, ok = q["k"]`
+  distinguishes absent from present.
 - A Go named type whose underlying type is a map, slice or array is used like
   that type and keeps its methods: `r.URL.Query().Get("done")` is a `str`,
   `q["done"]` is a `str[]`.
