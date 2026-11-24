@@ -456,6 +456,17 @@ func writeIfChanged(path string, data []byte) (bool, error) {
 	return true, nil
 }
 
+func filteredTestArgs(args []string) bool {
+	for _, a := range args {
+		for _, flag := range []string{"-run", "--run", "-skip", "--skip", "-bench", "--bench", "-fuzz", "--fuzz"} {
+			if a == flag || strings.HasPrefix(a, flag+"=") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *Project) testCount() int {
 	if p.Program == nil {
 		return 0
@@ -603,7 +614,7 @@ func (p *Project) Test(args []string) (int, error) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err == nil {
-		if count > 0 {
+		if count > 0 && !filteredTestArgs(args) {
 			fmt.Fprintf(os.Stdout, "tests: %d passed\n", count)
 		}
 		return 0, nil

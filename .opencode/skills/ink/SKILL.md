@@ -152,7 +152,13 @@ fn pair() i32, bool { return 1, true; };
   storage. On a string `s[i]` is a `byte`; use `runes(s)` for code points.
 - A package used only for its side effects is a blank import:
   `use modernc.org/sqlite as _;` before `sql.Open`, otherwise the binary fails
-  at run time with `unknown driver`.
+  at run time with `unknown driver`. SQLite is `sql.Open("sqlite", path)`;
+  transactions are `var tx = db.Begin() or fail;`, then `tx.Commit() or fail;`
+  and `defer tx.Rollback();` for the error path. `errors.Is(err, sql.ErrNoRows)`
+  detects an empty result.
+- `defer f();` accepts a fallible call and drops its error; use it for cleanup
+  only, never for work whose error matters.
+- Backtick strings are raw: no escapes, newlines kept.
 - `_ = x` discards a value you do not need. A `void` call is already a
   statement (`f();`), so `_ = f()` is an error.
 - JSON key order follows the struct field order, not the order inside the
