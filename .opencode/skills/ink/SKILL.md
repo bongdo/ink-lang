@@ -113,6 +113,9 @@ fn pair() i32, bool { return 1, true; };
   default `wire` view decodes. `check`, `store`, `doc` and `policy` are ordinary
   view names in this version, not validators or database schemas.
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
+- A method is declared inside the type body, after its fields; there is no
+  file-scope receiver clause. Inside a method a sibling is called on `self`:
+  `self.Add(1)`, not `Add(1)`.
 - `var x = value;`; `var p: *T = nil;`; no `:=`.
 - `const` is package-level and untyped; a local `const` is an error, use `var`.
 - Import paths are bare: `use fmt;`, `use encoding/json;`, `use ./lib as lib;`.
@@ -157,6 +160,9 @@ fn pair() i32, bool { return 1, true; };
   constructor too: `map[K, V] {}` is empty, `map[K, V](nil)` is nil, and
   nothing allocates implicitly. `errors.New("msg")` makes a fresh error and
   `error` is only a type.
+- Go functions keep their Go signatures: `fmt.Println` returns `(int, error)`,
+  so a bare call is an error; write `_ = fmt.Println(...)` to discard the error
+  deliberately, or `or fail`.
 - `asset("web/index.html")` returns `(u8[], bool)`: file bytes and found.
   Files come from `ink build -embed web`; without the flag it reports false.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
@@ -176,6 +182,7 @@ fn pair() i32, bool { return 1, true; };
 
 ```hare
 if (x > 0) { ... } else if (x == 0) { ... } else { ... };
+if (i < k && i < len(xs)) { ... };   // conditions use && || !
 for (var i = 0; i < n; i += 1) { ... };
 for (; cond; ) { ... };          // there is no while
 for (var i, x in xs) { ... };

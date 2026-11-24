@@ -520,6 +520,7 @@ func (g *generator) testDecl(w *writer, t *ast.TestDecl) {
 	w.indent++
 	w.line("if r := recover(); r != nil {")
 	w.indent++
+	w.directive(t)
 	w.line("t.Fatalf(\"%v\", r)")
 	w.indent--
 	w.line("}")

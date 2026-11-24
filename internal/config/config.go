@@ -35,7 +35,7 @@ func FindRoot(dir string) (string, error) {
 			if mainRoot != "" {
 				return mainRoot, nil
 			}
-			return abs, nil
+			return "", fmt.Errorf("not an Ink project: no %s in %s or its parents; run ink new", FileName, dir)
 		}
 		abs = parent
 	}

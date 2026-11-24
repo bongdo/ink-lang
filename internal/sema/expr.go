@@ -135,6 +135,14 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	}
 	sym := c.lookup(id.Name)
 	if sym == nil {
+		if c.fn != nil && c.fn.decl != nil && c.fn.decl.Owner != nil {
+			for _, m := range c.fn.decl.Owner.Methods {
+				if m.Name == id.Name {
+					c.p.errorf(c.fc.file.Path, id.Pos(), "method %s is called on its receiver: self.%s(...)", id.Name, id.Name)
+					return nil
+				}
+			}
+		}
 		c.p.errorf(c.fc.file.Path, id.Pos(), "undefined: %s", id.Name)
 		return nil
 	}
@@ -732,7 +740,10 @@ func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
 		c.p.errorf(c.fc.file.Path, or.Pos(), "or expects a call")
 		return xt
 	}
-	if call.Info == nil || !call.Info.HasError {
+	if call.Info == nil || call.Info.Kind == ast.CallUnknown {
+		return xt
+	}
+	if !call.Info.HasError {
 		c.p.errorf(c.fc.file.Path, or.Pos(), "call does not return an error")
 		return xt
 	}

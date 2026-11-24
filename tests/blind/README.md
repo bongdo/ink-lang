@@ -80,3 +80,37 @@ cp -r tests/blind/web /tmp/blind-web
 
 Then give the agent `TASK.md` and the rules above. Keep `REPORT.md` with the
 artifact; triage reports into guide text, diagnostics, or a decision note.
+
+## Round 2 — 2026-11-24
+
+Three tasks (`web`, `bugs`, `sqlite`; `snake` needs raylib headers, `port` a
+nested module). Blind agents ran in `/tmp/opencode/blind-*`, guide only.
+
+| task | score | cycles before clean | biggest time sink |
+|---|---|---|---|
+| bugs | 9/10 | 1 test run → 1 fix pass | assertion prefix named a neighbouring line; success printed no test count |
+| web | 7/10 | 7 | methods at file scope: 69 cascading errors, none pointing at the cause |
+| sqlite | 7/10 | 8 | the same: whole file rewritten after the receiver error |
+
+### Fixed after the round
+
+- A file-scope method is one diagnostic naming the type
+  (`method-outside-type`); the body is skipped instead of cascading.
+- A sibling method called without `self` says so: `method Add is called on its
+  receiver: self.Add(...)`; `or` no longer adds a second error on top.
+- A dropped `fmt.Println` result names `_ = ...` as the discard; the guide says
+  Go functions keep their Go signatures.
+- `ink test` prints `tests: N passed`; an assertion prefix points at the test,
+  the message still carries the exact assertion line.
+- Guide: `&&`, `||`, `!` in conditions; methods live in the body; `self.Method`
+  for siblings; `_ =` for ignorable errors.
+- `http.Server` copy-lock gets `copy-lock` with "use a pointer".
+- `ink build` outside a project says "not an Ink project", not
+  `open /boot/efi: permission denied`.
+- `ink new` on a non-empty directory points at `ink init`.
+
+### Open after the round
+
+- `or` inside an expression: one clear error plus a few `expected )` cascades.
+- The SQL driver name (`modernc.org/sqlite`) is not discoverable from the
+  guide; the agent guessed it from Go knowledge.

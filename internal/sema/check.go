@@ -717,7 +717,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		c.resolveExpr(s.X, true)
 		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.HasError && !isPanicExpr(call) {
-			c.p.errorf(c.fc.file.Path, s.X.Pos(), "fallible result is dropped; use on err or or fail")
+			c.p.errorf(c.fc.file.Path, s.X.Pos(), "fallible result is dropped; use on err, or fail, or _ = ... to discard")
 		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)

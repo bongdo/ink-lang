@@ -289,3 +289,26 @@ func TestCheckStopsWhenCancelled(t *testing.T) {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }
+
+func TestSiblingMethodCallHint(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Counter struct {
+    N: i32,
+
+    fn Bump() void {
+        Add(1);
+    };
+
+    fn Add(n: i32) void {
+        N += n;
+    };
+};
+
+fn main() void {
+    var c = Counter { N: 0 };
+    c.Bump();
+};
+`})
+	if !hasError(p, "self.Add") {
+		t.Fatalf("errors = %v", p.Errors)
+	}
+}

@@ -60,6 +60,10 @@ func (p *parser) parseFile(f *ast.File) {
 		case token.Use:
 			f.Uses = append(f.Uses, p.parseUse())
 		case token.Fn:
+			if p.peek(1) == token.LParen {
+				p.parseStrayMethod()
+				continue
+			}
 			f.Decls = append(f.Decls, p.parseFuncDecl(nil))
 		case token.Type:
 			f.Decls = append(f.Decls, p.parseTypeDecl())
@@ -207,6 +211,14 @@ func (p *parser) expect(k token.Kind) token.Pos {
 	if p.at(k) {
 		return p.next().End
 	}
+	if p.at(token.Or) {
+		p.errorf(p.tok().Pos, "or is statement-level; put the call on its own line: var v = f() or fail;")
+		p.next()
+		if p.at(token.Fail) {
+			p.next()
+		}
+		return p.lastEnd()
+	}
 	p.errorf(p.tok().Pos, "expected %s, found %s", k, describe(p.tok()))
 	return p.lastEnd()
 }
@@ -341,6 +353,41 @@ func versionSegment(path string) bool {
 		n = n*10 + int(r-'0')
 	}
 	return n >= 2
+}
+
+func (p *parser) parseStrayMethod() {
+	start := p.next().Pos
+	recv := p.parseParams()
+	name := ""
+	if t, ok := p.expectIdent(); ok {
+		name = t.Lit
+	}
+	for !p.at(token.LBrace) && !p.at(token.Semi) && !p.at(token.EOF) {
+		p.next()
+	}
+	if p.at(token.LBrace) {
+		p.parseBlock()
+	}
+	p.consumeSemi()
+	owner := ""
+	if len(recv) > 0 {
+		owner = receiverName(recv[0].Type)
+	}
+	if owner != "" {
+		p.errorf(start, "method %s is declared at file scope; declare it inside type %s struct { ... };", name, owner)
+		return
+	}
+	p.errorf(start, "methods are declared inside the type body, not at file scope")
+}
+
+func receiverName(t ast.Type) string {
+	switch t := t.(type) {
+	case *ast.NamedType:
+		return t.Name
+	case *ast.PointerType:
+		return receiverName(t.Elem)
+	}
+	return ""
 }
 
 func (p *parser) parseFuncDecl(owner *ast.TypeDecl) *ast.FuncDecl {

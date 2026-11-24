@@ -1625,3 +1625,18 @@ func TestMapCtorNil(t *testing.T) {
 		t.Fatalf("errors = %v", errs)
 	}
 }
+
+func TestStrayMethodGetsOneDiagnostic(t *testing.T) {
+	src := "type Ledger struct {\n    Total: i32,\n};\n\nfn (l: *Ledger) Close() void {\n    l.Total = 0;\n};\n\nfn main() void {\n    var l = Ledger { Total: 1 };\n    l.Close();\n};\n"
+	_, errs := Parse("method.ink", []byte(src))
+	if len(errs) != 1 {
+		t.Fatalf("errors = %v", errs)
+	}
+	e := errs[0]
+	if info := diag.Classify(e.Msg); info.Code != "method-outside-type" {
+		t.Fatalf("code = %q (%s)", info.Code, e.Msg)
+	}
+	if !strings.Contains(e.Msg, "Ledger") {
+		t.Fatalf("message does not name the type: %s", e.Msg)
+	}
+}

@@ -456,6 +456,23 @@ func writeIfChanged(path string, data []byte) (bool, error) {
 	return true, nil
 }
 
+func (p *Project) testCount() int {
+	if p.Program == nil {
+		return 0
+	}
+	n := 0
+	for _, pkg := range p.Program.Packages {
+		for _, f := range pkg.Files {
+			for _, d := range f.Decls {
+				if _, ok := d.(*ast.TestDecl); ok {
+					n++
+				}
+			}
+		}
+	}
+	return n
+}
+
 func pkgHasTests(pkg *sema.Package) bool {
 	for _, f := range pkg.Files {
 		for _, d := range f.Decls {
@@ -574,7 +591,8 @@ func (p *Project) Test(args []string) (int, error) {
 	if err := p.Generate(true); err != nil {
 		return 1, err
 	}
-	if !p.hasTests() {
+	count := p.testCount()
+	if count == 0 {
 		fmt.Fprintln(os.Stderr, "ink: no `test` blocks in .ink sources; declare `test \"name\" { ... };` in any .ink file")
 	}
 	cmd := exec.Command("go", append([]string{"test", "-buildvcs=false", "./..."}, args...)...)
@@ -585,6 +603,9 @@ func (p *Project) Test(args []string) (int, error) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err == nil {
+		if count > 0 {
+			fmt.Fprintf(os.Stdout, "tests: %d passed\n", count)
+		}
 		return 0, nil
 	}
 	var exit *exec.ExitError
@@ -867,7 +888,7 @@ func New(dir string) error {
 		return err
 	}
 	if entries, err := os.ReadDir(abs); err == nil && len(entries) > 0 {
-		return fmt.Errorf("%s is not empty", dir)
+		return fmt.Errorf("%s is not empty; use ink init to add Ink to an existing directory", dir)
 	}
 	if err := os.MkdirAll(abs, 0o755); err != nil {
 		return err
