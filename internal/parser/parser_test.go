@@ -1640,3 +1640,14 @@ func TestStrayMethodGetsOneDiagnostic(t *testing.T) {
 		t.Fatalf("message does not name the type: %s", e.Msg)
 	}
 }
+
+func TestVarWithoutValueHasHint(t *testing.T) {
+	_, errs := Parse("var.ink", []byte("fn main() void {\n    var x: i32;\n    _ = x;\n};\n"))
+	if len(errs) != 1 {
+		t.Fatalf("errors = %v", errs)
+	}
+	info := diag.Classify(errs[0].Msg)
+	if info.Code != "var-value" || info.Hint == "" {
+		t.Fatalf("code = %q hint = %q (%s)", info.Code, info.Hint, errs[0].Msg)
+	}
+}

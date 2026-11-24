@@ -60,6 +60,7 @@ var rules = []struct {
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
+	{"var-value", "var needs a value", "every var has a value: var n = 0; var p: *T = nil;", false},
 	{"method-outside-type", "declared at file scope", "declare it inside the type body: type T struct { fn M(...) ... };", false},
 	{"copy-lock", "copies lock value", "use a pointer: var srv = &http.Server { ... }", false},
 	{"str-number", "string of one rune", "format numbers with strconv.Itoa, strconv.FormatFloat or fmt.Sprint", false},

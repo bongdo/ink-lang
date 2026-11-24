@@ -914,6 +914,8 @@ func (p *parser) parseVarDecl(requireSemi bool) *ast.VarDecl {
 	if p.at(token.Assign) {
 		p.next()
 		vd.Values = p.parseExprList(true)
+	} else if len(vd.Names) > 0 && p.at(token.Semi) || p.at(token.RBrace) || p.at(token.EOF) {
+		p.errorf(p.tok().Pos, "var needs a value: write var %s: T = zero value, e.g. var n = 0;", strings.Join(vd.Names, ", "))
 	} else {
 		p.errorf(p.tok().Pos, "expected '=', found %s", describe(p.tok()))
 	}

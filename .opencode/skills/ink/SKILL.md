@@ -115,8 +115,11 @@ fn pair() i32, bool { return 1, true; };
 - `fn f() R { ... };` — no `=` before the body, trailing `;` after it.
 - A method is declared inside the type body, after its fields; there is no
   file-scope receiver clause. Inside a method a sibling is called on `self`:
-  `self.Add(1)`, not `Add(1)`.
-- `var x = value;`; `var p: *T = nil;`; no `:=`.
+  `self.Add(1)`, not `Add(1)`. A call on a value takes its address, so
+  `c.Add(1)` mutates `c`; passing `c` to a Go function still needs `&c`.
+- `var x = value;`; `var p: *T = nil;`; no `:=`. Every `var` has a value —
+  there is no uninitialized declaration, so the zero value is written out:
+  `var n = 0;`, `var u = User {};`, `var m = map[str, i32](nil);`.
 - `const` is package-level and untyped; a local `const` is an error, use `var`.
 - Import paths are bare: `use fmt;`, `use encoding/json;`, `use ./lib as lib;`.
   A versioned path (`/v2`) requires an alias. No quotes. The local name is the
