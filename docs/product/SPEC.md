@@ -283,6 +283,8 @@ const Greeting = "hello";
 - `nil[T]` is an explicit escape hatch for contexts where the type is `any` or
   an interface, not the default spelling. `nil` is valid only for pointers,
   slices, maps, functions and interfaces.
+- A map type is its constructor: `map[K, V] {}` is empty and
+  `map[K, V](nil)` is nil. There is no implicit allocation.
 - `_` is the only blank/discard construct. It is a result placeholder in
   multi-result bindings (`var a, _ = f();`) and an explicit discard assignment
   (`_ = a;`). There is no `discard` builtin.

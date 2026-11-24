@@ -758,6 +758,11 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 			p.block(e.Body)
 		}
 	case *ast.NilLit:
+		if e.Ctor && e.Type != nil {
+			p.typ(e.Type)
+			p.write("(nil)")
+			break
+		}
 		p.write("nil")
 		if e.Type != nil {
 			p.write("[")

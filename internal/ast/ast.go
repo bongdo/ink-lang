@@ -421,6 +421,7 @@ func (*FuncLit) exprNode() {}
 type NilLit struct {
 	Span
 	Type Type
+	Ctor bool
 }
 
 func (*NilLit) exprNode() {}

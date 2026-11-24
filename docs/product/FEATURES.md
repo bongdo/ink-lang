@@ -56,6 +56,7 @@ place with status.
 | `len`, `cap`, `append`, `copy`, `delete`, `has`, `min`, `max`, `new` | ✅ |
 | `T[](n)`, `T[](n, cap: m)`, `T[](cap: m)` — slice constructor | ✅ `make` removed |
 | write to a nil map | ✅ warning `nil-map-write`; no implicit allocation |
+| `map[K, V](nil)` — typed nil map | ✅ |
 | `if`, all `for` forms, `match` statement/expression | ✅ |
 | `break`/`continue`, including inside a `match` case | ✅ |
 | user labels, `goto` | — |

@@ -46,7 +46,7 @@ not re-file.
 | A worker may open its own `arena { ... };`. | The block starts and ends inside the worker, so its batch is local to that goroutine. |
 | Arena memory is released after the enclosing loop. | Reuse inside the loop needs the buffer to outlive one execution; a one-shot arena releases at block exit. A program-long loop keeps its buffer until it ends. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
-| A map is nil until it is assigned; there is no implicit allocation. | `var` always takes `= value`, so `var m: map[K,V] = nil` stays explicit and `map[K,V] {}` is the constructor. Writing to a nil map is the warning `nil-map-write`. |
+| A map is nil until it is assigned; there is no implicit allocation. | `map[K, V] {}` is empty, `map[K, V](nil)` is nil; `nil[T]` also works. Writing to a nil map is the warning `nil-map-write`. |
 | The slice constructor needs a nameable element type: `*Point[](n)` parses as a dereference. | `T[](n)` is the type applied to a size; a pointer or nested slice element needs an alias. | `type PointPtr = *Point;` then `PointPtr[](n)`. |
 | `new` is a builtin name; `make` was removed. | A user function named `new` is rejected and must be renamed; `make` in source is a diagnostic with a hint. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block and the listener. |

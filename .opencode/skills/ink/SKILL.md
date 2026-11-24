@@ -153,8 +153,10 @@ fn pair() i32, bool { return 1, true; };
   `has`.
 - A slice type is its constructor: `i32[](n)` is n zeros, `i32[](cap: n)` is
   empty with capacity, `i32[](n, cap: m)` sizes both. `size:` and `cap:` are
-  the only labels; `i32[](size: n)` equals `i32[](n)`. `errors.New("msg")`
-  makes a fresh error and `error` is only a type.
+  the only labels; `i32[](size: n)` equals `i32[](n)`. A map type is its
+  constructor too: `map[K, V] {}` is empty, `map[K, V](nil)` is nil, and
+  nothing allocates implicitly. `errors.New("msg")` makes a fresh error and
+  `error` is only a type.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
   block exit. Inside it `new[Point]()` and `i32[](n)` use the buffer;
   outside they are ordinary Go allocations. The buffer is reused by the next

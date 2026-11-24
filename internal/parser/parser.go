@@ -1656,6 +1656,11 @@ func (p *parser) parsePrimary() ast.Expr {
 		if x := p.tryComposite(); x != nil {
 			return x
 		}
+		if t.Kind == token.Map {
+			if x := p.tryMapCtor(); x != nil {
+				return x
+			}
+		}
 		p.errorf(t.Pos, "expected composite literal, found %s", describe(t))
 		return nil
 	case token.LParen:
@@ -1812,6 +1817,34 @@ func (p *parser) parseCompositeLit(typ ast.Type) ast.Expr {
 	p.expect(token.RBrace)
 	c.Span = p.fin(start)
 	return c
+}
+
+func (p *parser) tryMapCtor() ast.Expr {
+	save := p.i
+	saveErrs := len(p.errs)
+	p.silent++
+	typ := p.parseType()
+	ok := typ != nil && p.at(token.LParen)
+	p.silent--
+	p.errs = p.errs[:saveErrs]
+	p.i = save
+	if !ok {
+		return nil
+	}
+	typ = p.parseType()
+	start := typ.Pos()
+	p.expect(token.LParen)
+	if !p.at(token.Nil) || p.peek(1) != token.RParen {
+		p.errorf(p.tok().Pos, "a map constructor takes nil: map[K, V](nil), or use map[K, V] { ... }")
+		if !p.at(token.RParen) && !p.at(token.EOF) {
+			p.parseExprNoOr()
+		}
+		p.expect(token.RParen)
+		return &ast.NilLit{Span: p.fin(start), Type: typ, Ctor: true}
+	}
+	p.next()
+	end := p.expect(token.RParen)
+	return &ast.NilLit{Span: ast.Span{Start: start, End: end}, Type: typ, Ctor: true}
 }
 
 func (p *parser) parseNilLit() ast.Expr {

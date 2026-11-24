@@ -1607,3 +1607,21 @@ func TestSliceCtorArgumentLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestMapCtorNil(t *testing.T) {
+	f := mustParse(t, "fn main() void {\n    var m = map[str, i32](nil);\n    _ = m;\n};\n")
+	lit := singleValue(t, findVar(t, f, "m")).(*ast.NilLit)
+	if !lit.Ctor {
+		t.Fatalf("nil lit = %#v", lit)
+	}
+	if _, ok := lit.Type.(*ast.MapType); !ok {
+		t.Fatalf("type = %#v", lit.Type)
+	}
+	_, errs := Parse("bad.ink", []byte("fn main() void {\n    var m = map[str, i32](1);\n    _ = m;\n};\n"))
+	if len(errs) == 0 {
+		t.Fatalf("expected an error")
+	}
+	if !strings.Contains(errs[0].Msg, "map constructor takes nil") {
+		t.Fatalf("errors = %v", errs)
+	}
+}

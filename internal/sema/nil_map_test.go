@@ -35,3 +35,23 @@ func TestNilMapWriteAllowsLiteralAndReassign(t *testing.T) {
 `})
 	noErrors(t, p)
 }
+
+func TestMapCtorNilValue(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `type Holder struct {
+    Items: map[str, i32],
+};
+
+fn take(m: map[str, i32]) void {
+    _ = m;
+};
+
+fn main() void {
+    var m = map[str, i32](nil);
+    var h = Holder { Items: map[str, i32](nil) };
+    take(map[str, i32](nil));
+    _ = m;
+    _ = h;
+};
+`})
+	noErrors(t, p)
+}
