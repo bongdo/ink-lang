@@ -56,6 +56,7 @@ var rules = []struct {
 	{"slice-arg", "unknown slice argument", "use size: or cap:", false},
 	{"slice-arg", "given twice", "pass one size and one cap", false},
 	{"slice-cap", "is smaller than size", "cap must be at least the size", false},
+	{"nil-map-write", "write to a nil map", "initialize it first: var m = map[K,V] {}", true},
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},

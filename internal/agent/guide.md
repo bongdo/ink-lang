@@ -265,6 +265,7 @@ go save(1, "hello");            // detached, program-owned
 | `conformance-unchecked` | warning: the method set is not nameable; `go build` is the backstop |
 | `str-number` | `str(n)` is a rune; format numbers with `strconv.Itoa`, `strconv.FormatFloat` or `fmt.Sprint` |
 | `go-vet` | `go vet` finding in generated code; fix the Ink line it points at |
+| `nil-map-write` | warning: the map is nil; initialize it with `map[K,V] {}` |
 | `unused-import` | remove the import or use it |
 | `unused-var` | use the variable or replace it with `_` |
 | `syntax` / `go-type` | read `message` and `hint` |

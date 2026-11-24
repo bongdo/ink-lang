@@ -19,7 +19,6 @@ not re-file.
 | 8 | LSP waits for the current sema pass even after a newer edit. | The file walk stops on a newer generation; one large file still completes its sema pass. | None; the newer generation runs next. |
 | 9 | `ink check` re-type-checks every package on each run. | Results are cached in the process, keyed by the whole project; errors under the root are cached now, outside the root are not. | `--fast` for rename-level feedback. |
 | 10 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
-| 12 | Writing to a nil map panics at run time; `ink check` stays clean. | `nil` is a valid map value; only writes need storage. | Reads, `len`, `has`, `delete` and `for` are safe on nil. Start with `map[K, V] {}`. |
 
 ## Accepted
 
@@ -47,6 +46,7 @@ not re-file.
 | A worker may open its own `arena { ... };`. | The block starts and ends inside the worker, so its batch is local to that goroutine. |
 | Arena memory is released after the enclosing loop. | Reuse inside the loop needs the buffer to outlive one execution; a one-shot arena releases at block exit. A program-long loop keeps its buffer until it ends. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
+| A map is nil until it is assigned; there is no implicit allocation. | `var` always takes `= value`, so `var m: map[K,V] = nil` stays explicit and `map[K,V] {}` is the constructor. Writing to a nil map is the warning `nil-map-write`. |
 | The slice constructor needs a nameable element type: `*Point[](n)` parses as a dereference. | `T[](n)` is the type applied to a size; a pointer or nested slice element needs an alias. | `type PointPtr = *Point;` then `PointPtr[](n)`. |
 | `new` is a builtin name; `make` was removed. | A user function named `new` is rejected and must be renamed; `make` in source is a diagnostic with a hint. |
 | The handler error is always named `err`. | One name; an outer `err` is shadowed inside the block and the listener. |

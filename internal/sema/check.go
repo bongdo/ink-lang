@@ -20,6 +20,7 @@ type symbol struct {
 	use        *ast.Use
 	arena      bool
 	arenaDepth int
+	nilMap     bool
 }
 
 type scope struct {
@@ -120,6 +121,22 @@ func (c *checker) funcType(fn *ast.FuncDecl) ast.Type {
 		ft.Params = append(ft.Params, p.Type)
 	}
 	return ft
+}
+
+func isMapType(t ast.Type) bool {
+	t = unwrapAliasType(t)
+	switch t := t.(type) {
+	case *ast.MapType:
+		return true
+	case *ast.NamedType:
+		return t.Decl != nil && t.Decl.Kind == ast.TypeAlias && isMapType(t.Decl.Target)
+	}
+	return false
+}
+
+func isNilLit(e ast.Expr) bool {
+	_, ok := unparen(e).(*ast.NilLit)
+	return ok
 }
 
 func isBuiltinFunc(name string) bool {
@@ -643,6 +660,10 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			if sel, ok := unparen(e).(*ast.SelectorExpr); ok && c.mapStructElement(sel.X) {
 				c.p.errorf(c.fc.file.Path, e.Pos(), "cannot assign to a field of a map element; copy out, mutate, then write back")
 			}
+			if c.nilMapWrite(e) {
+				c.p.warnf(c.fc.file.Path, e.Pos(), "write to a nil map; initialize it with map[K,V] {}")
+			}
+			c.clearNilMap(e)
 		}
 		for i, e := range s.Rhs {
 			c.checkMatchValue(e)
@@ -1200,7 +1221,36 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		if c.inArena > 0 && i < len(v.Values) && c.isArenaExpr(v.Values[i]) {
 			sym.arena = true
 		}
+		if isMapType(t) && i < len(v.Values) && isNilLit(v.Values[i]) {
+			sym.nilMap = true
+		}
 		c.declare(sym)
+	}
+}
+
+func (c *checker) nilMapWrite(e ast.Expr) bool {
+	idx, ok := unparen(e).(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	id, ok := unparen(idx.X).(*ast.Ident)
+	if !ok || id.Ref == nil {
+		return false
+	}
+	if sym := c.lookupLocal(id.Name); sym != nil {
+		return sym.nilMap
+	}
+	d, ok := id.Ref.Decl.(*ast.VarDecl)
+	return ok && d != nil && isMapType(d.Type) && len(d.Values) == 1 && isNilLit(d.Values[0])
+}
+
+func (c *checker) clearNilMap(e ast.Expr) {
+	id, ok := unparen(e).(*ast.Ident)
+	if !ok {
+		return
+	}
+	if sym := c.lookupLocal(id.Name); sym != nil {
+		sym.nilMap = false
 	}
 }
 
