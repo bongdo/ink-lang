@@ -162,3 +162,33 @@ and adds a feature without rewriting it. This is the common agent case.
   misleading count line is gone, but the exit code is Go's.
 - The LSP experience is not part of the score: blind agents ran without it.
 - `snake` and `port` remain unrun (raylib headers, nested Go module).
+
+## Round 4 — 2026-11-24, same edit tasks with MCP
+
+Headless `opencode run` in a copy of each task, `opencode.json` with `ink lsp`
+and `ink mcp` (`codemode: false`). The agent could use shell and the eight
+`ink_*` tools; the logs count both.
+
+| task | score | cycles | what worked |
+|---|---|---|---|
+| edit-web | 9/10 | 1, no diagnostics | `ink_complete` listed the new `Store.Replace` next to existing methods; `ink_symbols` fixed the naming style; `ink_references` found the only call site |
+| edit-store | 7/10 | 1 (`int` vs `i32`) | `ink_definition` and `ink_hover` found `Transfer` across files |
+
+### Fixed from round 4
+
+- `ink_symbols` listed only top-level declarations; methods are now children of
+  their type (`Store` → `Add`, `Receive`, `Transfer`, …).
+- `ink_quickfix` said "no quick fixes" when a diagnostic had no mechanical fix;
+  it now returns `no automatic fix here; hint: …` so the agent gets the hint.
+- `ink_hover` could pick a same-named symbol from another part of the line via
+  the by-name fallback; it is used only when the word occurs once on the line.
+- `ink_diagnose` caches by file fingerprint and accepts `fast: true`.
+- Hover on a literal shows its type (`str literal`, `int literal`, `f64`).
+
+### Measured tool mix (web / store)
+
+- web: `ink_symbols` 1, `ink_diagnose` 1, `ink_references` 2, `ink_hover` 3,
+  `ink_complete` 1; shell 19, of them 12 `ink …`.
+- store: `ink_quickfix` 1, `ink_symbols` 1, `ink_hover` 2, `ink_definition` 2,
+  `ink_references` 1, `ink_rename` 1, `ink_diagnose` 1, `ink_complete` 1;
+  shell 10, of them 8 `ink …`.
