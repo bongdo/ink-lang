@@ -828,3 +828,30 @@ fn main() void! {
 		t.Fatalf("rename that shadows a package was accepted: %s", msg.Result)
 	}
 }
+
+func TestRenameSilentShadowRejected(t *testing.T) {
+	src := `fn main() void {
+    var total = 1;
+    {
+        var sum = 2;
+        _ = total + sum;
+    };
+    _ = total;
+};
+`
+	root, _, uri := newProject(t, src)
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	position := PositionAt([]byte(src), strings.Index(src, "total = 1"))
+	msg := c.requestRaw("textDocument/rename", RenameParams{
+		TextDocumentPositionParams: TextDocumentPositionParams{
+			TextDocument: TextDocumentIdentifier{URI: uri},
+			Position:     position,
+		},
+		NewName: "sum",
+	})
+	if msg.Error == nil {
+		t.Fatalf("shadowing rename accepted: %s", msg.Result)
+	}
+}

@@ -15,7 +15,11 @@ import (
 	"strings"
 	"sync"
 
+	"go/types"
+
 	"golang.org/x/tools/go/packages"
+
+	gotoken "go/token"
 
 	"github.com/bongdo/ink/internal/ast"
 	"github.com/bongdo/ink/internal/config"
@@ -462,4 +466,133 @@ func resolveBase(root string, known map[string]bool, dir, path string) (string, 
 func underRoot(root, path string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+type Inferred struct {
+	ByName map[string]string
+	At     map[string]string
+}
+
+func InferTypes(p *sema.Program, files map[string][]*ast.File, opt Options) *Inferred {
+	module := moduleOf(opt)
+	generated, errs := gen.Generate(p, files, gen.Options{Root: opt.Root, Module: module, IncludeTests: true})
+	if len(errs) > 0 || len(generated) == 0 {
+		return nil
+	}
+	overlay := make(map[string][]byte, len(generated)+1)
+	for _, f := range generated {
+		path, err := filepath.Abs(f.Path)
+		if err != nil {
+			return nil
+		}
+		overlay[filepath.Clean(path)] = f.Src
+	}
+	overlay[filepath.Join(opt.Root, ".ink", "runtime", "runtime.go")] = inkrt.Source
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
+			packages.NeedImports | packages.NeedDeps | packages.NeedTypes |
+			packages.NeedTypesInfo | packages.NeedSyntax,
+		Dir:     opt.Root,
+		Overlay: overlay,
+		Env:     typecheckEnv(),
+	}
+	pkgs, err := packages.Load(cfg, patternsOf(opt.Root, module, generated)...)
+	if err != nil {
+		return nil
+	}
+	out := &Inferred{ByName: make(map[string]string), At: make(map[string]string)}
+	dirs := make(map[string]bool)
+	for _, list := range files {
+		for _, f := range list {
+			dirs[filepath.Dir(f.Path)] = true
+		}
+	}
+	qual := func(p *types.Package) string {
+		if p == nil {
+			return ""
+		}
+		return p.Name()
+	}
+	for _, pkg := range pkgs {
+		if pkg.TypesInfo == nil || pkg.Fset == nil {
+			continue
+		}
+		for id, inst := range pkg.TypesInfo.Instances {
+			pos := pkg.Fset.Position(id.Pos())
+			text := types.TypeString(inst.Type, qual)
+			out.At[resolvePosKey(opt.Root, dirs, pos)] = text
+			out.ByName[resolveNameKey(opt.Root, dirs, pos, id.Name)] = text
+		}
+		for id, obj := range pkg.TypesInfo.Uses {
+			pos := pkg.Fset.Position(id.Pos())
+			key := resolvePosKey(opt.Root, dirs, pos)
+			if _, ok := out.At[key]; ok {
+				continue
+			}
+			text := types.TypeString(obj.Type(), qual)
+			out.At[key] = text
+			out.ByName[resolveNameKey(opt.Root, dirs, pos, obj.Name())] = text
+		}
+	}
+	return out
+}
+
+func resolveNameKey(root string, dirs map[string]bool, pos gotoken.Position, name string) string {
+	if name == "" {
+		return ""
+	}
+	return filepath.Dir(resolveName(root, dirs, pos)) + "\x00" + strconv.Itoa(pos.Line) + "\x00" + name
+}
+
+func resolveName(root string, dirs map[string]bool, pos gotoken.Position) string {
+	name := pos.Filename
+	if name == "" {
+		return ""
+	}
+	if !filepath.IsAbs(name) {
+		for _, dir := range append([]string{root}, mapKeys(dirs)...) {
+			if cand := filepath.Join(dir, name); fileExists(cand) {
+				name = cand
+				break
+			}
+		}
+	}
+	return filepath.Clean(name)
+}
+
+func mapKeys(set map[string]bool) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	return out
+}
+
+func resolvePosKey(root string, dirs map[string]bool, pos gotoken.Position) string {
+	if pos.Filename == "" || pos.Line < 1 {
+		return ""
+	}
+	name := pos.Filename
+	if !filepath.IsAbs(name) {
+		name = ""
+		candidates := []string{root}
+		for dir := range dirs {
+			candidates = append(candidates, dir)
+		}
+		for _, dir := range candidates {
+			if cand := filepath.Join(dir, pos.Filename); fileExists(cand) {
+				name = cand
+				break
+			}
+		}
+		if name == "" {
+			name = filepath.Join(root, pos.Filename)
+		}
+	}
+	return filepath.Clean(name) + ":" + strconv.Itoa(pos.Line) + ":" + strconv.Itoa(pos.Column)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

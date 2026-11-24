@@ -76,12 +76,14 @@ type Program struct {
 	seenError        map[string]bool
 	contractUses     map[*ast.TypeDecl]map[string]bool
 	invalidContracts map[*ast.Contract]bool
+	stop             func() bool
 }
 
 type Options struct {
 	Root    string
 	Module  string
 	GoCache map[string]*GoPkg
+	Stop    func() bool
 }
 
 type funcInfo struct {
@@ -132,6 +134,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 		p.Packages[rel] = pkg
 	}
 	p.Main = p.Packages["."]
+	p.stop = opt.Stop
 	p.collect()
 	p.resolveUses()
 	p.loadGo()
@@ -139,7 +142,13 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 	p.checkCycles()
 	p.resolveDecls()
 	p.checkPackageVars()
+	if p.stopped() {
+		return p
+	}
 	p.checkFuncs()
+	if p.stopped() {
+		return p
+	}
 	p.checkVarCyclesAll()
 	p.checkTests()
 	p.checkMain()
@@ -175,6 +184,10 @@ func packageName(rel string) string {
 		name += "_"
 	}
 	return name
+}
+
+func (p *Program) stopped() bool {
+	return p.stop != nil && p.stop()
 }
 
 func (p *Program) errorf(path string, pos token.Pos, format string, args ...any) {

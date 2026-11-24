@@ -141,7 +141,7 @@ func isNilLit(e ast.Expr) bool {
 
 func isBuiltinFunc(name string) bool {
 	switch name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new", "asset":
 		return true
 	}
 	return false
@@ -152,6 +152,9 @@ func (p *Program) checkFuncs() {
 		for _, f := range pkg.Files {
 			fc := p.fileCtx(pkg, f)
 			for _, d := range f.Decls {
+				if p.stopped() {
+					return
+				}
 				switch d := d.(type) {
 				case *ast.FuncDecl:
 					c := &checker{p: p, fc: fc, fn: p.funcs[d]}

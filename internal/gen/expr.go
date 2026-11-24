@@ -324,6 +324,12 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 			return "[]byte(" + args[0] + ")"
 		}
 		return "[]byte{}"
+	case "asset":
+		w.f.needPkg("rt")
+		if len(args) > 0 {
+			return "_s_rt.Asset(" + args[0] + ")"
+		}
+		return "_s_rt.Asset(\"\")"
 	case "error":
 		if len(args) > 0 {
 			return w.f.std("errors") + ".New(" + args[0] + ")"

@@ -153,6 +153,8 @@ fn pair() i32, bool { return 1, true; };
   constructor too: `map[K, V] {}` is empty, `map[K, V](nil)` is nil, and
   nothing allocates implicitly. `errors.New("msg")` makes a fresh error and
   `error` is only a type.
+- `asset("web/index.html")` returns `(u8[], bool)`: file bytes and found.
+  Files come from `ink build -embed web`; without the flag it reports false.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
   block exit. Inside it `new[Point]()` and `i32[](n)` use the buffer;
   outside they are ordinary Go allocations. The buffer is reused by the next

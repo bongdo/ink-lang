@@ -57,6 +57,7 @@ place with status.
 | `T[](n)`, `T[](n, cap: m)`, `T[](cap: m)` — slice constructor | ✅ `make` removed |
 | write to a nil map | ✅ warning `nil-map-write`; no implicit allocation |
 | `map[K, V](nil)` — typed nil map | ✅ |
+| `ink build -embed dir` + `asset(path)` | ✅ `//go:embed` stays out of the language |
 | `if`, all `for` forms, `match` statement/expression | ✅ |
 | `break`/`continue`, including inside a `match` case | ✅ |
 | user labels, `goto` | — |
@@ -129,8 +130,8 @@ place with status.
 | generated-Go typecheck in `check` and LSP | ✅ |
 | per-package typecheck cache | ○ |
 | exact end spans in sema/typecheck diagnostics | ✅ the enclosing AST node supplies the end; `go-type` starts snap to the token |
-| LSP diagnostics, hover, definition, completion, symbols, signature help | ✅ |
-| LSP references and rename | ◐ project declarations only; a sema pass over the edited snapshot rejects breaking renames, silent shadowing is not caught |
+| LSP diagnostics, hover, definition, completion, symbols, signature help | ✅ hover adds the inferred Go type (`types.Info`) |
+| LSP references and rename | ◐ project declarations only; a sema pass over the edited snapshot rejects renames that break or rebind |
 | LSP code actions and quick fixes | ✅ |
 | formatter, idempotent, trailing comments | ✅ |
 | formatter line wrapping | ○ |

@@ -570,3 +570,40 @@ func TestInitPreservesAgentGuide(t *testing.T) {
 		t.Fatal("Init overwrote AGENTS.md")
 	}
 }
+
+func TestBuildEmbedWritesAssetsFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/emb\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "web"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "web", "index.html"), []byte("<h1>x</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte("fn main() void {\n    var data, ok = asset(\"web/index.html\");\n    _, _ = data, ok;\n};\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Check(CheckOptions{Typecheck: true}); err != nil {
+		t.Fatal(err)
+	}
+	if p.HasErrors() {
+		t.Fatalf("errors: %+v", p.Errors)
+	}
+	p.Embed = []string{"web"}
+	if err := p.Generate(false); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(filepath.Join(dir, "zz_ink_assets.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "//go:embed web") || !strings.Contains(string(src), "package main") {
+		t.Fatalf("assets file:\n%s", src)
+	}
+}

@@ -10,6 +10,15 @@ import (
 	"github.com/bongdo/ink/internal/parser"
 )
 
+func parseOne(t *testing.T, src string) *ast.File {
+	t.Helper()
+	f, errs := parser.Parse("main.ink", []byte(src))
+	for _, e := range errs {
+		t.Fatalf("%d:%d: %s", e.Pos.Line, e.Pos.Col, e.Msg)
+	}
+	return f
+}
+
 func checkSrc(t *testing.T, files map[string]string) *Program {
 	t.Helper()
 	root := t.TempDir()
@@ -269,5 +278,14 @@ func TestParWriteRejected(t *testing.T) {
 `})
 	if len(p.Errors) == 0 {
 		t.Fatal("expected a go write error")
+	}
+}
+
+func TestCheckStopsWhenCancelled(t *testing.T) {
+	parsed := map[string][]*ast.File{".": {parseOne(t, "fn main() void {\n    var x = 1;\n    _ = x;\n};\n")}}
+	root := t.TempDir()
+	p := Check(parsed, Options{Root: root, Module: "example.com/test", Stop: func() bool { return true }})
+	if len(p.Errors) != 0 {
+		t.Fatalf("errors = %v", p.Errors)
 	}
 }

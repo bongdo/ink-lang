@@ -107,6 +107,7 @@ type Project struct {
 	Program *sema.Program
 	Errors  []Error
 	Stub    string
+	Embed   []string
 }
 
 type CheckOptions struct {
@@ -354,7 +355,7 @@ func (p *Project) Generate(tests bool) error {
 	if p.Program == nil {
 		return errors.New("project is not checked")
 	}
-	files, errs := gen.Generate(p.Program, p.Parsed, gen.Options{Root: p.Root, Module: p.Module, IncludeTests: tests})
+	files, errs := gen.Generate(p.Program, p.Parsed, gen.Options{Root: p.Root, Module: p.Module, IncludeTests: tests, Embed: p.Embed})
 	if len(errs) > 0 {
 		for _, e := range errs {
 			p.Errors = append(p.Errors, sourceError(p.Root, token.Pos{}, token.Pos{}, e.Error(), false))

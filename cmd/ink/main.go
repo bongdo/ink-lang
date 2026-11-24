@@ -54,8 +54,8 @@ func usage() {
 	fmt.Fprint(os.Stderr, `ink — the Ink compiler
 
 usage:
-  ink build [-o output] [go build flags]
-  ink run [--race] [-- program args]
+  ink build [-o output] [-embed dir] [go build flags]
+  ink run [--race] [-embed dir] [-- program args]
   ink check [--json] [--fast] [--race]
   ink test [go test flags]
   ink fmt [-l] [-w] [--json] [paths]
@@ -94,6 +94,7 @@ func finish(p *driver.Project) int {
 }
 
 func build(args []string) int {
+	embeds, args := takeEmbeds(args)
 	out := ""
 	var goArgs []string
 	for i := 0; i < len(args); i++ {
@@ -117,6 +118,7 @@ func build(args []string) int {
 	if p == nil {
 		return code
 	}
+	p.Embed = embeds
 	if err := p.Build(out, goArgs); err != nil {
 		if err == driver.ErrCheck {
 			p.PrintErrors(os.Stderr)
@@ -154,6 +156,7 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "ink: %q is a directory; cd into the project and put program args after --\n", dir)
 		return 2
 	}
+	embeds, args := takeEmbeds(args)
 	race, progArgs, err := parseRunArgs(args)
 	if err != nil {
 		return flagErr(err)
@@ -162,6 +165,7 @@ func run(args []string) int {
 	if p == nil {
 		return code
 	}
+	p.Embed = embeds
 	code, err = p.Run(race, progArgs)
 	if err != nil {
 		if err == driver.ErrCheck {
@@ -176,6 +180,24 @@ func run(args []string) int {
 		return 1
 	}
 	return code
+}
+
+func takeEmbeds(args []string) ([]string, []string) {
+	var embeds, rest []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "-embed" && i+1 < len(args) {
+			embeds = append(embeds, args[i+1])
+			i++
+			continue
+		}
+		if strings.HasPrefix(a, "-embed=") {
+			embeds = append(embeds, strings.TrimPrefix(a, "-embed="))
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return embeds, rest
 }
 
 func parseRunArgs(args []string) (bool, []string, error) {
@@ -221,6 +243,7 @@ func check(args []string) int {
 }
 
 func test(args []string) int {
+	embeds, args := takeEmbeds(args)
 	if len(args) > 0 && args[0] == "--" {
 		args = args[1:]
 	}
@@ -228,6 +251,7 @@ func test(args []string) int {
 	if p == nil {
 		return code
 	}
+	p.Embed = embeds
 	code, err := p.Test(args)
 	if err != nil {
 		if err == driver.ErrCheck {

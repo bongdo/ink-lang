@@ -312,6 +312,7 @@ const Greeting = "hello";
 | `min(a, b, ...)`, `max(...)` | numeric minimum/maximum |
 | `runes(s)` | `str` to `rune[]` |
 | `bytes(s)` | `str` to `u8[]` |
+| `asset(path)` | `(u8[], bool)` from `ink build -embed dir` |
 | `str(runes_or_bytes)` | conversion to `str` |
 | `T[](n)`, `T[](n, cap: m)`, `T[](cap: m)` | `[]T` with length and capacity |
 | `error(msg)` | a fresh `error` with that message |

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -115,6 +116,8 @@ type server struct {
 	cache     map[string]*sema.GoPkg
 	last      *analysis
 	published map[string]bool
+	info      *typecheck.Inferred
+	infoGen   int
 
 	mu     sync.Mutex
 	gen    int
@@ -649,7 +652,7 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 			parsedPath[path] = true
 			continue
 		}
-		prog := s.check(map[string][]*ast.File{".": {f}}, filepath.Dir(path), "")
+		prog := s.check(map[string][]*ast.File{".": {f}}, filepath.Dir(path), "", gen)
 		if prog != nil {
 			semaErrs = append(semaErrs, prog.Errors...)
 		}
@@ -665,7 +668,10 @@ func (s *server) analyze(docs map[string]*document, root, module string, typeche
 		return a
 	}
 	if len(parsed) > 0 {
-		prog := s.check(parsed, root, module)
+		prog := s.check(parsed, root, module, gen)
+		if s.stale(gen) {
+			return a
+		}
 		if prog != nil {
 			semaErrs = append(semaErrs, prog.Errors...)
 		}
@@ -804,14 +810,14 @@ func hasFatalErrors(parseErrs map[string][]parser.Error, errs []sema.Error) bool
 	return false
 }
 
-func (s *server) check(parsed map[string][]*ast.File, root, module string) (prog *sema.Program) {
+func (s *server) check(parsed map[string][]*ast.File, root, module string, gen int) (prog *sema.Program) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logf("analysis panic: %v", r)
 			prog = nil
 		}
 	}()
-	return sema.Check(parsed, sema.Options{Root: root, Module: module, GoCache: s.cache})
+	return sema.Check(parsed, sema.Options{Root: root, Module: module, GoCache: s.cache, Stop: func() bool { return s.stale(gen) }})
 }
 
 func (a *analysis) fileAtPos(pos token.Pos) *fileInfo {
@@ -1038,11 +1044,68 @@ func (s *server) hover(p TextDocumentPositionParams) (any, error) {
 		return nil, nil
 	}
 	value := hoverText(node)
+	if extra := s.inferredType(fi, node, p.Position.Line+1, p.Position.Character+1, OffsetAt(fi.src, p.Position)); extra != "" {
+		if value == "" {
+			value = extra
+		} else {
+			value += "\n\n" + extra
+		}
+	}
 	if value == "" {
 		return nil, nil
 	}
 	r := spanRange(fi.src, node)
 	return &Hover{Contents: MarkupContent{Kind: "markdown", Value: value}, Range: &r}, nil
+}
+
+func (s *server) inferredType(fi *fileInfo, node ast.Node, line, col, offset int) string {
+	if fi == nil || node == nil || s.last == nil || s.last.prog == nil {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(s.last.root, "go.mod")); err != nil {
+		return ""
+	}
+	if s.info == nil || s.infoGen != s.gen {
+		s.info = typecheck.InferTypes(s.last.prog, s.last.parsed, typecheck.Options{Root: s.last.root, Module: s.last.module, Tests: true})
+		s.infoGen = s.gen
+	}
+	if s.info == nil {
+		println("DEBUG info nil")
+		return ""
+	}
+	t := s.info.At[fi.path+":"+strconv.Itoa(line)+":"+strconv.Itoa(col)]
+	if t == "" {
+		if word := identWordAt(fi.src, offset); word != "" {
+			t = s.info.ByName[filepath.Dir(fi.path)+"\x00"+strconv.Itoa(line)+"\x00"+word]
+		}
+	}
+	if t == "" {
+		pos := node.Pos()
+		t = s.info.At[fi.path+":"+strconv.Itoa(pos.Line)+":"+strconv.Itoa(pos.Col)]
+	}
+	if t == "" {
+		return ""
+	}
+	return codeBlock("inferred: " + t)
+}
+
+func identWordAt(src []byte, offset int) string {
+	if offset < 0 || offset > len(src) {
+		return ""
+	}
+	start := offset
+	for start > 0 && isWordByte(src[start-1]) {
+		start--
+	}
+	end := offset
+	for end < len(src) && isWordByte(src[end]) {
+		end++
+	}
+	return string(src[start:end])
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
 func (s *server) nodeAt(fi *fileInfo, offset int) ast.Node {

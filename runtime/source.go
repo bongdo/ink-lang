@@ -2,8 +2,35 @@ package inkrt
 
 import (
 	"fmt"
+	"io/fs"
+	"strings"
 	"sync"
 )
+
+var (
+	assetsMu sync.RWMutex
+	assets   fs.FS
+)
+
+func SetAssets(fsys fs.FS) {
+	assetsMu.Lock()
+	assets = fsys
+	assetsMu.Unlock()
+}
+
+func Asset(name string) ([]byte, bool) {
+	assetsMu.RLock()
+	fsys := assets
+	assetsMu.RUnlock()
+	if fsys == nil {
+		return nil, false
+	}
+	data, err := fs.ReadFile(fsys, strings.TrimPrefix(name, "/"))
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
 
 type DeferStack struct {
 	fns []func()

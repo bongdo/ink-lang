@@ -876,3 +876,32 @@ func TestSignatureHelpSliceCtor(t *testing.T) {
 		t.Fatalf("active parameter = %d", help.ActiveParameter)
 	}
 }
+
+func TestHoverShowsInferredGoType(t *testing.T) {
+	src := `use slices;
+
+fn main() void {
+    var xs = i32[] { 1, 2 };
+    var ys = slices.Clone(xs);
+    _ = ys;
+};
+`
+	root, _, uri := newProject(t, src)
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/hover\n\ngo 1.27\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := startClient(t, root)
+	c.request("initialize", InitializeParams{})
+	openDocument(t, c, uri, src)
+	msg := c.request("textDocument/hover", TextDocumentPositionParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Position:     PositionAt([]byte(src), strings.Index(src, "Clone")),
+	})
+	var hover Hover
+	if err := json.Unmarshal(msg.Result, &hover); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hover.Contents.Value, "inferred") || !strings.Contains(hover.Contents.Value, "[]int32") {
+		t.Fatalf("hover: %+v", hover.Contents.Value)
+	}
+}

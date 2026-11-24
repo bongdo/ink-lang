@@ -41,3 +41,14 @@ func TestSliceCtorInArena(t *testing.T) {
 `})
 	noErrors(t, p)
 }
+
+func TestSliceCtorCapInsideArena(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn main() void {
+    arena {
+        var xs = i32[](1, cap: 8);
+        xs[0] = 1;
+    };
+};
+`})
+	noErrors(t, p)
+}

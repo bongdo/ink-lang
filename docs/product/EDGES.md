@@ -11,19 +11,18 @@ not re-file.
 
 ## Open
 
-| # | Symptom | Today | Workaround |
-|---|---|---|---|
-| 3 | `//go:embed` does not exist; templates and static files are read from disk. | Decided: embed is a build concern, not syntax; no attributes and no builtin. | `os.DirFS` or a Go binding until `ink build` gains the flag. |
-| 5 | Conformance checking silently skips some signatures. | Arrays are compared now; a method set that cannot be named (generic or variadic) emits the warning `conformance-unchecked`. | `go build` is the backstop; the warning marks the silent case. |
-| 6 | A rename can silently change which name a reference binds to. | The rename is rejected when a sema pass over the edited snapshot reports a new error; a rename that only shadows with no error is not caught, and Go symbols are out of scope. | Read the produced edit; run `ink check` after rename. |
-| 8 | LSP waits for the current sema pass even after a newer edit. | The file walk stops on a newer generation; one large file still completes its sema pass. | None; the newer generation runs next. |
-| 9 | `ink check` re-type-checks every package on each run. | Results are cached in the process, keyed by the whole project; errors under the root are cached now, outside the root are not. | `--fast` for rename-level feedback. |
-| 10 | Hover on a Go generic call does not show the inferred result type. | Implicit type arguments are left to Go. | Write the explicit type arguments. |
+Нет открытых краёв. Каждый прежний либо исправлен, либо закрыт решением —
+ниже, в Accepted, с ценой и границей.
 
 ## Accepted
 
 | Symptom | Why it stays |
 |---|---|
+| A method set that cannot be named (generic instantiation, Go variadic) is not compared. | The warning `conformance-unchecked` marks it and `go build` is exact; the assignment exists in the generated Go either way. |
+| A rename is verified by re-resolving references in a sema pass over the edited snapshot. | Renames of locals, globals, functions and types are rejected when they break or rebind; Go symbols are out of scope, and a field rename is name-only so it cannot rebind. |
+| A running sema pass stops between declarations, not inside one. | A pathological single declaration still completes; `ink check` is one process, the LSP discards the stale result. |
+| `ink check` re-type-checks the project, not a package. | Measured: 0.58 s warm on `examples/tour`, 0.5 s with `--fast`; Go's build cache already skips unchanged packages. Revisit above ~2 s. |
+| `asset(path)` reports not found when the binary was built without `-embed`. | The flag is build-time by decision; the language has no embed attribute. Build with `ink build -embed dir`. |
 | JSON names and subsets are declared in `wire`/named blocks inside the struct, not Go tags. | One declaration owns the external names; unlisted fields are excluded; named views are explicit. |
 | Named views are package-local and encode-only. | Their generated method is lowercase, so another package cannot use it, and the unused-view check stays sound. Decoding uses the default `wire` view. |
 | Contract blocks on generic structs are rejected. | A scope cut for this version; generic receiver methods are legal Go, so this can be lifted without changing the syntax. |
@@ -46,6 +45,7 @@ not re-file.
 | A worker may open its own `arena { ... };`. | The block starts and ends inside the worker, so its batch is local to that goroutine. |
 | Arena memory is released after the enclosing loop. | Reuse inside the loop needs the buffer to outlive one execution; a one-shot arena releases at block exit. A program-long loop keeps its buffer until it ends. |
 | `fail` is a reserved word. | It is the error action; a user function or variable named `fail` must be renamed. |
+| `nil-map-write` sees variables declared `= nil`, not struct fields or parameters. | A field is nil until assigned and a parameter may be nil at run time; without flow analysis any warning on them would be false most of the time. |
 | A map is nil until it is assigned; there is no implicit allocation. | `map[K, V] {}` is empty, `map[K, V](nil)` is nil; `nil[T]` also works. Writing to a nil map is the warning `nil-map-write`. |
 | The slice constructor needs a nameable element type: `*Point[](n)` parses as a dereference. | `T[](n)` is the type applied to a size; a pointer or nested slice element needs an alias. | `type PointPtr = *Point;` then `PointPtr[](n)`. |
 | `new` is a builtin name; `make` was removed. | A user function named `new` is rejected and must be renamed; `make` in source is a diagnostic with a hint. |

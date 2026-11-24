@@ -325,6 +325,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 			if fun.Name == "make" {
 				return c.resolveMake(call)
 			}
+			if fun.Name == "asset" {
+				return c.resolveAsset(call)
+			}
 			if fun.Name == "new" {
 				return c.resolveNew(call)
 			}
@@ -500,6 +503,22 @@ func intLiteral(e ast.Expr) (int, bool) {
 	}
 	n, err := strconv.Atoi(lit.Value)
 	return n, err == nil
+}
+
+func (c *checker) resolveAsset(call *ast.CallExpr) ast.Type {
+	if len(call.Args) != 1 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "asset takes one path: asset(\"web/index.html\")")
+	}
+	strT := &ast.NamedType{Name: "str", GoName: "string"}
+	bytesT := &ast.SliceType{Elem: &ast.NamedType{Name: "u8", GoName: "uint8"}}
+	boolT := &ast.NamedType{Name: "bool", GoName: "bool"}
+	for _, a := range call.Args {
+		c.resolveExpr(a, false)
+		c.checkVoidValue(a)
+		c.checkAssign(strT, a)
+	}
+	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 2, ResultTypes: []ast.Type{bytesT, boolT}, Builtin: "asset"}
+	return bytesT
 }
 
 func (c *checker) resolveNew(call *ast.CallExpr) ast.Type {

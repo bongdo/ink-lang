@@ -421,6 +421,9 @@ func (s *server) renameBreaks(changes map[string][]TextEdit) error {
 	if next == nil {
 		return nil
 	}
+	if err := s.renameRebinds(next, changes); err != nil {
+		return err
+	}
 	before := make(map[string]int)
 	for _, diags := range s.last.diags {
 		for _, d := range diags {
@@ -436,6 +439,60 @@ func (s *server) renameBreaks(changes map[string][]TextEdit) error {
 		}
 	}
 	return nil
+}
+
+func (s *server) renameRebinds(next *analysis, changes map[string][]TextEdit) error {
+	for uri, edits := range changes {
+		path, err := uriToPath(uri)
+		if err != nil {
+			continue
+		}
+		fi := next.files[path]
+		if fi == nil {
+			continue
+		}
+		original := fi.src
+		if prev := s.last.files[path]; prev != nil {
+			original = prev.src
+		}
+		sorted := append([]TextEdit(nil), edits...)
+		sort.Slice(sorted, func(i, j int) bool {
+			a, b := sorted[i].Range.Start, sorted[j].Range.Start
+			return a.Line < b.Line || (a.Line == b.Line && a.Character < b.Character)
+		})
+		delta := 0
+		var decl ast.Node
+		for _, edit := range sorted {
+			start := OffsetAt(original, edit.Range.Start)
+			end := OffsetAt(original, edit.Range.End)
+			id := identAt(fi.file, start+delta)
+			delta += len(edit.NewText) - (end - start)
+			if id == nil || id.Ref == nil || id.Ref.Decl == nil {
+				continue
+			}
+			if decl == nil {
+				decl = id.Ref.Decl
+				continue
+			}
+			if decl != id.Ref.Decl {
+				return fmt.Errorf("rename would rebind some references in %s", filepath.Base(path))
+			}
+		}
+	}
+	return nil
+}
+
+func identAt(file *ast.File, offset int) *ast.Ident {
+	var found *ast.Ident
+	ast.Inspect(file, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		if !ok || id.Pos().Offset != offset {
+			return true
+		}
+		found = id
+		return false
+	})
+	return found
 }
 
 func applyEdits(text string, edits []TextEdit) string {
