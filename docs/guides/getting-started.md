@@ -143,6 +143,8 @@ fn exists(path: str) bool! {
 - `print(...)` writes a line to stdout and has no error.
 - `panic("message");` is a Go panic: `on err` does not catch it.
 - `_ = call();` discards a fallible result deliberately.
+- `use errors;` and `fmt.Errorf` are rejected; classification belongs in an
+  Ink enum or a Go adapter.
 
 ## Tests
 
@@ -183,6 +185,8 @@ fn main() void! {
 
 Captured state may be read concurrently. Writes must go to a slot indexed by
 the iteration variable or be the only writer of that variable inside `par`.
+`spawn` has no join: use `par` when the work must finish. `use sync;` and
+`use sync/atomic;` are rejected; a lock lives in a Go adapter.
 `par` and `par for` wait for all workers and never cancel early; the
 lowest-ordinal unhandled error is delivered at the join — to the scope's
 `on err`, or returned from the function. A panic is a Go panic and aborts the

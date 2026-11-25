@@ -14,10 +14,10 @@ id: syntax
 - ошибка в сигнатуре: `fn load(p: str) Config!`;
 - несколько результатов: `(A, B)!`;
 - без значения: `void!`;
-- обработчик ошибки: `or fail`, `or fail("ctx")`, `on err { }`; `panic(...)` —
-  Go panic, не обработчик;
-- `or` всегда с новой строки, с отступом на уровень;
+- проброс ошибки: `?`; обработка: `on err { }`; создание:
+  `check(cond, "msg")`; `panic(...)` — Go panic, не обработчик;
 - импорт: `use fmt;`, `use encoding/json;`, `use ./lib as lib;` — без кавычек;
+  `errors`, `sync`, `sync/atomic` и `fmt.Errorf` запрещены;
 - литерал: `Config { Port: 8080 }`, `map[str, i32] { "a": 1 }`;
 - срез: `i32[](3)`, `i32[](8, cap: 4096)`, `u8[](cap: 4096)`,
   `i32[](size: 3)` — тип и есть конструктор, `make` удалён;
@@ -50,14 +50,16 @@ id: syntax
 
 ## Критерии приёмки
 
-- `ink check --json` на программе с `Config!`, `or fail` на новой строке,
-  `Config { Port: 1 }` и `use encoding/json;` возвращает `[]`.
+- `ink check --json` на программе с `Config!`, `?`, `Config { Port: 1 }` и
+  `use encoding/json;` возвращает `[]`.
 - `T or error`, `or return`, `use "fmt";` и `field = value` дают ошибку с
   подсказкой о каноне.
+- `use errors;`, `use sync;` и `fmt.Errorf` дают ошибку с подсказкой.
 - `make[i32](3)` даёт `make-removed` с hint на `i32[](3)`.
 - `ink fmt -w` переписывает старую форму и остаётся идемпотентным.
 
 ## Открытые вопросы
 
 - Оставить ли `or return` как алиас? Сейчас отвергнут.
-- `error("msg")` как конструктор решён: отвергнут, канон `errors.New("msg")`.
+- `error("msg")` как конструктор решён: отвергнут, канон
+  `check(false, "msg")`.

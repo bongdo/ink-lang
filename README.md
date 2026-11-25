@@ -19,8 +19,7 @@ struct User {
 
 fn main() void! {
     var u = User { Name: "Alice", age: 30 };
-    fmt.Println(u.Greet())
-        or fail;
+    fmt.Println(u.Greet())?;
 };
 ```
 
@@ -181,12 +180,14 @@ Highlights:
   `const` is package-level only and is a compile-time name, not a runtime slot.
 - `use fmt;`, `use net/http;`, `use ./lib as lib;`: import paths are bare,
   never quoted. A versioned Go import path (`/v2`, `/v3`, ...) requires an alias.
+  `use errors;`, `use sync;`, `use sync/atomic;` and `fmt.Errorf` are rejected.
 - comments are `//` only; block comments are rejected.
-- `fn name(a: T) R { ... };`, errors as `T!`, propagation with `or fail`;
-  manual `if err != nil { return err; }` is rejected.
+- `fn name(a: T) R { ... };`, errors as `T!`; `?` propagates, `on err`
+  handles, `check(cond, "msg")` creates. Manual
+  `if err != nil { return err; }` is rejected.
 - struct literals use named fields only: `User { Name: "A" }`.
-- multiple results: `fn f() (A, B)!`, `var a, b = f();`,
-  `var a, b = f() or fail;`; `_` is a result placeholder and explicit discard.
+- multiple results: `fn f() (A, B)!`, `var a, b = f()?;`; `_` is a result
+  placeholder and explicit discard.
 - `struct Name { ... }`, `enum Shape { ... }`,
   `interface Writer { ... }`; aliases start with `alias` (`alias UserId = u64;`).
   Fields and methods live inside the body, with implicit `self`.
@@ -194,11 +195,13 @@ Highlights:
 - `match` on `any` with `case T as x` and `else`; negative literals and
   `case nil` for nilable values. `break`/`continue` in a case target the loop.
 - `T[]`, `T[N]`, `map[K, V]`, `*T`, `fn(A) R`, generics `Stack[T]`.
-- `par { ... }`, `par for (...) limit N`, `within 30s { ... }`, no visible `context`.
-  `par for` over a map and `for ()` inside `par` are rejected.
+- `par { ... }`, `par for (...) limit N`, `spawn f(args)`, no visible
+  `context`. `par` joins; `spawn` detaches and has no join. `par for` over a
+  map and `for ()` inside `par` are rejected.
 - `defer` is block-scoped. Hidden context gets a non-ctx wrapper at Go interfaces.
-- `par` workers recover panics, keep their own `defer` stack, and reject unsafe
-  map/pointer/alias writes; `ink check` type-checks generated Go.
+- `par` workers keep their own `defer` stack and reject unsafe
+  map/pointer/alias writes; panics are not recovered. `ink check` type-checks
+  generated Go.
 - `void` is only a function result; value positions are rejected.
 
 ## Editor support (LSP)

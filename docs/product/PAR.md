@@ -175,7 +175,8 @@ write to `c`.
 - Arguments are evaluated before the task starts and passed by value like any
   call. There is no closure; captured locals are not available.
 - The task belongs to the program. It may outlive the calling function, a
-  request handler or a `par { }` block that launched it.
+  request handler or a `par { }` block that launched it. There is no join and
+  no `sync.WaitGroup`; if the work must finish, use `par { ... }` instead.
 - Error delivery: the task has no caller to return to, so a fallible call
   carries its own handler at the launch site: `spawn f(args) on err { ... };`.
   A `void!` call without a handler is rejected. The handler runs in the task,
@@ -199,9 +200,9 @@ write to `c`.
   type when the write goes through `.m[...]` or `.p...`; slice-field copies
   are only checked for disjoint iteration slots and remain in the static limit.
 - Map writes are rejected even for disjoint keys; use a slice indexed by the
-  iteration variable. `sync`/`atomic` are an explicit trust boundary outside
-  this static analysis: the checker does not model their happens-before. Use
-  `go build -race` for that path.
+  iteration variable. `sync` and `sync/atomic` are rejected in `.ink`: shared
+  mutable state belongs in a Go adapter, and `go build -race` is the oracle
+  for that adapter.
 - No dynamic checks in the compiler. `go build -race` stays the runtime oracle.
 - `par` is not tied to a context. Cancelling a `context.Context` does not stop a
   worker or a detached task; both run to completion.

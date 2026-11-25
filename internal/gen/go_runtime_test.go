@@ -167,10 +167,8 @@ fn main() void {
 
 func TestGoScopeListenerHandles(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.ink": `use errors;
-
-fn boom() void! {
-    return errors.New("boom");
+		"main.ink": `fn boom() void! {
+    check(false, "boom");
 };
 
 fn inner() void! {

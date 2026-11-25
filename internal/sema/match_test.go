@@ -54,10 +54,8 @@ fn f(n: i32) void {
 }
 
 func TestMatchBlockArmsInOnErrHandlerAllowed(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-
-fn load() str! {
-    return errors.New("x");
+	p := checkSrc(t, map[string]string{".": `fn load() str! {
+    check(false, "x");
 };
 
 fn f() str! {

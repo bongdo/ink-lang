@@ -3,12 +3,8 @@ package sema
 import "testing"
 
 func TestOrMultiResult(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-
-fn pair(n: i32) i32, bool! {
-    if (n < 0) {
-        return 0, false, errors.New("neg");
-    };
+	p := checkSrc(t, map[string]string{".": `fn pair(n: i32) i32, bool! {
+    check(n >= 0, "neg");
     return n, true;
 };
 
@@ -53,10 +49,9 @@ fn main() void! {
 }
 
 func TestOrMultiArity(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-
-fn pair() i32, bool! {
-    return 1, true, errors.New("x");
+	p := checkSrc(t, map[string]string{".": `fn pair() i32, bool! {
+    check(false, "x");
+    return 1, true;
 };
 
 fn one() i32! {

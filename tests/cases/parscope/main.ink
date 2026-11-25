@@ -1,8 +1,7 @@
 use fmt;
-use errors;
 
 fn stop() void! {
-    return errors.New("boom");
+    check(false, "boom");
 };
 
 fn withDefer() void! {

@@ -1,6 +1,9 @@
 use fmt;
 use os;
-use errors;
+
+fn boom() void! {
+    check(false, "boom");
+};
 
 struct Point {
     x: i32,
@@ -29,6 +32,11 @@ fn main() void! {
     fmt.Println(describe(&Point { x: 2 }))?;
     fmt.Println(describe("s"))?;
     fmt.Println(describe(true))?;
-    fmt.Println(kind(errors.New("boom")))?;
-    fmt.Println(kind(&os.PathError { Op: "open", Path: "x", Err: errors.New("no") }))?;
+    var e: error = nil;
+    boom()
+        on err {
+            e = err;
+        };
+    fmt.Println(kind(e))?;
+    fmt.Println(kind(&os.PathError { Op: "open", Path: "x", Err: e }))?;
 };

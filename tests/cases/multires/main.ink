@@ -1,11 +1,8 @@
 use fmt;
-use errors;
 
 struct Pair {
     fn Split(n: i32) (i32, bool)! {
-        if (n < 0) {
-            return 0, false, errors.New("negative");
-        };
+        check(n >= 0, "negative");
         return n, true;
     };
 };

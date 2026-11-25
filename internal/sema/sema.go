@@ -408,6 +408,16 @@ func (p *Program) resolveUses() {
 	for _, pkg := range p.Packages {
 		for _, f := range pkg.Files {
 			for _, u := range f.Uses {
+				if !u.Local {
+					switch {
+					case u.Path == "errors":
+						p.errorf(f.Path, u.Pos(), "import errors is not available in Ink; use ? and on err")
+						u.Used = true
+					case u.Path == "sync" || strings.HasPrefix(u.Path, "sync/"):
+						p.errorf(f.Path, u.Pos(), "import %s is not available in Ink; use par and spawn", u.Path)
+						u.Used = true
+					}
+				}
 				if u.Alias == "_" {
 					if u.Local {
 						p.errorf(f.Path, u.Pos(), "blank import must be a Go package: %s", u.Path)

@@ -3,7 +3,6 @@
 // Problem constructs are in ../problems/main.ink.
 use strings;
 use slices;
-use errors;
 use ./lib;
 
 // Constants are compile-time values; `const` can size an array.
@@ -95,16 +94,12 @@ fn pair() i32, bool {
 };
 
 fn mayFail(ok: bool) i32! {
-    if (!ok) {
-        return errors.New("requested failure");
-    };
+    check(ok, "requested failure");
     return 7;
 };
 
 fn split(n: i32) (i32, bool)! {
-    if (n < 0) {
-        return 0, false, errors.New("negative");
-    };
+    check(n >= 0, "negative");
     return n, true;
 };
 

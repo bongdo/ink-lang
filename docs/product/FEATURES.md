@@ -67,9 +67,9 @@ place with status.
 | `missing-return` inside a function literal | ✅ checked when the literal has results |
 | `T!` with `?` and `on err { }` | ✅ |
 | `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
-| `errors.New("msg")` fresh error; `error("msg")` rejected | ✅ |
+| `check(cond, "msg")` fresh error; `errors`, `fmt.Errorf` and `error("msg")` rejected | ✅ |
 | `arena { new/T[](n) }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
-| `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
+| `fail(err, "context")` | — removed; use `check` to create and `on err` to handle |
 | manual `if err != nil { return err; }` | — rejected; `?` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |
 | block-scoped `defer` | ✅ |
@@ -83,10 +83,11 @@ place with status.
 |---|---|
 | `par { ... }` — one worker per top-level statement, joins at the block | ✅ |
 | `par for (...) limit N` — one worker per iteration, joins at the loop | ✅ |
-| `spawn f(args)` — detached task, program-owned; `void!` needs `on err` on the call | ✅ |
-| `on err { ... }` — scope listener for `par`/`par for` errors; `fail` escalates | ✅ |
+| `spawn f(args)` — detached task, program-owned; `void!` needs `on err` on the call; no join, use `par` to wait | ✅ |
+| `on err { ... }` — scope listener for `par`/`par for` errors; the scope continues | ✅ |
 | `spawn f(...) on err { ... };` — task-local handler, no captures, no `fail` | ✅ |
 | `go` | — removed; use `par` or `spawn` |
+| `sync`, `sync/atomic` in `.ink` | — rejected; `par` joins, `spawn` detaches, locks live in a Go adapter |
 | `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |
 | per-worker `defer` | ✅ |
@@ -156,6 +157,6 @@ The canonical list is [`SPEC.md`](SPEC.md) §10. In short: local named
 functions, generic constraints, generic enums, guards and struct patterns,
 lambda parameter inference without an expected type, expression-level `or`,
 user variadics, `discard`, doc comments, and the Go-isms `chan`,
-`select`, `async`, `await`, `try`, `catch`, `?`, `export`, `let`, `:=`,
+`select`, `async`, `await`, `try`, `catch`, `export`, `let`, `:=`,
 attributes, traits, lifetimes, `unsafe`, `switch`, labeled control flow,
 operator overloading, exceptions.

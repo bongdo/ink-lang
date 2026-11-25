@@ -30,6 +30,9 @@ go 1.27
 - `as _` is a blank import: the package is linked for its side effects and
   binds no name, so it is never reported as unused. It is allowed only for Go
   import paths; a local `use ./lib as _;` is an error.
+- `errors`, `sync` and `sync/atomic` are rejected in `.ink`; so is
+  `fmt.Errorf`. Errors are `?`, `on err` and `check`; concurrency is `par` and
+  `spawn`. The generated Go and a Go adapter may still use those packages.
 - Generated Go lives next to the sources as `zz_ink.go` and
   `zz_ink_test.go`. `.ink/` holds generated support files.
 
@@ -430,9 +433,9 @@ then keeps the zero value of its type. A scope listener is captured by each
 task at launch and may run after its scope returns: use it for logging,
 metrics and escalation, not for mutating scope state.
 
-`errors.New`, `errors.Is` and `errors.As` remain Go interop. App code uses
-`check` and classifies errors in an adapter. `error("msg")` is rejected:
-`error` is a type, not a constructor.
+`errors` is not available in `.ink`: `check` creates, `?` propagates, `on err`
+handles, and classification is an Ink enum or a Go adapter. `fmt.Errorf` is
+rejected too. `error("msg")` is rejected: `error` is a type, not a constructor.
 
 A fallible call used as a bare expression statement is a compile error: its
 result would be dropped. Write `call()?;`, `call() on err { ... };` or
@@ -440,8 +443,9 @@ result would be dropped. Write `call()?;`, `call() on err { ... };` or
 
 `if (err != nil) { return err; }` (and the multi-result form) is rejected:
 propagation has one canonical spelling, `?`. `if err != nil` remains valid for
-inspection, logging, retry and `errors.Is`; only the pure manual propagation
-pattern is an error.
+inspection, logging and retry; a sentinel is compared directly
+(`err == sql.ErrNoRows`), and richer classification belongs in an adapter.
+Only the pure manual propagation pattern is an error.
 
 `defer` is block-scoped. Deferred calls run when the enclosing block exits,
 including through `return`, `break`, `continue`, `?` and panic. A deferred call
@@ -671,7 +675,7 @@ These are not planned, not merely missing:
 - a `discard` builtin; `_` is the only blank/discard construct;
 - doc comments attached to declarations; comments are formatter input only.
 
-`chan`, `select`, `async`, `await`, `try`, `catch`, `?`, `export`,
+`chan`, `select`, `async`, `await`, `try`, `catch`, `export`,
 `let`, `:=`, attributes, traits, lifetimes, `unsafe` in application
 code, method declarations outside a type, UFCS, `switch`, labeled control flow,
 operator overloading, exceptions.

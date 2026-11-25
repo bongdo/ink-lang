@@ -2,15 +2,12 @@ use fmt;
 use encoding/json;
 use net/http;
 use net/http/httptest;
-use sync;
 use time;
 use os;
 use io;
 use strconv;
 use strings;
-use context;
-use os/signal;
-use syscall;
+use example.com/blind-web-svc/guard;
 
 struct Item {
     ID: int,
@@ -41,7 +38,7 @@ struct PatchReq {
 };
 
 struct Store {
-    mu: sync.Mutex,
+    mu: *guard.Lock,
     items: Item[],
     next: int,
 
@@ -60,7 +57,7 @@ struct Store {
         var out = Item[] {};
         for (var it in items) {
             out = append(out, it);
-        };
+        };;
         return out;
     };
 
@@ -71,7 +68,7 @@ struct Store {
             if (it.ID == id) {
                 return it, true;
             };
-        };
+        };;
         return Item { ID: 0, Title: "", Done: false }, false;
     };
 
@@ -83,7 +80,7 @@ struct Store {
                 items[i].Done = done;
                 return items[i], true;
             };
-        };
+        };;
         return Item { ID: 0, Title: "", Done: false }, false;
     };
 
@@ -98,14 +95,14 @@ struct Store {
             } else {
                 kept = append(kept, it);
             };
-        };
+        };;
         items = kept;
         return found;
     };
 };
 
 fn newStore() *Store {
-    return &Store { mu: sync.Mutex {}, items: Item[] {}, next: 1 };
+    return &Store { mu: guard.New(), items: Item[] {}, next: 1 };
 };
 
 var store = newStore();
@@ -216,20 +213,6 @@ fn addr() str {
 
 fn main() void! {
     var srv = &http.Server { Addr: addr(), Handler: http.HandlerFunc(handle) };
-    var ctx, stop = signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM);
-    defer stop();
-    var shutdownCtx, cancel = context.WithTimeout(context.Background(), 5 * time.Second);
-    defer cancel();
-    var drained = sync.WaitGroup {};
-    drained.Add(1);
-    context.AfterFunc(ctx, fn() {
-        srv.Shutdown(shutdownCtx)
-            on err {
-                _ = fmt.Fprintln(os.Stderr, "shutdown:", err);
-            };
-        _ = fmt.Fprintln(os.Stderr, "shutdown complete");
-        drained.Done();
-    });
     _ = fmt.Printf("starting on %s\n", addr());
     srv.ListenAndServe()
         on err {
@@ -237,7 +220,6 @@ fn main() void! {
                 _ = fmt.Fprintln(os.Stderr, "listen:", err);
             };
         };
-    drained.Wait();
 };
 
 fn call(method: str, path: str, body: str) *httptest.ResponseRecorder {
@@ -327,7 +309,7 @@ test "concurrent handlers share the store" {
     par for (var i = 0; i < 50; i += 1) limit 8 {
         var rec = call("POST", "/items", `{"title":"x"}`);
         assert_eq(rec.Code, 201);
-    };
+    };;
     assert_eq(len(store.List()), 50);
     assert_eq(len(store.List()), 50);
 };

@@ -56,10 +56,8 @@ fn main() void {
 
 func TestParOrBlockWriteRejected(t *testing.T) {
 	parGapsError(t, `
-use errors;
-
 fn stop() void! {
-    return errors.New("x");
+    check(false, "x");
 };
 
 fn main() void! {

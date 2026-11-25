@@ -5,12 +5,9 @@ import "testing"
 func TestOrMultiResult(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn pair(n: i32) i32, bool! {
-    if (n < 0) {
-        return 0, false, errors.New("neg");
-    };
+    check(n >= 0, "neg");
     return n, true;
 };
 

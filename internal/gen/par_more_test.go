@@ -7,14 +7,12 @@ import (
 
 func TestGoDeferPanicCrashes(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.ink": `use errors;
-
-fn boom() void {
+		"main.ink": `fn boom() void {
     panic("defer-panic");
 };
 
 fn stop() void! {
-    return errors.New("original");
+    check(false, "original");
 };
 
 fn main() void! {

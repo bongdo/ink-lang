@@ -1,5 +1,4 @@
 use encoding/json;
-use errors;
 use os;
 use slices;
 
@@ -31,12 +30,8 @@ struct Store {
 
     fn Receive(sku: str, qty: i32) i32! {
         var it = Items[sku];
-        if (it.SKU == "") {
-            return errors.New("unknown sku " + sku);
-        };
-        if (it.Qty < qty) {
-            return errors.New("not enough stock for " + sku);
-        };
+        check(it.SKU != "", "unknown sku " + sku);
+        check(it.Qty >= qty, "not enough stock for " + sku);
         it.Qty -= qty;
         var o = Order { ID: Next, SKU: sku, Qty: qty };
         Next += 1;
@@ -54,20 +49,20 @@ struct Store {
                 };
                 return gross;
             };
-        };
-        return errors.New("unknown order");
+        };;
+        check(false, "unknown order");
     };
 
     fn Top(n: i32) Item[] {
         var xs = Item[] {};
         for (var _, it in Items) {
             xs = append(xs, it);
-        };
+        };;
         slices.SortFunc(xs, fn(a: Item, b: Item) int => int(a.Qty - b.Qty));
         var out = Item[] {};
         for (var i = 0; i <= int(n); i += 1) {
             out = append(out, xs[i]);
-        };
+        };;
         return out;
     };
 };

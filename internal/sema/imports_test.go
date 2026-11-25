@@ -33,6 +33,46 @@ fn main() void {
 	}
 }
 
+func TestBannedImports(t *testing.T) {
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{`use sync;
+
+fn main() void {
+};
+`, "import sync is not available in Ink; use par and spawn"},
+		{`use sync/atomic;
+
+fn main() void {
+};
+`, "import sync/atomic is not available in Ink; use par and spawn"},
+		{`use errors;
+
+fn main() void {
+};
+`, "import errors is not available in Ink; use ? and on err"},
+	}
+	for _, c := range cases {
+		p := checkSrc(t, map[string]string{".": c.src})
+		e := wantError(t, p, c.want)
+		if e.Pos.Line != 1 {
+			t.Fatalf("error at line %d, want 1: %s", e.Pos.Line, e.Msg)
+		}
+	}
+}
+
+func TestFmtErrorfBanned(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `use fmt;
+
+fn main() void {
+    _ = fmt.Errorf("x");
+};
+`})
+	wantError(t, p, "fmt.Errorf is not available in Ink; use check")
+}
+
 func TestGeneratedTypeCollision(t *testing.T) {
 	cases := []struct {
 		src  string

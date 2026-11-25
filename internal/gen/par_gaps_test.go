@@ -47,10 +47,9 @@ fn main() void {
 func TestParDeferInside(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn stop() void! {
-    return errors.New("stop");
+    check(false, "stop");
 };
 
 fn work() void! {
@@ -116,15 +115,9 @@ fn main() void! {
 
 func TestParRangeError(t *testing.T) {
 	p := newProject(t, map[string]string{
-		"main.ink": `use errors;
-
-fn pick(k: i32) i32! {
-    if (k == 1) {
-        return 0, errors.New("key one");
-    };
-    if (k == 2) {
-        return 0, errors.New("key two");
-    };
+		"main.ink": `fn pick(k: i32) i32! {
+    check(k != 1, "key one");
+    check(k != 2, "key two");
     return k;
 };
 
@@ -135,9 +128,7 @@ fn main() void! {
         out[k] = pick(k)?;
     };
     var dummy = out[0] + out[1] + out[2];
-    if (dummy < 0) {
-        return errors.New("unreachable");
-    };
+    check(dummy >= 0, "unreachable");
 };
 `,
 	})
@@ -158,19 +149,15 @@ fn main() void! {
 func TestGoDetachedCallHandler(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
-use sync;
+use time;
 
-fn job(wg: *sync.WaitGroup) void! {
-    defer wg.Done();
-    return errors.New("boom");
+fn job() void! {
+    check(false, "boom");
 };
 
 fn main() void! {
-    var wg = sync.WaitGroup {};
-    wg.Add(1);
-    spawn job(&wg) on err { _ = fmt.Println("caught"); };
-    wg.Wait();
+    spawn job() on err { _ = fmt.Println("caught"); };
+    time.Sleep(50ms);
 };
 `,
 	})
@@ -187,10 +174,9 @@ fn main() void! {
 func TestGoScopeListenerCatches(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn boom() void! {
-    return errors.New("boom");
+    check(false, "boom");
 };
 
 fn main() void! {

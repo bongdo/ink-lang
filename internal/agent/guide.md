@@ -137,6 +137,9 @@ fn pair() i32, bool { return 1, true; };
   last path element unless aliased, so a Go package whose name differs from its
   directory needs one: `use github.com/gen2brain/raylib-go/raylib as rl;`.
   `use pkg as _;` is a blank import for a driver or an `init` side effect.
+  `use errors;`, `use sync;`, `use sync/atomic;` and `fmt.Errorf` are rejected:
+  errors are `?`, `on err` and `check`; concurrency is `par` and `spawn`; a
+  lock belongs behind a Go adapter.
 - `T!` marks a fallible result. `void!` may fail with no value. Multi-result:
   `(A, B)!`.
 - `call()?` propagates the error to the caller. `?` may sit anywhere in an
@@ -155,8 +158,8 @@ fn pair() i32, bool { return 1, true; };
   `par` listener. `print(...)` writes a line to stdout like `fmt.Println`, has
   no error, and needs no `_ =`.
 - Manual `if err != nil { return err; }` propagation is rejected; use `?`.
-  `errors.New`, `errors.Is` and `errors.As` remain Go interop; app code
-  classifies errors in an adapter.
+  `errors` is not available in `.ink`: create with `check`, propagate with
+  `?`, handle with `on err`, and classify through an Ink enum or a Go adapter.
 - `panic(...)` is Go's panic: not caught by `on err`, not recovered by `par`.
 - Multiple results: `fn f() A, B`, `var a, b = f();`, `return a, b;`; no tuples.
 - `match` is exhaustive on enums; use `case T as x` and `else` for open types;
@@ -170,8 +173,8 @@ fn pair() i32, bool { return 1, true; };
   `use modernc.org/sqlite as _;` before `sql.Open`, otherwise the binary fails
   at run time with `unknown driver`. SQLite is `sql.Open("sqlite", path)`;
   transactions are `var tx = db.Begin()?;`, then `tx.Commit()?;`
-  and `defer tx.Rollback();` for the error path. `errors.Is(err, sql.ErrNoRows)`
-  detects an empty result.
+  and `defer tx.Rollback();` for the error path. An empty result is the
+  sentinel: `if (err == sql.ErrNoRows) { ... };`.
 - `defer f();` accepts a fallible call and drops its error; use it for cleanup
   only, never for work whose error matters.
 - Backtick strings are raw: no escapes, newlines kept.
@@ -196,7 +199,7 @@ fn pair() i32, bool { return 1, true; };
   empty with capacity, `i32[](n, cap: m)` sizes both. `size:` and `cap:` are
   the only labels; `i32[](size: n)` equals `i32[](n)`. A map type is its
   constructor too: `map[K, V] {}` is empty, `map[K, V](nil)` is nil, and
-  nothing allocates implicitly. `errors.New("msg")` makes a fresh error and
+  nothing allocates implicitly. `check(cond, "msg")` makes a fresh error and
   `error` is only a type.
 - Go functions keep their Go signatures: `fmt.Println` returns `(int, error)`,
   so a bare call is an error; write `print(...)` for a line of output,
@@ -287,6 +290,10 @@ spawn save(1, "hello");         // detached, program-owned
   `expr on err { ... };` handles one expression, may fall through, and leaves
   the value at its zero value; it may `return` or `panic`.
 - Maps: no range in `par for`, no writes in `par`. Collect keys, write locally.
+- `sync`, `sync/atomic` and `sync.WaitGroup` are not available: `par` is the
+  join, `spawn` is the detach. If you must wait for the work, use `par`; a
+  detached task has no join and may be dropped at process exit. A shared lock
+  belongs behind a Go adapter, not in app code.
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
   APIs that need it. `par` never creates or cancels a context.
 - Panics are Go panics: `on err` does not catch them and `par` does not recover
@@ -305,6 +312,9 @@ spawn save(1, "hello");         // detached, program-owned
 | `import-alias` | add `as name` to a versioned import (`/v2`, `/v3`) |
 | `err-manual` | replace manual propagation with `?` |
 | `error-ctor` | write `check(false, "msg")`; `error` is a type |
+| `go-errors` | drop `use errors;`; use `?`, `on err`, `check` |
+| `go-sync` | drop `use sync;`; use `par` to join, `spawn` to detach |
+| `fmt-errorf` | drop `fmt.Errorf`; use `check(cond, "msg")` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |
 | `go-removed` | concurrency is `par` (waits) or `spawn` (does not) |

@@ -1,8 +1,7 @@
 use fmt;
-use errors;
 
 fn stop() void! {
-    return errors.New("stop");
+    check(false, "stop");
 };
 
 fn work() void! {

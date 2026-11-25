@@ -4,7 +4,7 @@
 
 `small/main.ink` is the dense tour: imports (Go, local), `const`/`var`, aliases,
 struct with methods and `wire`/named contract views, enum and exhaustive
-`match`, interface, generics, multiple and fallible results with `or fail`,
+`match`, interface, generics, multiple and fallible results with `?`,
 inline `on err` and the scope listener, block-scoped `defer`, all loop forms,
 builtins, pointers, `any`/literal/`nil` patterns, `par { }`, `par for ... limit`,
 detached `spawn f(args)`, `arena`, Go interop and `test` blocks. It runs without
@@ -36,7 +36,7 @@ pero main.ink        # open with the LSP and .ink highlighting
 
 Sections in the tour: imports, `const`/`var`, aliases, structs and implicit
 `self`, enums and exhaustive `match`, interfaces, generics, multiple results,
-fallible results (`or fail`, `on err`), block-scoped `defer`,
+fallible results (`?`, `on err`), block-scoped `defer`,
 `if`/`for`/`match`, `any` type patterns, negative and `nil` patterns, typed vars
 and bare `nil`, `par`, `par for ... limit`, `spawn f()`, builtins, Go interop and
 `test` blocks.

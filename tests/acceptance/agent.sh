@@ -21,8 +21,6 @@ json_number() {
 }
 write_program() {
   cat > main.ink <<'EOF'
-use errors;
-
 const Answer = 42;
 
 struct Counter {
@@ -38,9 +36,7 @@ struct Counter {
 };
 
 fn twice(n: i32) i32! {
-    if (n < 0) {
-        return errors.New("negative");
-    };
+    check(n >= 0, "negative");
     return n * 2;
 };
 

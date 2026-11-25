@@ -1,10 +1,7 @@
 use fmt;
-use errors;
 
 fn load(ok: bool) i32! {
-    if (!ok) {
-        return errors.New("boom");
-    };
+    check(ok, "boom");
     return 42;
 };
 

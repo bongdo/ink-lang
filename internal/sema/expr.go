@@ -246,6 +246,9 @@ func (c *checker) resolvePackageMember(s *ast.SelectorExpr, id *ast.Ident, _ ast
 		return nil
 	}
 	c.fc.mark(id.Name)
+	if imp.Path == "fmt" && s.Name == "Errorf" {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Errorf is not available in Ink; use check(cond, \"msg\")")
+	}
 	if imp.Local != nil {
 		if fn := imp.Local.Funcs[s.Name]; fn != nil {
 			if !exported(s.Name) && imp.Local != c.fc.pkg {

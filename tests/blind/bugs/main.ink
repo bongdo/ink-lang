@@ -58,7 +58,7 @@ fn main() void! {
             var n = strconv.Atoi(args[2])?;
             for (var it in s.Top(i32(n))) {
                 fmt.Println(it.SKU, it.Qty)?;
-            };
+            };;
         };
         case "save" => {
             lib.Save(args[2], &s)?;

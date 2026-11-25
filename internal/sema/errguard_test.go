@@ -37,7 +37,6 @@ fn main() void {};
 
 func TestErrGuardAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
-use errors;
 
 fn success(err: error) void! {
     if (err == nil) {
@@ -64,12 +63,6 @@ fn notNil(p: *i32) *i32 {
         return p;
     };
     return nil;
-};
-
-fn isCheck(err: error) void! {
-    if (errors.Is(err, err)) {
-        return nil;
-    };
 };
 
 fn main() void {};

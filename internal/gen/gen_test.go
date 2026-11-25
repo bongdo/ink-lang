@@ -442,19 +442,14 @@ fn main() void {
 func TestErrorsAndDefer(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn fetch(n: i32) i32! {
-    if (n < 0) {
-        return 0, errors.New("negative");
-    };
+    check(n >= 0, "negative");
     return n * 2;
 };
 
 fn guard(n: i32) void! {
-    if (n == 0) {
-        return errors.New("zero");
-    };
+    check(n != 0, "zero");
 };
 
 fn pass(n: i32) i32! {
@@ -861,12 +856,9 @@ fn main() void! {
 func TestParErrors(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn maybe(n: int) int! {
-    if (n == 2) {
-        return 0, errors.New("two");
-    };
+    check(n != 2, "two");
     return n;
 };
 
@@ -1108,12 +1100,9 @@ fn main() void {
 func TestNestedGo(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn maybe(n: i32) i32! {
-    if (n == 1) {
-        return 0, errors.New("one");
-    };
+    check(n != 1, "one");
     return n;
 };
 

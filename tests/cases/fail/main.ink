@@ -1,7 +1,5 @@
-use errors;
-
 fn bad() i32! {
-    return errors.New("boom");
+    check(false, "boom");
 };
 
 fn wrapped() i32! {

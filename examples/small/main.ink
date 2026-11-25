@@ -1,9 +1,7 @@
 // Ink 0.2: every construct in one file. `ink check`, `ink test`, `ink run`.
 use strings;
 use slices;
-use errors;
 use encoding/json;
-use sync;
 use ./lib;
 
 const Answer = 42;
@@ -84,16 +82,12 @@ fn pair() i32, bool {
 };
 
 fn mayFail(ok: bool) i32! {
-    if (!ok) {
-        return errors.New("nope");
-    };
+    check(ok, "nope");
     return 7;
 };
 
 fn split(n: i32) (i32, bool)! {
-    if (n < 0) {
-        return 0, false, errors.New("negative");
-    };
+    check(n >= 0, "negative");
     return n, true;
 };
 
@@ -142,8 +136,7 @@ fn deferDemo() void! {
     };
 };
 
-fn detached(n: i32, wg: *sync.WaitGroup) void! {
-    defer wg.Done();
+fn worker(n: i32) void {
     print("detached:", n);
 };
 
@@ -330,14 +323,11 @@ fn main() void! {
     };;
     print(left, right, out);
 
-    // Detached task: program-owned, its own error handler, explicit join.
-    var wg = sync.WaitGroup {};
-    wg.Add(1);
-    spawn detached(3, &wg)
-        on err {
-            print("task:", err);
-        };
-    wg.Wait();
+    // par joins: one worker per top-level statement. Detached work is spawn
+    // with its own on err handler; use par when the result must be seen.
+    par {
+        worker(3);
+    };
 
     // Arena: scratch memory reused, nothing escapes the block.
     var arenaSum = i32(0);
