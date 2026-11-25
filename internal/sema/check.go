@@ -812,7 +812,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.checkFor(s)
 	case *ast.ReturnStmt:
 		if c.inInlineHandler > 0 && c.fn != nil && c.fn.err {
-			c.p.warnf(c.fc.file.Path, s.Pos(), "return in on err turns the failure into success: the caller gets a value and a nil error; use fail(err) instead")
+			c.p.warnf(c.fc.file.Path, s.Pos(), "return in on err turns the failure into success: the caller gets a value and a nil error; use ? on the call to propagate")
 		}
 		if c.inListener > 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave an on err listener; log, panic or handle")

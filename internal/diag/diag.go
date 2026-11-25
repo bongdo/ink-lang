@@ -106,7 +106,7 @@ var rules = []struct {
 	{"init-cycle", "initialization cycle", "break the cycle: initialize in main or inside a function", false},
 	{"conformance", "does not implement", "implement every method with the same signature; methods use pointer receivers", false},
 	{"conformance-unchecked", "conformance not checked", "go build is the backstop for this assignment", true},
-	{"err-return", "return in on err turns the failure into success", "use fail(err) to propagate, or return a value only if success is intended", true},
+	{"err-return", "return in on err turns the failure into success", "use ? on the call to propagate, or return a value only if success is intended", true},
 	{"reserved", "is a reserved word", "rename it; the word is part of the syntax", false},
 	{"or-handler-fail", "just ?", "replace the on err block with `?` on the call", false},
 	{"or-expr", "or is statement-level", "split it: var v = f()?; then pass v", false},
