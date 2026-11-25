@@ -234,7 +234,7 @@ fn main() void! {
     srv.ListenAndServe()
         on err {
             if (err != http.ErrServerClosed) {
-                fail(err, "listen");
+                _ = fmt.Fprintln(os.Stderr, "listen:", err);
             };
         };
     drained.Wait();
@@ -249,8 +249,7 @@ fn call(method: str, path: str, body: str) *httptest.ResponseRecorder {
 
 fn decodeItem(rec: *httptest.ResponseRecorder) Item! {
     var it = Item { ID: 0, Title: "", Done: false };
-    json.Unmarshal(rec.Body.Bytes(), &it)
-        or fail;
+    json.Unmarshal(rec.Body.Bytes(), &it)?;
     return it;
 };
 
@@ -265,8 +264,7 @@ test "create list get patch delete" {
     store = newStore();
     var created = call("POST", "/items", `{"title":"first"}`);
     assert_eq(created.Code, 201);
-    var it = decodeItem(created)
-        or fail;
+    var it = decodeItem(created)?;
     assert_eq(it.ID, 1);
     assert_eq(it.Title, "first");
     assert_eq(it.Done, false);
@@ -277,14 +275,12 @@ test "create list get patch delete" {
 
     var got = call("GET", "/items/1", "");
     assert_eq(got.Code, 200);
-    var gotItem = decodeItem(got)
-        or fail;
+    var gotItem = decodeItem(got)?;
     assert_eq(gotItem.Title, "first");
 
     var patched = call("PATCH", "/items/1", `{"done":true}`);
     assert_eq(patched.Code, 200);
-    var patchedItem = decodeItem(patched)
-        or fail;
+    var patchedItem = decodeItem(patched)?;
     assert_eq(patchedItem.Done, true);
 
     var deleted = call("DELETE", "/items/1", "");
@@ -338,12 +334,9 @@ test "concurrent handlers share the store" {
 
 test "port env overrides" {
     var saved = os.Getenv("PORT");
-    os.Setenv("PORT", "9999")
-        or fail;
+    os.Setenv("PORT", "9999")?;
     assert_eq(addr(), ":9999");
-    os.Setenv("PORT", "")
-        or fail;
+    os.Setenv("PORT", "")?;
     assert_eq(addr(), ":8080");
-    os.Setenv("PORT", saved)
-        or fail;
+    os.Setenv("PORT", saved)?;
 };

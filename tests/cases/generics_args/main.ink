@@ -14,11 +14,8 @@ fn Echo[T](x: T) T {
 
 fn main() void! {
     var u = Echo[User](User { age: 7 });
-    fmt.Println(u.age)
-        or fail;
-    fmt.Println(cmp.Compare[int](1, 2))
-        or fail;
+    fmt.Println(u.age)?;
+    fmt.Println(cmp.Compare[int](1, 2))?;
     var xs = slices.Concat[Strs, str]();
-    fmt.Println(len(xs))
-        or fail;
+    fmt.Println(len(xs))?;
 };

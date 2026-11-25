@@ -23,7 +23,7 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] {
     var out = Out[] {};
     for (var x in xs) {
         out = append(out, f(x));
-    };
+    };;
     return out;
 };
 
@@ -31,9 +31,7 @@ fn main() void! {
     var s = Stack[i32] {};
     s.Push(1);
     s.Push(2);
-    fmt.Println(s.Len(), s.Pop(), s.Len())
-        or fail;
+    fmt.Println(s.Len(), s.Pop(), s.Len())?;
     var words = Map[i32, str](i32[] { 1, 2, 3 }, fn(x: i32) str => strconv.Itoa(int(x)));
-    fmt.Println(words)
-        or fail;
+    fmt.Println(words)?;
 };

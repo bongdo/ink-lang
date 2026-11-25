@@ -416,13 +416,19 @@ func TestBlockCommentRejected(t *testing.T) {
 func TestInvalidSymbols(t *testing.T) {
 	src := `@ $ # ? \ <- ++ -- ..`
 	toks, _, errs := mustLex(t, src)
-	if len(errs) != 9 {
-		t.Fatalf("got %d errors, want 9", len(errs))
+	if len(errs) != 8 {
+		t.Fatalf("got %d errors, want 8", len(errs))
 	}
 	if len(toks) != 10 {
 		t.Fatalf("got %d tokens, want 10", len(toks))
 	}
+	if toks[3].Kind != token.Question {
+		t.Fatalf("token 3 = %v, want Question", toks[3].Kind)
+	}
 	for i := 0; i < 9; i++ {
+		if i == 3 {
+			continue
+		}
 		if toks[i].Kind != token.Invalid {
 			t.Fatalf("token %d = %v, want Invalid", i, toks[i].Kind)
 		}
@@ -433,16 +439,16 @@ func TestInvalidSymbols(t *testing.T) {
 	if !strings.Contains(errs[0].Msg, "unexpected character") {
 		t.Fatalf("error 0 = %q", errs[0].Msg)
 	}
-	if !strings.Contains(errs[5].Msg, "<-") {
+	if !strings.Contains(errs[4].Msg, "<-") {
+		t.Fatalf("error 4 = %q", errs[4].Msg)
+	}
+	if !strings.Contains(errs[5].Msg, "++") {
 		t.Fatalf("error 5 = %q", errs[5].Msg)
 	}
-	if !strings.Contains(errs[6].Msg, "++") {
+	if !strings.Contains(errs[6].Msg, "--") {
 		t.Fatalf("error 6 = %q", errs[6].Msg)
 	}
-	if !strings.Contains(errs[7].Msg, "--") {
-		t.Fatalf("error 7 = %q", errs[7].Msg)
-	}
-	if !strings.Contains(errs[8].Msg, "..") {
+	if !strings.Contains(errs[7].Msg, "..") {
 		t.Fatalf("error 8 = %q", errs[8].Msg)
 	}
 }
@@ -479,7 +485,7 @@ type Node = struct {
 fn load(xs: Node[]) void or error = {
 	within 30s {
 		par for (var i = 0; i < len(xs); i += 1) {
-			sizes[i] = fetchSize(i) or fail;
+			sizes[i] = fetchSize(i)?;
 		};
 	};
 	var p = nil[*Node];
@@ -505,7 +511,7 @@ fn load(xs: Node[]) void or error = {
 		token.LBrace,
 		token.Ident, token.LBracket, token.Ident, token.RBracket,
 		token.Assign, token.Ident, token.LParen, token.Ident, token.RParen,
-		token.Or, token.Fail, token.Semi,
+		token.Question, token.Semi,
 		token.RBrace, token.Semi,
 		token.RBrace, token.Semi,
 		token.Var, token.Ident, token.Assign, token.Nil,

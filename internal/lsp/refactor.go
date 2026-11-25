@@ -128,9 +128,9 @@ func (s *server) declAt(fi *fileInfo, offset int) (ast.Node, string) {
 					decl, name = n, got
 				}
 			}
-		case *ast.OrExpr:
-			if n.Name != "" && nameAt(fi.src, n, n.Name, offset) {
-				decl, name = n, n.Name
+		case *ast.OnErrExpr:
+			if nameAt(fi.src, n, "err", offset) {
+				decl, name = n, "err"
 			}
 		}
 		return true
@@ -652,7 +652,7 @@ func (s *server) codeActionFix(fi *fileInfo, diagnostic Diagnostic, code string)
 	case "import-alias":
 		return "Add import alias", fixImportAlias(fi, diagnostic)
 	case "err-manual":
-		return "Use or fail", fixErrManual(fi, diagnostic)
+		return "Use ?", fixErrManual(fi, diagnostic)
 	case "nil-untyped":
 		return "Add explicit nil type", fixNilUntyped(fi, diagnostic)
 	case "make-removed":
@@ -1072,7 +1072,7 @@ func fixErrManual(fi *fileInfo, diagnostic Diagnostic) []TextEdit {
 		b.WriteString(" = ")
 	}
 	b.WriteString(string(fi.src[call.Pos().Offset:call.EndPos().Offset]))
-	b.WriteString(" or fail;")
+	b.WriteString("?;")
 	start := prev.Pos().Offset
 	end := ifStmt.EndPos().Offset
 	if start < 0 || end > len(fi.src) || start >= end {

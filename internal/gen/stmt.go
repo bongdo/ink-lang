@@ -68,8 +68,11 @@ func (w *writer) stmt(s ast.Stmt) {
 	case *ast.AssignStmt:
 		w.assignStmt(s)
 	case *ast.ExprStmt:
-		if or, ok := s.X.(*ast.OrExpr); ok {
-			w.orPrelude(or, false)
+		if _, ok := w.propStmt(s.X, false); ok {
+			return
+		}
+		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.Builtin == "check" {
+			w.checkStmt(call)
 			return
 		}
 		if m, ok := s.X.(*ast.MatchExpr); ok {
@@ -85,8 +88,6 @@ func (w *writer) stmt(s ast.Stmt) {
 		w.forStmt(s)
 	case *ast.ReturnStmt:
 		w.returnStmt(s)
-	case *ast.FailStmt:
-		w.failStmt(s)
 	case *ast.ArenaStmt:
 		w.arenaStmt(s)
 	case *ast.BreakStmt:
@@ -148,8 +149,7 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 		typePart = " " + w.typeStr(d.Type)
 	}
 	if len(d.Values) == 1 {
-		if o, isOr := d.Values[0].(*ast.OrExpr); isOr {
-			values := w.orPrelude(o, true)
+		if values, isOr := w.propStmt(d.Values[0], true); isOr {
 			if len(values) == 0 {
 				return
 			}
@@ -167,7 +167,7 @@ func (w *writer) declStmt(d *ast.VarDecl) {
 	}
 	values := make([]string, 0, len(d.Values))
 	for _, v := range d.Values {
-		if _, ok := v.(*ast.OrExpr); ok {
+		if isProp(v) {
 			w.f.g.errAt(v, "or is not supported in this declaration")
 			continue
 		}
@@ -225,8 +225,7 @@ func (w *writer) assignStmt(s *ast.AssignStmt) {
 		lhs = append(lhs, w.expr(e))
 	}
 	if len(s.Rhs) == 1 {
-		if or, ok := s.Rhs[0].(*ast.OrExpr); ok {
-			values := w.orPrelude(or, true)
+		if values, ok := w.propStmt(s.Rhs[0], true); ok {
 			if len(values) == 0 {
 				return
 			}
@@ -243,7 +242,7 @@ func (w *writer) assignStmt(s *ast.AssignStmt) {
 	}
 	rhs := make([]string, 0, len(s.Rhs))
 	for _, e := range s.Rhs {
-		if _, ok := e.(*ast.OrExpr); ok {
+		if isProp(e) {
 			w.f.g.errAt(e, "or is not supported in this assignment")
 			continue
 		}
@@ -346,12 +345,13 @@ func (w *writer) mapType(t ast.Type) bool {
 
 func (w *writer) returnStmt(s *ast.ReturnStmt) {
 	if len(s.Results) == 1 {
-		if or, ok := s.Results[0].(*ast.OrExpr); ok {
+		if isProp(s.Results[0]) {
 			results := 1
-			if call, ok := or.X.(*ast.CallExpr); ok && call.Info != nil {
+			if call := propCall(s.Results[0]); call != nil && call.Info != nil {
 				results = call.Info.Results
 			}
-			w.ret(w.orPrelude(or, results > 0))
+			values, _ := w.propStmt(s.Results[0], results > 0)
+			w.ret(values)
 			return
 		}
 	}
@@ -487,16 +487,55 @@ func (w *writer) breakStmt(kind string) {
 	w.line(kind)
 }
 
-func (w *writer) orPrelude(or *ast.OrExpr, wantValue bool) []string {
+func propCall(e ast.Expr) *ast.CallExpr {
+	switch e := e.(type) {
+	case *ast.TryExpr:
+		if c, ok := unparen(e.X).(*ast.CallExpr); ok {
+			return c
+		}
+	case *ast.OnErrExpr:
+		if c, ok := unparen(e.X).(*ast.CallExpr); ok {
+			return c
+		}
+	}
+	return nil
+}
+
+func isProp(e ast.Expr) bool {
+	switch e.(type) {
+	case *ast.TryExpr, *ast.OnErrExpr:
+		return true
+	}
+	return false
+}
+
+func (w *writer) checkStmt(call *ast.CallExpr) {
+	cond := "false"
+	msg := "\"\""
+	if len(call.Args) > 0 {
+		cond = w.expr(call.Args[0])
+	}
+	if len(call.Args) > 1 {
+		msg = w.expr(call.Args[1])
+	}
+	w.f.needPkg("errors")
+	w.linef("if !(%s) {", cond)
+	w.indent++
+	w.propagateParError(w.f.std("errors") + ".New(" + msg + ")")
+	w.indent--
+	w.line("}")
+}
+
+func (w *writer) evalCall(x ast.Expr, wantValue bool) ([]string, string) {
 	results := 1
 	var callStr string
-	if call, ok := or.X.(*ast.CallExpr); ok {
+	if call, ok := x.(*ast.CallExpr); ok {
 		if call.Info != nil {
 			results = call.Info.Results
 		}
 		callStr = w.call(call)
 	} else {
-		callStr = w.expr(or.X)
+		callStr = w.expr(x)
 	}
 	errName := w.next("err")
 	var values []string
@@ -514,8 +553,7 @@ func (w *writer) orPrelude(or *ast.OrExpr, wantValue bool) []string {
 	default:
 		w.linef("%s := %s", errName, callStr)
 	}
-	w.orError(or, errName)
-	return values
+	return values, errName
 }
 
 func blanks(n int) string {
@@ -526,44 +564,50 @@ func blanks(n int) string {
 	return strings.Join(parts, ", ")
 }
 
-func (w *writer) orError(or *ast.OrExpr, errName string) {
-	switch or.Mode {
-	case ast.OrReturn:
+func (w *writer) propStmt(e ast.Expr, wantValue bool) ([]string, bool) {
+	switch e := e.(type) {
+	case *ast.TryExpr:
+		values, errName := w.evalCall(e.X, wantValue)
 		w.linef("if %s != nil {", errName)
 		w.indent++
 		w.propagateParError(errName)
 		w.indent--
 		w.line("}")
-	case ast.OrHandle:
+		return values, true
+	case *ast.OnErrExpr:
+		values, errName := w.evalCall(e.X, wantValue)
 		w.linef("if %s != nil {", errName)
 		w.indent++
-		if or.Name != "" && or.Name != "_" {
-			w.linef("%s := %s", or.Name, errName)
-			w.linef("_ = %s", or.Name)
-		}
+		w.linef("err := %s", errName)
+		w.line("_ = err")
 		w.line("{")
 		w.indent++
-		if or.Block != nil {
-			w.bodyContents(or.Block, hasDirectDefer(or.Block.Stmts))
+		if e.Block != nil {
+			w.bodyContents(e.Block, hasDirectDefer(e.Block.Stmts))
 		}
 		w.indent--
 		w.line("}")
 		w.indent--
 		w.line("}")
-	case ast.OrFail:
-		w.linef("if %s != nil {", errName)
-		w.indent++
-		target := errName
-		if or.FailArg != nil {
-			w.f.needPkg("fmt")
-			name := w.next("e")
-			w.linef("%s := %s.Errorf(\"%%s: %%w\", %s, %s)", name, w.f.std("fmt"), w.expr(or.FailArg), errName)
-			target = name
-		}
-		w.propagateParError(target)
-		w.indent--
-		w.line("}")
+		return values, true
 	}
+	return nil, false
+}
+
+func (w *writer) tryExpr(e *ast.TryExpr) string {
+	values, _ := w.propStmt(e, true)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func (w *writer) onErrExpr(e *ast.OnErrExpr) string {
+	values, _ := w.propStmt(e, true)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func (w *writer) onErrClosure(body *ast.Block) string {
@@ -589,7 +633,7 @@ func (w *writer) onErrClosure(body *ast.Block) string {
 func (w *writer) goCallStmt(s *ast.GoCallStmt) {
 	expr := s.Call
 	var handler *ast.Block
-	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
+	if or, ok := unparen(s.Call).(*ast.OnErrExpr); ok {
 		handler = or.Block
 		expr = or.X
 	}
@@ -726,17 +770,6 @@ func (w *writer) propagateParError(errName string) {
 		return
 	}
 	w.returnErr(errName)
-}
-
-func (w *writer) failStmt(s *ast.FailStmt) {
-	errExpr := w.expr(s.Err)
-	if s.Msg != nil {
-		w.f.needPkg("fmt")
-		name := w.next("e")
-		w.linef("%s := %s.Errorf(\"%%s: %%w\", %s, %s)", name, w.f.std("fmt"), w.expr(s.Msg), errExpr)
-		errExpr = name
-	}
-	w.propagateParError(errExpr)
 }
 
 func (w *writer) fuseCopy(b *ast.Block) {
@@ -1277,8 +1310,6 @@ func matchJump(s ast.Stmt, inMatch bool) bool {
 				return true
 			}
 		}
-	case *ast.FailStmt:
-		return matchJumpExpr(s.Err, inMatch) || matchJumpExpr(s.Msg, inMatch)
 	case *ast.ArenaStmt:
 		return matchJump(s.Body, inMatch)
 	case *ast.WithinStmt:
@@ -1305,11 +1336,13 @@ func matchJumpExpr(e ast.Expr, inMatch bool) bool {
 			}
 		}
 		return false
-	case *ast.OrExpr:
+	case *ast.OnErrExpr:
 		if e.Block != nil && matchJump(e.Block, inMatch) {
 			return true
 		}
-		return matchJumpExpr(e.PanicArg, inMatch)
+		return matchJumpExpr(e.X, inMatch)
+	case *ast.TryExpr:
+		return matchJumpExpr(e.X, inMatch)
 	case *ast.CallExpr:
 		for _, a := range e.Args {
 			if matchJumpExpr(a, inMatch) {
@@ -1448,8 +1481,7 @@ func (w *writer) initString(s ast.Stmt) string {
 			typePart = " " + w.typeStr(s.Decl.Type)
 		}
 		if len(s.Decl.Values) == 1 {
-			if or, ok := s.Decl.Values[0].(*ast.OrExpr); ok {
-				values := w.orPrelude(or, true)
+			if values, ok := w.propStmt(s.Decl.Values[0], true); ok {
 				if len(values) == 0 {
 					return ""
 				}
@@ -1464,7 +1496,7 @@ func (w *writer) initString(s ast.Stmt) string {
 		}
 		values := make([]string, 0, len(s.Decl.Values))
 		for _, v := range s.Decl.Values {
-			if _, ok := v.(*ast.OrExpr); ok {
+			if isProp(v) {
 				w.f.g.errAt(v, "or is not supported in a for initializer")
 				continue
 			}
@@ -1482,7 +1514,7 @@ func (w *writer) initString(s ast.Stmt) string {
 		return strings.Join(s.Decl.Names, ", ") + " := " + strings.Join(values, ", ")
 	case *ast.AssignStmt:
 		if len(s.Rhs) == 1 {
-			if _, ok := s.Rhs[0].(*ast.OrExpr); ok {
+			if isProp(s.Rhs[0]) {
 				w.f.g.errAt(s, "or is not supported in a for initializer")
 			}
 		}
@@ -1511,7 +1543,7 @@ func (w *writer) postString(s ast.Stmt) string {
 		return ""
 	case *ast.AssignStmt:
 		if len(s.Rhs) == 1 {
-			if _, ok := s.Rhs[0].(*ast.OrExpr); ok {
+			if isProp(s.Rhs[0]) {
 				w.f.g.errAt(s, "or is not supported in a for post statement")
 			}
 		}
@@ -1728,8 +1760,8 @@ func chunkSafeBody(b *ast.Block) bool {
 		switch n.(type) {
 		case *ast.FuncLit:
 			return false
-		case *ast.OrExpr, *ast.DeferStmt, *ast.OnErrStmt, *ast.WithinStmt,
-			*ast.ArenaStmt, *ast.ParStmt, *ast.GoCallStmt, *ast.FailStmt, *ast.ReturnStmt:
+		case *ast.OnErrExpr, *ast.TryExpr, *ast.DeferStmt, *ast.OnErrStmt, *ast.WithinStmt,
+			*ast.ArenaStmt, *ast.ParStmt, *ast.GoCallStmt, *ast.ReturnStmt:
 			ok = false
 			return false
 		}

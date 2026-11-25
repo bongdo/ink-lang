@@ -15,10 +15,8 @@ fn main() void! {
     };
     sort.Slice(users, fn(i: int, j: int) bool => users[i].age < users[j].age);
     for (var u in users) {
-        fmt.Println(strings.ToUpper(u.name), u.age)
-            or fail;
-    };
+        fmt.Println(strings.ToUpper(u.name), u.age)?;
+    };;
     var n = strconv.Itoa(42);
-    fmt.Println(n)
-        or fail;
+    fmt.Println(n)?;
 };

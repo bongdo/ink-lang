@@ -141,9 +141,9 @@ fn main() void! { spawn f(); };
 		"or fail": {
 			src: `
 fn f() void! { return; };
-fn main() void! { spawn f() or fail; };
+fn main() void! { spawn f()?; };
 `,
-			want: "spawn takes on err, not or fail",
+			want: "spawn takes on err",
 		},
 		"handler on a void call": {
 			src: `
@@ -162,12 +162,12 @@ fn main() void! {
 `,
 			want: "spawn on err cannot capture locals",
 		},
-		"handler fails": {
+		"handler check": {
 			src: `
 fn f() void! { return; };
-fn main() void! { spawn f() on err { fail(err); }; };
+fn main() void! { spawn f() on err { check(false, "x"); }; };
 `,
-			want: "fail cannot leave a spawn task",
+			want: "check cannot leave a spawn task",
 		},
 		"handler returns": {
 			src: `
@@ -231,11 +231,10 @@ fn main() void {};
 }
 
 func TestOnErrListenerCatchesGoError(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-fn boom() void! { fail(errors.New("x")); };
+	p := checkSrc(t, map[string]string{".": `fn boom() void! { check(false, "x"); };
 fn main() void! {
     on err { panic(err); };
-    par { boom() or fail; };
+    par { boom()?; };
 };
 `})
 	noErrors(t, p)
@@ -251,20 +250,22 @@ fn main() void { f(); };
 	}
 }
 
-func TestOnErrListenerFailNeedsFallibleFunction(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-fn f() void { on err { fail(errors.New("x")); }; };
+func TestCheckNeedsFallibleFunction(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `fn f() void { on err { check(false, "x"); }; };
 fn main() void {};
 `})
-	if !hasError(p, "fail in a function that cannot fail") {
+	if !hasError(p, "check in a function that cannot fail") {
 		t.Fatalf("errors = %v", p.Errors)
 	}
 }
 
 func TestErrorConstructorRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `use errors;
-fn f() void! { fail(error("x")); };
-fn main() void! { f() or fail; };
+	p := checkSrc(t, map[string]string{".": `
+fn f() void! {
+    var e = error("x");
+    _ = e;
+};
+fn main() void! { f()?; };
 `})
 	if !hasError(p, "error is a type, not a constructor") {
 		t.Fatalf("errors = %v", p.Errors)

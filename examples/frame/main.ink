@@ -22,7 +22,7 @@ fn shadeRow(y: i32, t: f64) Row {
         row[i + 1] = b;
         row[i + 2] = u8(255) - b;
         row[i + 3] = 255;
-    };
+    };;
     return row;
 };
 
@@ -46,10 +46,10 @@ fn main() void {
             var rows = Row[](H);
             par for (var y = i32(0); y < i32(H); y += 1) limit workers {
                 rows[y] = shadeRow(y, t);
-            };
+            };;
             for (var y = 0; y < H; y += 1) {
                 copy(px[y * RowLen:], rows[y][:]);
-            };
+            };;
         };
         rl.UpdateTexture(tex, px);
         rl.BeginDrawing();
@@ -57,5 +57,5 @@ fn main() void {
         rl.DrawTexture(tex, 0, 0, rl.White);
         rl.DrawFPS(8, 8);
         rl.EndDrawing();
-    };
+    };;
 };

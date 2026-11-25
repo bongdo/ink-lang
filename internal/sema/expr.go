@@ -105,8 +105,10 @@ func (c *checker) resolveExprInner(e ast.Expr, top bool) ast.Type {
 		return t
 	case *ast.MatchExpr:
 		return c.resolveMatch(e)
-	case *ast.OrExpr:
-		return c.resolveOr(e, top)
+	case *ast.OnErrExpr:
+		return c.resolveOnErr(e)
+	case *ast.TryExpr:
+		return c.resolveTry(e)
 	}
 	return nil
 }
@@ -339,6 +341,12 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 			if fun.Name == "new" {
 				return c.resolveNew(call)
 			}
+			if fun.Name == "check" {
+				return c.resolveCheck(call)
+			}
+			if fun.Name == "print" {
+				return c.resolvePrint(call)
+			}
 			info, result = c.builtinInfo(fun.Name)
 		case ast.RefFunc:
 			info = callInfoOf(fun.Ref.Func)
@@ -451,6 +459,34 @@ func (c *checker) resolveErrorCall(call *ast.CallExpr) ast.Type {
 	errT := &ast.NamedType{Name: "error", GoName: "error"}
 	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 1, ResultTypes: []ast.Type{errT}, Builtin: "error"}
 	return errT
+}
+
+func (c *checker) resolveCheck(call *ast.CallExpr) ast.Type {
+	boolT := &ast.NamedType{Name: "bool", GoName: "bool"}
+	strT := &ast.NamedType{Name: "str", GoName: "string"}
+	if len(call.Args) != 2 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "check takes a condition and a message: check(n > 0, \"positive\")")
+	}
+	for i, a := range call.Args {
+		c.resolveExpr(a, false)
+		c.checkVoidValue(a)
+		if i == 0 {
+			c.checkAssign(boolT, a)
+		} else {
+			c.checkAssign(strT, a)
+		}
+	}
+	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 0, HasError: true, Builtin: "check"}
+	return nil
+}
+
+func (c *checker) resolvePrint(call *ast.CallExpr) ast.Type {
+	for _, a := range call.Args {
+		c.resolveExpr(a, false)
+		c.checkVoidValue(a)
+	}
+	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 0, Builtin: "print"}
+	return nil
 }
 
 func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
@@ -730,61 +766,61 @@ func (c *checker) resolveType(t ast.Type) ast.Type {
 	return c.p.resolveType(c.fc, t, c.tparams)
 }
 
-func (c *checker) resolveOr(or *ast.OrExpr, top bool) ast.Type {
-	if !top {
-		c.p.errorf(c.fc.file.Path, or.Pos(), "or must be the whole initializer, right side, statement or return value")
-	}
-	xt := c.resolveExpr(or.X, false)
-	call, ok := or.X.(*ast.CallExpr)
+func (c *checker) resolveTry(t *ast.TryExpr) ast.Type {
+	xt := c.resolveExpr(t.X, false)
+	call, ok := unparen(t.X).(*ast.CallExpr)
 	if !ok {
-		c.p.errorf(c.fc.file.Path, or.Pos(), "or expects a call")
+		c.p.errorf(c.fc.file.Path, t.Pos(), "? expects a call")
 		return xt
 	}
 	if call.Info == nil || call.Info.Kind == ast.CallUnknown {
 		return xt
 	}
 	if !call.Info.HasError {
-		c.p.errorf(c.fc.file.Path, or.Pos(), "call does not return an error")
+		c.p.errorf(c.fc.file.Path, t.Pos(), "call does not return an error")
 		return xt
 	}
-	switch or.Mode {
-	case ast.OrReturn:
-		if c.fn == nil {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail outside a function")
-		} else if !c.fn.err {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail in a function that cannot fail; add ! to the result")
-		}
-	case ast.OrFail:
-		if c.fn == nil {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail outside a function")
-		} else if !c.fn.err && !(c.inPar && c.hasListener()) {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "or fail in a function that cannot fail; add ! to the result")
-		}
-		if or.FailArg != nil {
-			c.resolveExpr(or.FailArg, false)
-			c.checkVoidValue(or.FailArg)
-			c.checkAssign(&ast.NamedType{Name: "str", GoName: "string"}, or.FailArg)
-		}
-	case ast.OrPanic:
-		c.resolveExpr(or.PanicArg, false)
-	case ast.OrHandle:
-		if or.Block == nil || len(or.Block.Stmts) == 0 {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "on err must do something")
-		}
-		c.push()
-		c.declare(&symbol{name: or.Name, kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: or})
-		if len(or.Block.Stmts) == 1 {
-			if fail, ok := or.Block.Stmts[0].(*ast.FailStmt); ok && fail.Msg == nil {
-				if id, ok := unparen(fail.Err).(*ast.Ident); ok && id.Name == or.Name {
-					c.p.errorf(c.fc.file.Path, fail.Pos(), "on err that only re-raises the error is just or fail; write the call with or fail")
-				}
-			}
-		}
-		c.inInlineHandler++
-		c.checkBlock(or.Block)
-		c.inInlineHandler--
-		c.pop()
+	c.checkPropagation(t.Pos())
+	return xt
+}
+
+func (c *checker) checkPropagation(pos token.Pos) {
+	if c.inTaskHandler > 0 {
+		c.p.errorf(c.fc.file.Path, pos, "? cannot leave a spawn task; handle the error here")
+		return
 	}
+	if c.fn == nil {
+		c.p.errorf(c.fc.file.Path, pos, "? outside a function")
+		return
+	}
+	if !c.fn.err && !(c.inPar && c.parAllowsPropagation()) {
+		c.p.errorf(c.fc.file.Path, pos, "? in a function that cannot fail; add ! to the result or handle it with on err")
+	}
+}
+
+func (c *checker) resolveOnErr(or *ast.OnErrExpr) ast.Type {
+	xt := c.resolveExpr(or.X, false)
+	call, ok := unparen(or.X).(*ast.CallExpr)
+	if !ok {
+		c.p.errorf(c.fc.file.Path, or.Pos(), "on err expects a call")
+		return xt
+	}
+	if call.Info == nil || call.Info.Kind == ast.CallUnknown {
+		return xt
+	}
+	if !call.Info.HasError {
+		c.p.errorf(c.fc.file.Path, or.Pos(), "on err on a call that cannot fail")
+		return xt
+	}
+	if or.Block == nil || len(or.Block.Stmts) == 0 {
+		c.p.errorf(c.fc.file.Path, or.Pos(), "on err must do something")
+	}
+	c.push()
+	c.declare(&symbol{name: "err", kind: ast.RefLocal, typ: &ast.NamedType{Name: "error", GoName: "error"}, decl: or})
+	c.inInlineHandler++
+	c.checkBlock(or.Block)
+	c.inInlineHandler--
+	c.pop()
 	return xt
 }
 
@@ -1156,9 +1192,8 @@ func (c *checker) checkMatchValue(e ast.Expr) {
 		switch n := n.(type) {
 		case *ast.FuncLit:
 			return false
-		case *ast.OrExpr:
+		case *ast.OnErrExpr:
 			c.checkMatchValue(n.X)
-			c.checkMatchValue(n.PanicArg)
 			return false
 		case *ast.MatchExpr:
 			if !n.IsExpr {
@@ -1465,7 +1500,7 @@ func (c *checker) exprType(e ast.Expr) ast.Type {
 		return e.ResultType
 	case *ast.FuncLit:
 		return &ast.FuncType{Params: e.ParamTypes, Results: e.Results, Err: e.Err}
-	case *ast.OrExpr:
+	case *ast.OnErrExpr:
 		return c.exprType(e.X)
 	}
 	if t := c.p.GoTypes[e]; t != nil && c.fc != nil {

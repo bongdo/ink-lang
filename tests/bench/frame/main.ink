@@ -21,7 +21,7 @@ fn shadeRow(y: int, t: int) Row {
         row[i + 1] = v >> 1;
         row[i + 2] = u8(255) - v;
         row[i + 3] = 255;
-    };
+    };;
     return row;
 };
 
@@ -44,26 +44,22 @@ fn main() void! {
             var rows = Row[](H);
             par for (var y = 0; y < H; y += 1) limit 4 {
                 rows[y] = shadeRow(y, f);
-            };
+            };;
             for (var y = 0; y < H; y += 1) {
                 copy(px[y * RowLen:], rows[y][:]);
-            };
+            };;
         };
         total[f] = f64(time.Since(start).Microseconds()) / 1000.0;
-    };
+    };;
 
     var sum = u64(0);
     for (var i = 0; i < len(px); i += 1) {
         sum += u64(px[i]);
-    };
+    };;
 
     sort.Float64s(total);
-    fmt.Println("frames", Frames)
-        or fail;
-    fmt.Println("avg ms", f64(time.Since(t0).Milliseconds()) / f64(Frames))
-        or fail;
-    fmt.Println("p50 ms", p50(total), "p99 ms", p99(total), "max ms", total[Frames - 1])
-        or fail;
-    fmt.Println("sum", sum)
-        or fail;
+    fmt.Println("frames", Frames)?;
+    fmt.Println("avg ms", f64(time.Since(t0).Milliseconds()) / f64(Frames))?;
+    fmt.Println("p50 ms", p50(total), "p99 ms", p99(total), "max ms", total[Frames - 1])?;
+    fmt.Println("sum", sum)?;
 };

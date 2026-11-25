@@ -456,8 +456,6 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.write(";")
 	case *ast.ForStmt:
 		p.forStmt(s)
-	case *ast.FailStmt:
-		p.failStmt(s)
 		p.write(";")
 	case *ast.ArenaStmt:
 		p.write("arena ")
@@ -778,52 +776,21 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 			p.typ(e.Type)
 			p.write("]")
 		}
+	case *ast.TryExpr:
+		p.exprPrec(e.X, precPostfix)
+		p.write("?")
 	case *ast.MatchExpr:
 		p.match(e)
-	case *ast.OrExpr:
+	case *ast.OnErrExpr:
 		p.exprPrec(e.X, precPostfix)
 		p.line()
 		p.indent++
 		p.ind()
-		if e.Mode == ast.OrHandle {
-			p.write("on err ")
-			p.block(e.Block)
-		} else {
-			p.write("or ")
-			switch e.Mode {
-			case ast.OrReturn:
-				p.write("return")
-			case ast.OrPanic:
-				p.write("panic(")
-				if e.PanicArg != nil {
-					p.expr(e.PanicArg)
-				}
-				p.write(")")
-			case ast.OrFail:
-				p.write("fail")
-				if e.FailArg != nil {
-					p.write("(")
-					p.expr(e.FailArg)
-					p.write(")")
-				}
-			}
-		}
+		p.write("on err ")
+		p.block(e.Block)
 		p.indent--
 	default:
 		p.write("?")
-	}
-}
-
-func (p *printer) failStmt(s *ast.FailStmt) {
-	p.write("fail")
-	if s.Err != nil {
-		p.write("(")
-		p.expr(s.Err)
-		if s.Msg != nil {
-			p.write(", ")
-			p.expr(s.Msg)
-		}
-		p.write(")")
 	}
 }
 

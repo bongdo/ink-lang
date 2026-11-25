@@ -10,11 +10,10 @@ fn main() void! {
                 tmp[0] = y * 10;
                 out[y] = tmp[0];
             };
-        };
+        };;
         for (var i = 0; i < 4; i += 1) {
             total += out[i];
-        };
+        };;
     };
-    fmt.Println(total)
-        or fail;
+    fmt.Println(total)?;
 };

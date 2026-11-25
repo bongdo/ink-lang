@@ -1,5 +1,4 @@
 // Ink 0.2: every construct in one file. `ink check`, `ink test`, `ink run`.
-use fmt;
 use strings;
 use slices;
 use errors;
@@ -70,7 +69,7 @@ fn Map[In, Out](xs: In[], f: fn(In) Out) Out[] {
     var out = Out[] {};
     for (var x in xs) {
         out = append(out, f(x));
-    };
+    };;
     return out;
 };
 
@@ -100,62 +99,53 @@ fn split(n: i32) (i32, bool)! {
 };
 
 fn pass(n: i32) (i32, bool)! {
-    return split(n)
-        or fail;
+    return split(n)?;
 };
 
 fn propagate(ok: bool) i32! {
-    var v = mayFail(ok)
-        or fail("load");
+    var v = mayFail(ok)?;
     return v + 1;
 };
 
 fn inlineHandler() i32 {
     return mayFail(false)
         on err {
-            _ = fmt.Println("inline:", err);
+            print("inline:", err);
             return -1;
         };
 };
 
 fn wrapHandler() i32! {
-    var v = mayFail(false)
-        on err {
-            fail(err, "step");
-        };
+    var v = mayFail(false)?;
     return v;
 };
 
 // Scope listener: catches unhandled errors of `par` in this function.
 fn scopeListener() i32! {
     on err {
-        _ = fmt.Println("scope:", err);
+        print("scope:", err);
     };
     var total = i32(0);
     par {
-        total = mayFail(false)
-            or fail;
+        total = mayFail(false)?;
     };
     return total;
 };
 
 fn deferPrint() void! {
-    fmt.Println("defer: block exit")
-        or fail;
+    print("defer: block exit");
 };
 
 fn deferDemo() void! {
     if (true) {
         defer deferPrint();
-        fmt.Println("defer: inside block")
-            or fail;
+        print("defer: inside block");
     };
 };
 
 fn detached(n: i32, wg: *sync.WaitGroup) void! {
     defer wg.Done();
-    fmt.Println("detached:", n)
-        or fail;
+    print("detached:", n);
 };
 
 fn describe(v: any) str {
@@ -194,90 +184,69 @@ test "empty shape has no area" {
 
 fn main() void! {
     // const, var, alias, conversion, import, package var.
-    fmt.Println(Answer, UserId(7), strings.ToUpper("ink"), packageVar)
-        or fail;
+    print(Answer, UserId(7), strings.ToUpper("ink"), packageVar);
 
     // Contract views as JSON; the default wire view hides Pass.
     var u = User { Name: "a", Pass: "secret" };
-    var wired = json.Marshal(u)
-        or fail;
-    var admin = json.Marshal(u.admin())
-        or fail;
-    fmt.Println(u.Greet(), str(wired), str(admin))
-        or fail;
+    var wired = json.Marshal(u)?;
+    var admin = json.Marshal(u.admin())?;
+    print(u.Greet(), str(wired), str(admin));
 
     // Pointers: address, auto-deref, write through, copy.
     var p = User { Name: "b", Pass: "" };
     var pp = &p;
     pp.Name = "c";
     var snapshot = *pp;
-    fmt.Println(p.Name, snapshot.Name)
-        or fail;
+    print(p.Name, snapshot.Name);
 
     // Enum, match expression, match statement with block arms.
     var shapes = Shape[] { Shape.Circle { r: 2.0 }, Shape.Empty };
-    fmt.Println(area(shapes[0]), area(shapes[1]))
-        or fail;
+    print(area(shapes[0]), area(shapes[1]));
     match (shapes[0]) {
         case Circle { r } => {
-            fmt.Println("circle", r)
-                or fail;
+            print("circle", r);
         };
         case Empty => {
-            fmt.Println("empty")
-                or fail;
+            print("empty");
         };
     };
 
     // Interface and structural implementation.
     var b = Buf {};
     var w: Writer = &b;
-    var written = w.Write(bytes("hey"))
-        or fail;
-    fmt.Println(written, str(b.data))
-        or fail;
+    var written = w.Write(bytes("hey"))?;
+    print(written, str(b.data));
 
     // Generics: inference and explicit type arguments.
     var stack = Stack[i32] {};
     stack.Push(1);
     stack.Push(2);
-    fmt.Println(stack.Pop(), stack.Pop())
-        or fail;
-    fmt.Println(Map[i32, i32](i32[] { 1, 2, 3 }, fn(x: i32) i32 => x * 2))
-        or fail;
+    print(stack.Pop(), stack.Pop());
+    print(Map[i32, i32](i32[] { 1, 2, 3 }, fn(x: i32) i32 => x * 2));
 
     // Multiple results and fallible results.
     var a, ok = pair();
-    var x, y = pass(7)
-        or fail;
-    var v = propagate(true)
-        or fail;
-    fmt.Println(a, ok, x, y, v)
-        or fail;
+    var x, y = pass(7)?;
+    var v = propagate(true)?;
+    print(a, ok, x, y, v);
 
     // Inline handler leaves zero; another handler wraps and fails.
-    fmt.Println(inlineHandler())
-        or fail;
+    print(inlineHandler());
     var wrapped = wrapHandler()
         on err {
-            fmt.Println("handled:", err)
-                or fail;
+            print("handled:", err);
         };
-    fmt.Println("wrapped:", wrapped)
-        or fail;
+    print("wrapped:", wrapped);
 
     // Scope listener on par errors.
-    var listened = scopeListener()
-        or fail;
-    fmt.Println("listened:", listened)
-        or fail;
+    var listened = scopeListener()?;
+    print("listened:", listened);
 
     // Deliberate discard of a fallible call.
     _ = mayFail(false);
 
     // Block-scoped defer.
-    deferDemo()
-        or fail;
+    deferDemo()?;
 
     // if / else if / else, break, continue, infinite loop.
     var total = i32(0);
@@ -289,31 +258,29 @@ fn main() void! {
             break;
         };
         total += i32(i);
-    };
+    };;
     var loops = 0;
     for () {
         loops += 1;
         if (loops == 3) {
             break;
         };
-    };
-    fmt.Println(total, loops)
-        or fail;
+    };;
+    print(total, loops);
 
     // Range over slice, map, string.
     var xs = i32[] { 10, 20, 30 };
     for (var i, e in xs) {
         total += i32(i) + e;
-    };
+    };;
     var m = map[str, i32] { "a": 1, "bb": 2 };
     for (var k, mv in m) {
         total += mv + i32(len(k));
-    };
+    };;
     for (var r in "ab") {
         total += i32(r);
-    };
-    fmt.Println(total)
-        or fail;
+    };;
+    print(total);
 
     // Slices, arrays sized by a const and by an import, builtins.
     var arr = i32[lib.N] {};
@@ -322,65 +289,54 @@ fn main() void! {
     var copied = copy(buf[:], bytes("hi"));
     var present = has(m, "a");
     delete(m, "a");
-    fmt.Println(len(arr), len(slice), copied, cap(xs), present, min(3, 5), max(3, 5))
-        or fail;
-    fmt.Println(lib.Double(21))
-        or fail;
+    print(len(arr), len(slice), copied, cap(xs), present, min(3, 5), max(3, 5));
+    print(lib.Double(21));
 
     // String bytes vs runes.
     var raw = "hé";
-    fmt.Println(raw[1], str(runes(raw)), len(raw))
-        or fail;
+    print(raw[1], str(runes(raw)), len(raw));
 
     // Typed vars give bare nil a type; nil[T] when there is none.
     var np: *User = nil;
     var ns: i32[] = nil;
     var nm: map[str, i32] = nil;
     var nf: Handler = nil;
-    fmt.Println(np == nil, ns == nil, nm == nil, nf == nil, maybe(nil[*User]))
-        or fail;
+    print(np == nil, ns == nil, nm == nil, nf == nil, maybe(nil[*User]));
 
     // Function values and aliases.
     var h = fn(n: i32) i32 => n + 1;
     var apply = fn(f: Handler, n: i32) i32 => f(n);
-    fmt.Println(apply(h, 41))
-        or fail;
+    print(apply(h, 41));
 
     // Patterns: type, literal, nil.
-    fmt.Println(describe(i32(1)), describe("s"), describe(&p), describe(true))
-        or fail;
-    fmt.Println(sign(-1), sign(0), sign(1), maybe(&p))
-        or fail;
+    print(describe(i32(1)), describe("s"), describe(&p), describe(true));
+    print(sign(-1), sign(0), sign(1), maybe(&p));
 
     // Go interop: callback, sort, explicit generics.
     var nums = i32[] { 3, 1, 2 };
     slices.SortFunc(nums, fn(a: i32, b: i32) int => int(a - b));
-    fmt.Println(nums)
-        or fail;
+    print(nums);
 
     // par: one worker per top-level statement, joins at the block.
     var left = i32(0);
     var right = i32(0);
     par {
-        left = mayFail(true)
-            or fail;
-        right = mayFail(true)
-            or fail;
+        left = mayFail(true)?;
+        right = mayFail(true)?;
     };
     // par for over disjoint slots with an explicit limit.
     var out = i32[4] {};
     par for (var i, n in i32[] { 1, 2, 3, 4 }) limit 2 {
         out[i] = n * 2;
-    };
-    fmt.Println(left, right, out)
-        or fail;
+    };;
+    print(left, right, out);
 
     // Detached task: program-owned, its own error handler, explicit join.
     var wg = sync.WaitGroup {};
     wg.Add(1);
     spawn detached(3, &wg)
         on err {
-            _ = fmt.Println("task:", err);
+            print("task:", err);
         };
     wg.Wait();
 
@@ -394,15 +350,12 @@ fn main() void! {
         made[1] = 5;
         arenaSum = i32(len(ap.Name)) + made[0] + made[1];
     };
-    fmt.Println(arenaSum)
-        or fail;
+    print(arenaSum);
 
     // Nested block scopes its own defer and locals.
     {
-        var scoped = mayFail(true)
-            or fail;
-        fmt.Println("scope", scoped)
-            or fail;
+        var scoped = mayFail(true)?;
+        print("scope", scoped);
     };
 
     return;

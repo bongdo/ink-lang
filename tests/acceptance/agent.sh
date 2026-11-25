@@ -21,7 +21,6 @@ json_number() {
 }
 write_program() {
   cat > main.ink <<'EOF'
-use fmt;
 use errors;
 
 const Answer = 42;
@@ -54,8 +53,8 @@ test "counter" {
 fn main() void! {
     var c = Counter { n: 1 };
     c.Add(Answer - 39);
-    var v = twice(c.Value()) or fail;
-    fmt.Println("value", v) or fail;
+    var v = twice(c.Value())?;
+    print("value", v);
     return;
 };
 EOF
@@ -93,7 +92,7 @@ for n in "$line" "$col" "$end_line" "$end_col"; do
   [ "$n" -gt 0 ] || die "const-local: position field is zero"
 done
 write_program
-awk '{ if ($0 == "    var v = twice(c.Value()) or fail;") { print "    var v, err = twice(c.Value());"; print "    if (err != nil) {"; print "        return err;"; print "    };"; next } print }' main.ink > main.tmp
+awk '{ if ($0 == "    var v = twice(c.Value())?;") { print "    var v, err = twice(c.Value());"; print "    if (err != nil) {"; print "        return err;"; print "    };"; next } print }' main.ink > main.tmp
 mv main.tmp main.ink
 if "$ink" check --json >diag.json 2>diag.err; then
   die "check exited 0 for manual error propagation"

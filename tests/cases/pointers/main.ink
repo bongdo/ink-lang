@@ -16,36 +16,29 @@ fn main() void! {
     var a = Point { x: 1 };
     var b = a;
     b.x = 2;
-    fmt.Println("copy", a.x, b.x)
-        or fail;
+    fmt.Println("copy", a.x, b.x)?;
 
     byValue(a);
-    fmt.Println("param", a.x)
-        or fail;
+    fmt.Println("param", a.x)?;
 
     var p = &a;
     p.x = 7;
     bump(p);
-    fmt.Println("ptr", a.x, *p)
-        or fail;
+    fmt.Println("ptr", a.x, *p)?;
 
     var q = &a;
-    fmt.Println("alias", p == q)
-        or fail;
+    fmt.Println("alias", p == q)?;
 
     var snap = *p;
     p.x = 8;
-    fmt.Println("snapshot", snap.x, a.x)
-        or fail;
+    fmt.Println("snapshot", snap.x, a.x)?;
 
     var f = &a.x;
     *f = 5;
-    fmt.Println("field", a.x)
-        or fail;
+    fmt.Println("field", a.x)?;
 
     var xs = i32[] { 1, 2 };
     var e = &xs[1];
     *e = 6;
-    fmt.Println("elem", xs[1])
-        or fail;
+    fmt.Println("elem", xs[1])?;
 };

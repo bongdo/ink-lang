@@ -48,11 +48,11 @@ struct Buffer {
 alias AliasWriter = Writer;
 
 fn emit(w: Writer, text: str) int! {
-    return w.Write(bytes(text)) or fail;
+    return w.Write(bytes(text))?;
 };
 
 fn forward(w: AliasWriter, text: str) int! {
-    return emit(w, text) or fail;
+    return emit(w, text)?;
 };
 
 fn mk() Writer {
@@ -62,8 +62,8 @@ fn mk() Writer {
 
 fn main() void! {
     var b = Buffer {};
-    var n = emit(&b, "x") or fail;
-    var n2 = forward(&b, "y") or fail;
+    var n = emit(&b, "x")?;
+    var n2 = forward(&b, "y")?;
     var w = Writer(&b);
     var m = mk();
     _ = n;
@@ -256,12 +256,12 @@ struct Good {
 };
 
 fn emit(w: Writer) int! {
-    return w.Write(bytes("x")) or fail;
+    return w.Write(bytes("x"))?;
 };
 
 fn main() void! {
     var g = Good {};
-    var n = emit(&g) or fail;
+    var n = emit(&g)?;
     _ = n;
 };
 `})

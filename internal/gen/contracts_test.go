@@ -23,10 +23,8 @@ struct User {
 
 fn main() void! {
     var u = User { ID: 1, Email: "a@b", Pass: "secret" };
-    var b = json.Marshal(u)
-        or fail;
-    fmt.Println(str(b))
-        or fail;
+    var b = json.Marshal(u)?;
+    fmt.Println(str(b))?;
 };
 `,
 	})
@@ -66,10 +64,8 @@ struct User {
 
 fn main() void! {
     var u = User { ID: 1, Email: "a@b", Role: "admin", Pass: "secret" };
-    var b = json.Marshal(u.admin())
-        or fail;
-    fmt.Println(str(b))
-        or fail;
+    var b = json.Marshal(u.admin())?;
+    fmt.Println(str(b))?;
 };
 `,
 	})
@@ -100,10 +96,8 @@ struct User {
 
 fn main() void! {
     var u = User {};
-    json.Unmarshal(bytes("{\"id\":7,\"email\":\"e\",\"Pass\":\"p\"}"), &u)
-        on err { fail(err, "decode"); };
-    fmt.Println(u.ID, u.Email, len(u.Pass))
-        or fail;
+    json.Unmarshal(bytes("{\"id\":7,\"email\":\"e\",\"Pass\":\"p\"}"), &u)?;
+    fmt.Println(u.ID, u.Email, len(u.Pass))?;
 };
 `,
 	})
@@ -126,10 +120,8 @@ struct Plain {
 
 fn main() void! {
     var v = Plain { A: 1, B: "b" };
-    var b = json.Marshal(v)
-        or fail;
-    fmt.Println(str(b))
-        or fail;
+    var b = json.Marshal(v)?;
+    fmt.Println(str(b))?;
 };
 `,
 	})

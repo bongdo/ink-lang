@@ -83,7 +83,7 @@ func (g *generator) intoName(fd *ast.FuncDecl) string {
 				ok = false
 				return false
 			}
-			if _, isOr := n.Results[0].(*ast.OrExpr); isOr {
+			if isProp(n.Results[0]) {
 				ok = false
 				return false
 			}
@@ -306,8 +306,6 @@ func blockTerminates(b *ast.Block) bool {
 func stmtTerminates(s ast.Stmt) bool {
 	switch s := s.(type) {
 	case *ast.ReturnStmt:
-		return true
-	case *ast.FailStmt:
 		return true
 	case *ast.ArenaStmt:
 		return blockTerminates(s.Body)
@@ -567,8 +565,8 @@ func (g *generator) enumDecl(w *writer, d *ast.TypeDecl, name string) {
 
 func (g *generator) packageVar(w *writer, d *ast.VarDecl) {
 	for _, v := range d.Values {
-		if _, ok := v.(*ast.OrExpr); ok {
-			g.errAt(v, "or is not supported in a package-level declaration")
+		if isProp(v) {
+			g.errAt(v, "propagation is not supported in a package-level declaration")
 			return
 		}
 	}

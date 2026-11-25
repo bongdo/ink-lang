@@ -107,10 +107,10 @@ fn main() void! {
     var ctx, cancel = context.WithCancel(context.Background());
     defer cancel();
     if (ctx != nil[context.Context]) {
-        fmt.Println("hello") or fail;
+        fmt.Println("hello")?;
     };
     {
-        fmt.Println("block") or fail;
+        fmt.Println("block")?;
     };
 };
 `,
@@ -139,7 +139,7 @@ func TestStdImportAliasFollowsUser(t *testing.T) {
 		"main.ink": `use fmt as f;
 
 fn main() void! {
-    f.Println("hi") or fail;
+    f.Println("hi")?;
 };
 `,
 	})

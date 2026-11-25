@@ -380,8 +380,8 @@ fn main() void! { ... };
   `var a, b = f();` and `a, b = f();`.
 - In a function type, several results are grouped: `fn(i32) (str, bool)`.
 - The fallible form is `T!`, `(A, B)!` or `void!`.
-  `or` propagates the error and yields every non-error result:
-  `var a, b = f() or fail;`.
+  `?` propagates the error and yields every non-error result:
+  `var a, b = f()?;`.
 - `main` may be `void` or `void!`. An error prints to stderr and exits 1.
 - Function literals are closures and the only local callable form; local named
   functions are deliberately absent.
@@ -398,11 +398,10 @@ fn(i: int, j: int) bool { return i < j; }
 ## 6. Errors
 
 `T!`, `(A, B)!` and `void!` mark a fallible result. Two words handle it:
-`on err` handles, `or fail` propagates.
+`?` propagates, `on err` handles.
 
 ```hare
-var f = os.Open(path)
-    or fail;
+var f = os.Open(path)?;
 
 var f = os.Open(path)
     on err { ... };
@@ -410,46 +409,43 @@ var f = os.Open(path)
 
 Forms:
 
-- `call() or fail;` — propagate to the caller.
-- `call() or fail("context");` — wrap the error with context and propagate.
+- `call()?` — propagate to the caller. `?` is postfix and may appear anywhere
+  in an expression; the call must return an error and the enclosing function
+  must be fallible (`!`), otherwise it is a compile error. In a `par` worker
+  `?` adds the error to the worker set.
 - `expr on err { ... };` — handle this expression here; the name is always
-  `err`. Inside the block, `fail(err, "context");` wraps and returns.
+  `err`. The expression keeps the zero value of its type when the call fails.
 - `on err { ... };` as the first statement of a function or block — a scope
   listener for unhandled errors of `par` constructs (§8). It must be the first
-  statement, must not be empty, and may not use `return`; `fail` sends the
-  error to the enclosing function.
+  statement, must not be empty, and may not use `return`.
+- `check(cond, "msg");` — return a fresh error with `msg` when `cond` is false.
+  It needs a fallible function or a `par` listener and is the only error
+  constructor in app code.
+- `print(...)` — write a line to stdout like `fmt.Println`; it has no error
+  result and needs no `_ =`.
 - `panic(...)` — Go's panic, not an error handler (§8.5).
-
-The handler always starts on a new line, indented once; `ink fmt` enforces it.
 
 An inline handler may continue instead of leaving the scope; the expression
 then keeps the zero value of its type. A scope listener is captured by each
 task at launch and may run after its scope returns: use it for logging,
 metrics and escalation, not for mutating scope state.
 
-A fresh error is `errors.New("msg")` (`use errors;`). `fail(errors.New("msg"));`
-inside a handler constructs it and returns; `fail("msg")` alone is not a fresh
-error: it is only the shorthand after `or`, where the call supplies the error to
-wrap. `fmt.Errorf` and other Go error constructors still work through interop.
-`error("msg")` is rejected: `error` is a type, not a constructor.
-
-`or` may appear only as the entire initializer of a `var`, the entire right
-side of an assignment, an expression statement, or a `return` operand. It may
-not be nested inside another expression.
+`errors.New`, `errors.Is` and `errors.As` remain Go interop. App code uses
+`check` and classifies errors in an adapter. `error("msg")` is rejected:
+`error` is a type, not a constructor.
 
 A fallible call used as a bare expression statement is a compile error: its
-result would be dropped. Write `call() on err { ... };` or `call() or fail;`;
-`_ = call();` is the explicit discard. The rule also applies inside `par { }`
-and `par for` bodies.
+result would be dropped. Write `call()?;`, `call() on err { ... };` or
+`_ = call();`. The rule also applies inside `par { }` and `par for` bodies.
 
 `if (err != nil) { return err; }` (and the multi-result form) is rejected:
-propagation has one canonical spelling, `or fail`. `if err != nil` remains
-valid for inspection, logging, retry and `errors.Is`; only the pure manual
-propagation pattern is an error.
+propagation has one canonical spelling, `?`. `if err != nil` remains valid for
+inspection, logging, retry and `errors.Is`; only the pure manual propagation
+pattern is an error.
 
 `defer` is block-scoped. Deferred calls run when the enclosing block exits,
-including through `return`, `break`, `continue`, `or fail` and panic. A deferred
-call takes no handler: its result and its error are discarded.
+including through `return`, `break`, `continue`, `?` and panic. A deferred call
+takes no handler: its result and its error are discarded.
 
 ## 7. Control flow
 
@@ -501,15 +497,12 @@ else => ...;
 
 ```hare
 par {
-    users = loadUsers(id)
-        or fail;
-    orders = loadOrders(id)
-        or fail;
+    users = loadUsers(id)?;
+    orders = loadOrders(id)?;
 };
 
 par for (var i = 0; i < len(urls); i += 1) limit 4 {
-    sizes[i] = fetchSize(urls[i])
-        or fail;
+    sizes[i] = fetchSize(urls[i])?;
 };
 
 spawn saveUser(1, "hello")       // detached task
@@ -560,7 +553,7 @@ Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or ha
 - The handler body may use `err`, package-level names and its own locals; it
   cannot read locals of the launching function, `fail` or `return`. It may
   `panic`.
-- `or fail` after `spawn f(...)` is rejected: there is no function return to use.
+- `?` after `spawn f(...)` is rejected: there is no function return to use.
 - A scope `on err` listener never receives a detached task error; it belongs to
   `par { }` and `par for` in its own scope.
 - Panics are not recovered.
@@ -568,14 +561,15 @@ Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or ha
 ### 8.4 `on err` and error order
 
 - A scope listener is `on err { ... };` as the first statement of a function
-  or block; its rules are in §6. The nearest lexical listener wins.
+  or block; its rules are in §6. The nearest lexical listener wins and it
+  handles the error; the scope continues.
 - An inline `expr on err { ... };` handles that expression only. `par` and
   `spawn` statements have no inline handler.
 - `par` and `par for` deliver only the winning error; the others are dropped.
   The winner is the lowest spawn ordinal, which is iteration order for
   `par for`.
-- `return`, `break` and `continue` may not cross a `par` boundary. `or fail` is
-  the way out of a worker.
+- `return`, `break` and `continue` may not cross a `par` boundary. `?` is the
+  way out of a worker.
 
 ### 8.5 Panic
 

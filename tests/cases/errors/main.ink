@@ -9,20 +9,14 @@ fn load(ok: bool) i32! {
 };
 
 fn main() void! {
-    var v = load(true)
-        or fail;
-    fmt.Println(v)
-        or fail;
+    var v = load(true)?;
+    fmt.Println(v)?;
     var w = i32(0);
     w = load(false)
         on err {
-            fmt.Println("caught:", err)
-                or fail("print");
+            fmt.Println("caught:", err)?;
         };
-    fmt.Println(w)
-        or fail;
-    var z = load(true)
-        or fail("unreachable");
-    fmt.Println(z)
-        or fail;
+    fmt.Println(w)?;
+    var z = load(true)?;
+    fmt.Println(z)?;
 };

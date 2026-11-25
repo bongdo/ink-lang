@@ -9,14 +9,11 @@ fn work() void! {
     par {
         {
             defer fmt.Println("cleanup");
-            stop()
-                or fail;
-            fmt.Println("unreachable")
-                or fail;
+            stop()?;
+            fmt.Println("unreachable")?;
         };
     };
-    fmt.Println("unreachable")
-        or fail;
+    fmt.Println("unreachable")?;
 };
 
 fn main() void! {
@@ -24,8 +21,7 @@ fn main() void! {
         {
             defer fmt.Println("d1");
             defer fmt.Println("d2");
-            fmt.Println("body")
-                or fail;
+            fmt.Println("body")?;
         };
     };
     var caught = 0;
@@ -33,6 +29,5 @@ fn main() void! {
         on err {
             caught = 1;
         };
-    fmt.Println("caught", caught)
-        or fail;
+    fmt.Println("caught", caught)?;
 };

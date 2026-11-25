@@ -7,29 +7,25 @@ fn stop() void! {
 
 fn withDefer() void! {
     defer fmt.Println("defer ran");
-    fmt.Println("body ran")
-        or fail;
+    fmt.Println("body ran")?;
 };
 
 fn run1() void! {
     par {
-        withDefer()
-            or fail;
+        withDefer()?;
     };
 };
 
 fn run2() void! {
     par for (var i = 0; i < 1; i += 1) {
         defer fmt.Println("for defer");
-        fmt.Println("for body")
-            or fail;
-    };
+        fmt.Println("for body")?;
+    };;
 };
 
 fn run3() void! {
     par {
-        stop()
-            or fail("wrapped");
+        stop()?;
     };
 };
 
@@ -37,8 +33,7 @@ fn run4() void! {
     par {
         {
             defer fmt.Println("inner defer");
-            stop()
-                or fail;
+            stop()?;
         };
     };
 };
@@ -64,6 +59,5 @@ fn main() void! {
         on err {
             c4 = true;
         };
-    fmt.Println(c1, c2, c3, c4)
-        or fail;
+    fmt.Println(c1, c2, c3, c4)?;
 };

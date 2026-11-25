@@ -15,7 +15,6 @@ fn main() void! {
             p.X = 7;
             xs[0] = 7;
         };
-    };
-    fmt.Println(total)
-        or fail;
+    };;
+    fmt.Println(total)?;
 };

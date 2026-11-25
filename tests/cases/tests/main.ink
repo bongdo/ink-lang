@@ -5,8 +5,7 @@ fn add(a: i32, b: i32) i32 {
 };
 
 fn main() void! {
-    fmt.Println(add(2, 2))
-        or fail;
+    fmt.Println(add(2, 2))?;
 };
 
 test "arithmetic" {

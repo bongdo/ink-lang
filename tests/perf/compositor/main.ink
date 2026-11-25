@@ -117,8 +117,7 @@ struct Server {
         if (surf.Nil()) {
             return;
         };
-        var pt = surf.XDGTopLevel()
-            or fail;
+        var pt = surf.XDGTopLevel()?;
         pt.SetActivated(false);
     };
 
@@ -173,8 +172,7 @@ struct Server {
 
     fn handleFrame(o: wl.Output) void! {
         var t0 = time.Now();
-        var so = self.scene.SceneOutput(o)
-            or fail;
+        var so = self.scene.SceneOutput(o)?;
         so.Commit();
         so.SendFrameDone(time.Now());
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
@@ -460,12 +458,9 @@ struct Server {
     };
 
     fn start() void! {
-        var socket = self.display.AddSocketAuto()
-            or fail("add socket");
-        self.backend.Start()
-            or fail("start backend");
-        os.Setenv("WAYLAND_DISPLAY", socket)
-            or fail("setenv");
+        var socket = self.display.AddSocketAuto()?;
+        self.backend.Start()?;
+        os.Setenv("WAYLAND_DISPLAY", socket)?;
         _ = fmt.Println(fmt.Sprintf("ink-tinywl on WAYLAND_DISPLAY=%s", socket));
     };
 
@@ -488,13 +483,10 @@ fn newServer() *Server! {
         grabbed: nil,
     };
     s.display = wl.NewDisplay();
-    s.backend = s.display.BackendAutocreate()
-        or fail("backend");
-    s.renderer = s.backend.RendererAutoCreate()
-        or fail("renderer");
+    s.backend = s.display.BackendAutocreate()?;
+    s.renderer = s.backend.RendererAutoCreate()?;
     s.renderer.InitDisplay(s.display);
-    s.allocator = s.backend.AllocatorAutocreate(s.renderer)
-        or fail("allocator");
+    s.allocator = s.backend.AllocatorAutocreate(s.renderer)?;
 
     s.display.CompositorCreate(5, s.renderer);
     s.display.SubCompositorCreate();
@@ -548,9 +540,7 @@ fn newServer() *Server! {
 
 fn main() void! {
     runtime.LockOSThread();
-    var s = newServer()
-        or fail("init server");
-    s.start()
-        or fail("start server");
+    var s = newServer()?;
+    s.start()?;
     s.run();
 };

@@ -1,6 +1,9 @@
 package gen
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGoDetachedReceiverSnapshot(t *testing.T) {
 	p := newProject(t, map[string]string{
@@ -53,7 +56,7 @@ fn load() i32! {
 
 fn main() void! {
     _ = load();
-    fmt.Println("ok") or fail;
+    fmt.Println("ok")?;
 };
 `,
 	})
@@ -67,10 +70,9 @@ fn main() void! {
 func TestGoListenerCatchesVoidWorker(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
-use errors;
 
 fn f() i32! {
-    fail(errors.New("x"));
+    check(false, "x");
 };
 
 fn handler() void {
@@ -80,8 +82,7 @@ fn handler() void {
     };
     var a = i32(0);
     par {
-        a = f()
-            or fail;
+        a = f()?;
     };
     fmt.Println("after", a)
         on err { _ = err; };
@@ -164,44 +165,21 @@ fn main() void {
 	expect(t, stdout, "one x\n")
 }
 
-func TestWrapErrorWithoutFmtImport(t *testing.T) {
+func TestGoScopeListenerHandles(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use errors;
-
-fn f() void! {
-    fail(errors.New("x"));
-};
-
-fn main() void! {
-    f()
-        or fail("ctx");
-};
-`,
-	})
-	src := p.source(t, "zz_ink.go")
-	contains(t, src, `_s_fmt "fmt"`)
-	contains(t, src, `_s_fmt.Errorf`)
-	if _, stderr, err := p.run(t); err == nil {
-		t.Fatalf("expected failure, got success\nstderr:\n%s", stderr)
-	}
-}
-
-func TestGoScopeListenerFailEscalates(t *testing.T) {
-	p := newProject(t, map[string]string{
-		"main.ink": `use fmt;
-use errors;
 
 fn boom() void! {
     return errors.New("boom");
 };
 
 fn inner() void! {
-    on err { fail(err, "join"); };
-    par { boom() or fail; };
+    on err { print("joined:", err); };
+    par { boom()?; };
 };
 
 fn main() void! {
-    inner() on err { fmt.Println(err) or fail; };
+    inner()?;
 };
 `,
 	})
@@ -209,5 +187,35 @@ fn main() void! {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
 	}
-	expect(t, stdout, "join: boom\n")
+	expect(t, stdout, "joined: boom\n")
+}
+
+func TestTryCheckAndPrint(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `fn f(n: i32) i32! {
+    check(n >= 0, "negative");
+    return n;
+};
+
+fn g(n: i32) i32! {
+    return f(n)? + 1;
+};
+
+fn main() void! {
+    print("ok:", g(1)?);
+    print("bad:", g(-1)?);
+};
+`,
+	})
+	stdout, stderr, err := p.run(t)
+	if err == nil {
+		t.Fatalf("expected failure, stdout:\n%s", stdout)
+	}
+	expect(t, stdout, "ok: 2\n")
+	if !strings.Contains(stderr, "negative") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	if code := exitCode(t, err); code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
 }

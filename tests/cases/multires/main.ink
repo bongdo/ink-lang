@@ -19,20 +19,16 @@ fn main() void! {
     var p = Pair {};
     var n, ok, err = p.Split(7);
     assert(err == nil);
-    fmt.Println(n, ok)
-        or fail;
+    fmt.Println(n, ok)?;
 
     var a, b, err2 = pass();
     assert(err2 == nil);
-    fmt.Println(a, b)
-        or fail;
+    fmt.Println(a, b)?;
 
     var c, d, err3 = p.Split(-1);
     if (err3 != nil) {
-        fmt.Println("err", err3)
-            or fail;
+        fmt.Println("err", err3)?;
         return nil;
     };
-    fmt.Println(c, d)
-        or fail;
+    fmt.Println(c, d)?;
 };

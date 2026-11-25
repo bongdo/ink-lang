@@ -20,16 +20,16 @@ fn main() void! {
     var h: fn(i32) i32 = nil;
     var e: error = nil;
     if (p == nil) {
-        fmt.Println("p nil") or fail;
+        fmt.Println("p nil")?;
     };
     if (e == nil) {
-        fmt.Println("e nil") or fail;
+        fmt.Println("e nil")?;
     };
     if (gp == nil) {
-        fmt.Println("gp nil") or fail;
+        fmt.Println("gp nil")?;
     };
     if (ge == nil) {
-        fmt.Println("ge nil") or fail;
+        fmt.Println("ge nil")?;
     };
     _ = s;
     _ = m;
@@ -71,7 +71,7 @@ fn mk(ok: bool) *Point! {
 };
 
 fn main() void! {
-    var p: *Point = mk(true) or fail;
+    var p: *Point = mk(true)?;
     var q: *Point = mk(false) on err { panic("no"); };
     assert(p != nil);
     assert(q == nil);

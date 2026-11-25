@@ -4,7 +4,6 @@
 //
 // Syntax-level problems are commented out so the rest of the file still
 // parses; uncomment one block at a time to see the diagnostic.
-use fmt;
 use strconv;
 
 struct Foo {
@@ -57,8 +56,8 @@ fn nilNoType() void {
     _ = p;
 };
 
-// 5. Manual propagation is rejected; use `or fail`.
-//    Expected: use or fail instead of if err != nil { return err }.
+// 5. Manual propagation is rejected; use `?`.
+//    Expected: use ? instead of if err != nil { return err }.
 fn manualPropagation() i32! {
     var v, err = f();
     if (err != nil) {
@@ -73,7 +72,7 @@ fn mapParWrite() void {
     var m = map[i32, i32] {};
     par for (var i = 0; i < 3; i += 1) {
         m[i] = i;
-    };
+    };;
 };
 
 // 7. par for cannot iterate a map; collect keys into a slice first.
@@ -83,7 +82,7 @@ fn goForMap() void {
     par for (var k, v in m) {
         _ = k;
         _ = v;
-    };
+    };;
 };
 
 // 8. A write through a captured pointer inside par is rejected (G6).
@@ -102,7 +101,7 @@ fn breakGo() void {
         par {
             break;
         };
-    };
+    };;
 };
 
 // 10. An unbounded loop inside par cannot be proven to terminate.
@@ -111,7 +110,7 @@ fn goEmptyFor() void {
     par {
         for () {
             break;
-        };
+        };;
     };
 };
 
@@ -159,13 +158,11 @@ fn voidValue() void {
 
 // 16. Quoted simple imports are not canonical.
 //     Expected: simple import must be bare: use fmt;.
-// use "fmt";  // quotes are rejected: write use fmt;
-
-// 17. `or` is statement-level only.
-//     Expected: or must be the whole initializer, right side, statement or return value.
-// fn nestedOr() i32! {
-//     var x = f() or fail + 1;
-//     return x;
+// use "fmt";  // quotes are rejected: write
+// 17. `?` needs a fallible function.
+//     Expected: ? in a function that cannot fail; add ! to the result or handle it with on err.
+// fn tryInVoid() void {
+//     f()?;
 // };
 
 // 18. A non-void function can fall off its end.
@@ -180,5 +177,5 @@ fn duplicateDiagnostic() void {
 };
 
 fn main() void {
-    _, _ = fmt.Println("problems: run `ink check` for diagnostics", strconv.IntSize);
+    print("problems: run `ink check` for diagnostics", strconv.IntSize);
 };

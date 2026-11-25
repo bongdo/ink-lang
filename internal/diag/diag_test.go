@@ -30,7 +30,7 @@ func TestClassify(t *testing.T) {
 		{"interface methods are declared without 'fn'", "iface-fn"},
 		{"block comments are not supported; use //", "comment-block"},
 		{"const is only allowed at package level; use var", "const-local"},
-		{"use or fail instead of if err != nil { return err }", "err-manual"},
+		{"use ? instead of if err != nil { return err }", "err-manual"},
 		{"cannot infer type of nil; use nil[T] or an expected type", "nil-untyped"},
 		{"void is not a value", "void-value"},
 		{"map iteration is not allowed in par for; collect keys into a slice first", "go-map-range"},

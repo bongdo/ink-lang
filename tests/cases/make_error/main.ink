@@ -1,5 +1,4 @@
 use fmt;
-use errors;
 
 struct Point {
     X: i32,
@@ -18,17 +17,15 @@ fn mk(n: i32) i32[] {
 };
 
 fn bad() void! {
-    fail(errors.New("boom"));
+    check(false, "boom");
 };
 
 fn main() void! {
     var xs = mk(1);
-    fmt.Println(xs[0], mkPoint().X)
-        or fail;
+    fmt.Println(xs[0], mkPoint().X)?;
     bad()
         on err {
-            fmt.Println(err)
-                or fail;
+            fmt.Println(err)?;
         };
     return;
 };

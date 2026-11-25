@@ -53,7 +53,7 @@ fn f(n: i32) void {
 	}
 }
 
-func TestMatchBlockArmsInOrHandlerAllowed(t *testing.T) {
+func TestMatchBlockArmsInOnErrHandlerAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use errors;
 
 fn load() str! {

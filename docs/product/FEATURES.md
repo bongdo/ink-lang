@@ -65,12 +65,12 @@ place with status.
 | `void` as a value | — result only |
 | non-void function that can fall off its end | ✅ `missing-return` |
 | `missing-return` inside a function literal | ✅ checked when the literal has results |
-| `T!` with `or fail` and `on err { }` | ✅ |
+| `T!` with `?` and `on err { }` | ✅ |
 | `or err`, `or panic`, `on fail` | — removed; `on err` handles, `panic(...)` aborts |
 | `errors.New("msg")` fresh error; `error("msg")` rejected | ✅ |
 | `arena { new/T[](n) }` with reusable per-type scratch, zero allocation after warm-up | ✅ |
 | `fail(err, "context")` wraps and returns; `fail` is a reserved word | ✅ |
-| manual `if err != nil { return err; }` | — rejected; `or fail` is the canonical form |
+| manual `if err != nil { return err; }` | — rejected; `?` is the canonical form |
 | expression-level `or`, `or` in multi-RHS or a `for` post | — statement-level only |
 | block-scoped `defer` | ✅ |
 | local `const` | — package level only |

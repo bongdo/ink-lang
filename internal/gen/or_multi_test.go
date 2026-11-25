@@ -15,36 +15,36 @@ fn pair(n: i32) i32, bool! {
 };
 
 fn pass(n: i32) i32, bool! {
-    return pair(n) or fail;
+    return pair(n)?;
 };
 
 fn runPar(n: i32) i32, bool! {
     var a = i32(0);
     var b = false;
     par {
-        a, b = pair(n) or fail;
+        a, b = pair(n)?;
     };
     return a, b;
 };
 
 fn main() void! {
-    var a, b = pair(2) or fail;
-    fmt.Println("var", a, b) or fail;
-    a, b = pair(3) or fail;
-    fmt.Println("assign", a, b) or fail;
-    pair(4) or fail;
-    var c, d = pass(5) or fail;
-    fmt.Println("pass", c, d) or fail;
+    var a, b = pair(2)?;
+    fmt.Println("var", a, b)?;
+    a, b = pair(3)?;
+    fmt.Println("assign", a, b)?;
+    pair(4)?;
+    var c, d = pass(5)?;
+    fmt.Println("pass", c, d)?;
     var e, f = pair(-1) on err {
-        fmt.Println("caught:", err) or fail;
+        fmt.Println("caught:", err)?;
     };
-    fmt.Println("handle", e, f) or fail;
-    var g, h = runPar(6) or fail;
-    fmt.Println("go", g, h) or fail;
+    fmt.Println("handle", e, f)?;
+    var g, h = runPar(6)?;
+    fmt.Println("go", g, h)?;
     var i, j = runPar(-1) on err {
-        fmt.Println("go caught:", err) or fail;
+        fmt.Println("go caught:", err)?;
     };
-    fmt.Println("go zero", i, j) or fail;
+    fmt.Println("go zero", i, j)?;
 };
 `,
 	})

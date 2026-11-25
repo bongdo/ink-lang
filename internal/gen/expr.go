@@ -60,8 +60,10 @@ func (w *writer) expr(e ast.Expr) string {
 		return "(" + w.typeStr(e.Type) + ")(nil)"
 	case *ast.MatchExpr:
 		return w.matchExpr(e)
-	case *ast.OrExpr:
-		return w.expr(e.X)
+	case *ast.OnErrExpr:
+		return w.onErrExpr(e)
+	case *ast.TryExpr:
+		return w.tryExpr(e)
 	}
 	return ""
 }
@@ -335,6 +337,9 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 			return w.f.std("errors") + ".New(" + args[0] + ")"
 		}
 		return w.f.std("errors") + ".New(\"\")"
+	case "print":
+		w.f.needPkg("fmt")
+		return w.f.std("fmt") + ".Println(" + strings.Join(args, ", ") + ")"
 	case "make":
 		if len(c.TypeArgs) == 1 {
 			elem := w.typeStr(c.TypeArgs[0])

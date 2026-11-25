@@ -9,10 +9,9 @@ fn main() void! {
     var keys = str[] {};
     for (var k in m) {
         keys = append(keys, k);
-    };
+    };;
     sort.Strings(keys);
-    fmt.Println(keys)
-        or fail;
+    fmt.Println(keys)?;
 
     var h = http.Header {};
     h["C"] = str[] { "x" };
@@ -20,8 +19,7 @@ fn main() void! {
     var hk = str[] {};
     for (var k in h) {
         hk = append(hk, k);
-    };
+    };;
     sort.Strings(hk);
-    fmt.Println(hk)
-        or fail;
+    fmt.Println(hk)?;
 };

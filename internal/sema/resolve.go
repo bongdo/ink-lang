@@ -590,8 +590,11 @@ func (p *Program) resolvePackageVar(item packageVar) {
 	c := &checker{p: p, fc: item.fc}
 	v := item.decl
 	for _, val := range v.Values {
-		if _, ok := val.(*ast.OrExpr); ok {
+		if _, ok := val.(*ast.OnErrExpr); ok {
 			p.errorf(item.fc.file.Path, val.Pos(), "or is not allowed in a package-level initializer")
+		}
+		if _, ok := val.(*ast.TryExpr); ok {
+			p.errorf(item.fc.file.Path, val.Pos(), "? is not allowed in a package-level initializer")
 		}
 		c.applyNil(val, item.declType)
 		c.checkMatchValue(val)

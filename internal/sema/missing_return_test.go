@@ -238,7 +238,7 @@ fn main() void {
 };
 
 fn main() void! {
-    f() or fail;
+    f()?;
 };
 `,
 			want: false,

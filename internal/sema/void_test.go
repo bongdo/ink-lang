@@ -119,7 +119,7 @@ fn wrap() void! {
 
 fn main() void! {
     note();
-    stop() or fail;
+    stop()?;
 };
 `})
 	noErrors(t, p)

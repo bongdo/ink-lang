@@ -1,17 +1,17 @@
-30:5:const-local:const is only allowed at package level
-31:17:semantic:N is not a constant
-38:13:generic-args:generic type Stack requires type arguments
-45:12:match-block-value:match with block arms cannot be used as an expression
-56:13:nil-untyped:cannot infer type of nil
-64:5:err-manual:use or fail instead of if err != nil { return err }
-75:9:go-map-write:writing to map m inside par
-83:14:go-map-range:map iteration is not allowed in par for
-94:9:go-capture-write:writing to p captured from outside par
-103:13:go-break:break cannot leave a par block
-112:9:go-loop:for () is not allowed inside par
-122:14:match-nil-any:case nil is not supported on any or interface
-131:14:match-nil-enum:case nil is not supported on enum E
-139:17:array-const:constant strconv.IntSize must be declared in a local package
-150:13:void-value:void is not a value
-173:26:missing-return:missing return
-178:13:semantic:unknown type Missing
+29:5:const-local:const is only allowed at package level; use var
+30:17:semantic:N is not a constant
+37:13:generic-args:generic type Stack requires type arguments
+44:12:match-block-value:match with block arms cannot be used as an expression
+55:13:nil-untyped:cannot infer type of nil; use nil[T] or an expected type
+63:5:err-manual:use ? instead of if err != nil { return err }
+74:9:go-map-write:writing to map m inside par
+82:14:go-map-range:map iteration is not allowed in par for; collect keys into a slice first
+93:9:go-capture-write:writing to p captured from outside par
+102:13:go-break:break cannot leave a par block
+111:9:go-loop:for () is not allowed inside par; use a bounded loop
+121:14:match-nil-any:case nil is not supported on any or interface; use else
+130:14:match-nil-enum:case nil is not supported on enum E
+138:17:array-const:constant strconv.IntSize must be declared in a local package
+149:13:void-value:void is not a value
+170:26:missing-return:missing return in function returning i32
+175:13:semantic:unknown type Missing

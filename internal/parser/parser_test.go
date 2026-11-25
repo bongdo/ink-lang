@@ -127,7 +127,7 @@ func countNodes(f *ast.File) map[string]int {
 			m["onerr"]++
 		case *ast.MatchExpr:
 			m["match"]++
-		case *ast.OrExpr:
+		case *ast.OnErrExpr:
 			m["or"]++
 		case *ast.FuncLit:
 			m["funclit"]++
@@ -203,7 +203,7 @@ var global = User { Name = "Alice", age = 30 };
 var mapping = map[str, User] {};
 
 fn main() void! {
-    fmt.Println(global.Name) or fail;
+    fmt.Println(global.Name)?;
 };
 
 test "append grows the slice" {
@@ -728,11 +728,11 @@ const expressionsSrc = "fn e() void! {\n" +
 	"    var fl1 = fn(i, j) => i < j;\n" +
 	"    var fl2 = fn(i: int, j: int) bool { return i < j; };\n" +
 	"    var np = nil[*Node];\n" +
-	"    var o1 = os.Open(\"x\") or fail;\n" +
+	"    var o1 = os.Open(\"x\")?;\n" +
 	"    var o2 = os.Open(\"x\") on err { return err; };\n" +
-	"    var o3 = os.Open(\"x\") or fail(\"bad\");\n" +
+	"    var o3 = os.Open(\"x\")?;\n" +
 	"    var o4 = os.Open(\"x\") on err { panic(\"bad\"); };\n" +
-	"    var orAny = a or fail;\n" +
+	"    var orAny = a?;\n" +
 	"    var u = -a + !b + ^c + ~d + &e + *p;\n" +
 	"    var up = +a;\n" +
 	"    var sel = a.b.c;\n" +
@@ -895,32 +895,28 @@ func TestExpressions(t *testing.T) {
 		t.Errorf("np type = %#v", np.Type)
 	}
 
-	modes := map[ast.OrMode]int{}
+	tries, handles := 0, 0
 	ast.Inspect(f, func(n ast.Node) bool {
-		if or, ok := n.(*ast.OrExpr); ok {
-			modes[or.Mode]++
+		switch n.(type) {
+		case *ast.TryExpr:
+			tries++
+		case *ast.OnErrExpr:
+			handles++
 		}
 		return true
 	})
-	if modes[ast.OrFail] != 3 || modes[ast.OrHandle] != 2 || modes[ast.OrPanic] != 0 {
-		t.Errorf("or modes = %+v", modes)
+	if tries != 3 || handles != 2 {
+		t.Errorf("propagation nodes = %d tries, %d handlers", tries, handles)
 	}
-	if any := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr); any.Mode != ast.OrFail {
-		t.Errorf("orAny = %+v", any)
+	if _, ok := singleValue(t, findVar(t, f, "orAny")).(*ast.TryExpr).X.(*ast.Ident); !ok {
+		t.Errorf("orAny.X = %#v", singleValue(t, findVar(t, f, "orAny")).(*ast.TryExpr).X)
 	}
-	if _, ok := singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr).X.(*ast.Ident); !ok {
-		t.Errorf("orAny.X = %#v", singleValue(t, findVar(t, f, "orAny")).(*ast.OrExpr).X)
-	}
-	handle := singleValue(t, findVar(t, f, "o2")).(*ast.OrExpr)
-	if handle.Name != "err" || handle.Block == nil {
+	handle := singleValue(t, findVar(t, f, "o2")).(*ast.OnErrExpr)
+	if handle.Block == nil {
 		t.Errorf("o2 = %+v", handle)
 	}
-	o3 := singleValue(t, findVar(t, f, "o3")).(*ast.OrExpr)
-	if o3.FailArg == nil {
-		t.Error("o3 fail arg nil")
-	}
-	o4 := singleValue(t, findVar(t, f, "o4")).(*ast.OrExpr)
-	if o4.Mode != ast.OrHandle || o4.Block == nil {
+	o4 := singleValue(t, findVar(t, f, "o4")).(*ast.OnErrExpr)
+	if o4.Block == nil {
 		t.Errorf("o4 = %+v", o4)
 	}
 
@@ -1149,10 +1145,10 @@ fn area(s: Shape) f64 {
 };
 
 fn read(path: str) u8[]! {
-    var f = os.Open(path) or fail;
+    var f = os.Open(path)?;
     defer f.Close();
     var buf = u8[4096] {};
-    var n = f.Read(buf[:]) or fail;
+    var n = f.Read(buf[:])?;
     return buf[:n];
 };
 
@@ -1165,15 +1161,15 @@ fn main() void! {
     sort.Slice(users, fn(i, j) => users[i].age < users[j].age);
 
     for (var u in users) {
-        fmt.Println(u.Greet()) or fail;
+        fmt.Println(u.Greet())?;
     };
 
     var data = read("users.txt") on err {
-        fmt.Println("read failed:", err) or fail;
+        fmt.Println("read failed:", err)?;
         return err;
     };
 
-    fmt.Println(len(data)) or fail;
+    fmt.Println(len(data))?;
 };
 `
 
@@ -1202,15 +1198,18 @@ func TestSpecExample(t *testing.T) {
 	}
 
 	main := declFunc(t, f, "main")
-	var ors int
+	var tries, handlers int
 	ast.Inspect(main.Body, func(n ast.Node) bool {
-		if _, ok := n.(*ast.OrExpr); ok {
-			ors++
+		switch n.(type) {
+		case *ast.TryExpr:
+			tries++
+		case *ast.OnErrExpr:
+			handlers++
 		}
 		return true
 	})
-	if ors != 4 {
-		t.Errorf("main or count = %d, want 4", ors)
+	if tries != 3 || handlers != 1 {
+		t.Errorf("main propagation = %d tries, %d handlers, want 3 and 1", tries, handlers)
 	}
 }
 
@@ -1267,7 +1266,7 @@ func TestMalformedDoesNotPanic(t *testing.T) {
 		"enum X { A { ; } };",
 		"fn f() void { return 1 2; };",
 		"alias M = map[str; };",
-		"fn f() void { or fail; };",
+		"fn f() void {?; };",
 		"fn f() void { match (a) { case Circle { radius } => ; }; };",
 		"struct X { a: };",
 		"fn f() void { case 1 => 2; };",

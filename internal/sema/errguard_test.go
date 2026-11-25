@@ -26,7 +26,7 @@ fn main() void {};
 `})
 	got := 0
 	for _, e := range p.Errors {
-		if contains(e.Msg, "use or fail instead of if err != nil { return err }") {
+		if contains(e.Msg, "use ? instead of if err != nil { return err }") {
 			got++
 		}
 	}
@@ -48,7 +48,7 @@ fn success(err: error) void! {
 
 fn inspect(err: error) void! {
     if (err != nil) {
-        fmt.Println("caught:", err) or fail;
+        fmt.Println("caught:", err)?;
         return err;
     };
 };
@@ -77,12 +77,12 @@ fn main() void {};
 	noErrors(t, p)
 }
 
-func TestStringIsNotError(t *testing.T) {
+func TestCheckArity(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn f() void! {
-    fail("usage");
+    check(true);
 };
 
 fn main() void {};
 `})
-	wantError(t, p, "cannot use str as error")
+	wantError(t, p, "check takes a condition and a message")
 }

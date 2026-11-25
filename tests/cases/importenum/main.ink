@@ -10,9 +10,7 @@ fn area(s: shape.Shape) f64 {
 
 fn main() void! {
     var s = shape.Shape.Circle { Radius: 2.0 };
-    fmt.Println(area(s))
-        or fail;
+    fmt.Println(area(s))?;
     var e = shape.Shape.Empty;
-    fmt.Println(area(e))
-        or fail;
+    fmt.Println(area(e))?;
 };

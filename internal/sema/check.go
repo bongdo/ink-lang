@@ -49,6 +49,7 @@ type checker struct {
 	inTaskHandler   int
 	inTaskCapture   map[*symbol]bool
 	listeners       []bool
+	parListeners    []bool
 	parArenas       []int
 	inArena         int
 	tparams         map[string]bool
@@ -157,7 +158,7 @@ func builtinReserved(name string) bool {
 
 func isBuiltinFunc(name string) bool {
 	switch name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new", "asset":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new", "asset", "check", "print":
 		return true
 	}
 	return false
@@ -348,7 +349,7 @@ func arenaRef(t ast.Type) bool {
 func (c *checker) isArenaExpr(e ast.Expr) bool {
 	e = unparen(e)
 	switch e := e.(type) {
-	case *ast.OrExpr:
+	case *ast.OnErrExpr:
 		return c.isArenaExpr(e.X)
 	case *ast.Ident:
 		if sym := c.lookupLocal(e.Name); sym != nil {
@@ -503,32 +504,6 @@ func (c *checker) checkArenaCopy(call *ast.CallExpr) {
 	}
 }
 
-func (c *checker) checkFailStmt(s *ast.FailStmt) {
-	if c.inTaskHandler > 0 {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail cannot leave a spawn task; log or panic")
-	}
-	if c.fn == nil {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail outside a function")
-		return
-	}
-	if !c.fn.err && !(c.inPar && c.hasListener()) {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail in a function that cannot fail; add ! to the result")
-	}
-	errT := &ast.NamedType{Name: "error", GoName: "error"}
-	if s.Err == nil {
-		c.p.errorf(c.fc.file.Path, s.Pos(), "fail needs an error")
-	} else {
-		c.resolveExpr(s.Err, false)
-		c.checkVoidValue(s.Err)
-		c.checkAssign(errT, s.Err)
-	}
-	if s.Msg != nil {
-		c.resolveExpr(s.Msg, false)
-		c.checkVoidValue(s.Msg)
-		c.checkAssign(&ast.NamedType{Name: "str", GoName: "string"}, s.Msg)
-	}
-}
-
 func terminatesBlock(b *ast.Block) bool {
 	if b == nil || len(b.Stmts) == 0 {
 		return false
@@ -540,8 +515,6 @@ func terminatesStmt(s ast.Stmt) bool {
 	switch s := s.(type) {
 	case *ast.ReturnStmt:
 		return true
-	case *ast.FailStmt:
-		return true
 	case *ast.ArenaStmt:
 		return terminatesBlock(s.Body)
 	case *ast.Block:
@@ -549,8 +522,14 @@ func terminatesStmt(s ast.Stmt) bool {
 	case *ast.IfStmt:
 		return s.Else != nil && terminatesStmt(s.Then) && terminatesStmt(s.Else)
 	case *ast.ExprStmt:
+		if _, ok := unparen(s.X).(*ast.TryExpr); ok {
+			return true
+		}
 		if m, ok := unparen(s.X).(*ast.MatchExpr); ok {
 			return terminatesMatch(m)
+		}
+		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.Builtin == "check" {
+			return true
 		}
 		return isPanicExpr(s.X)
 	case *ast.ForStmt:
@@ -659,6 +638,10 @@ func (c *checker) constLimit(e ast.Expr) (int64, bool) {
 
 func (c *checker) hasListener() bool {
 	return len(c.listeners) > 0 && c.listeners[len(c.listeners)-1]
+}
+
+func (c *checker) parAllowsPropagation() bool {
+	return len(c.parListeners) > 0 && c.parListeners[len(c.parListeners)-1]
 }
 
 func (c *checker) checkBlock(b *ast.Block) {
@@ -806,7 +789,15 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		c.resolveExpr(s.X, true)
 		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.HasError && !isPanicExpr(call) {
-			c.p.errorf(c.fc.file.Path, s.X.Pos(), "fallible result is dropped; use on err, or fail, or _ = ... to discard")
+			if call.Info.Builtin == "check" {
+				if c.inTaskHandler > 0 {
+					c.p.errorf(c.fc.file.Path, s.X.Pos(), "check cannot leave a spawn task; handle the error here")
+				} else if c.fn == nil || (!c.fn.err && !(c.inPar && c.parAllowsPropagation())) {
+					c.p.errorf(c.fc.file.Path, s.X.Pos(), "check in a function that cannot fail; add ! to the result or handle it with on err")
+				}
+			} else {
+				c.p.errorf(c.fc.file.Path, s.X.Pos(), "fallible result is dropped; use ?, on err, or _ = ... to discard")
+			}
 		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
@@ -819,8 +810,6 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 	case *ast.ForStmt:
 		c.checkFor(s)
-	case *ast.FailStmt:
-		c.checkFailStmt(s)
 	case *ast.ReturnStmt:
 		if c.inInlineHandler > 0 && c.fn != nil && c.fn.err {
 			c.p.warnf(c.fc.file.Path, s.Pos(), "return in on err turns the failure into success: the caller gets a value and a nil error; use fail(err) instead")
@@ -898,7 +887,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 		}
 		if c.inPar {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use or fail")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "return cannot leave a par block; use ?")
 		}
 	case *ast.BreakStmt:
 		if c.loopDepth == 0 {
@@ -948,14 +937,13 @@ func (c *checker) checkOnErr(s *ast.OnErrStmt) {
 func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 	var handler *ast.Block
 	expr := s.Call
-	if or, ok := unparen(s.Call).(*ast.OrExpr); ok {
-		if or.Mode != ast.OrHandle || or.Block == nil {
-			c.p.errorf(c.fc.file.Path, or.Pos(), "spawn takes on err, not or fail; there is no caller to return to")
-			c.resolveExpr(or.X, false)
-			return
-		}
+	if or, ok := unparen(s.Call).(*ast.OnErrExpr); ok {
 		handler = or.Block
 		expr = or.X
+	} else if t, ok := unparen(s.Call).(*ast.TryExpr); ok {
+		c.p.errorf(c.fc.file.Path, t.Pos(), "spawn takes on err; there is no caller to return to")
+		c.resolveExpr(t.X, false)
+		return
 	}
 	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok {
@@ -1029,7 +1017,7 @@ func (c *checker) checkErrGuard(s *ast.IfStmt) {
 	}
 	for _, r := range ret.Results {
 		if id, ok := unparen(r).(*ast.Ident); ok && sameIdent(err, id) {
-			c.p.errorf(c.fc.file.Path, s.Pos(), "use or fail instead of if err != nil { return err }")
+			c.p.errorf(c.fc.file.Path, s.Pos(), "use ? instead of if err != nil { return err }")
 			return
 		}
 	}
@@ -1120,9 +1108,16 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			oldInPar := c.inPar
 			c.inPar = true
 			c.parArenas = append(c.parArenas, c.inArena)
+			c.parListeners = append(c.parListeners, c.hasListener())
+			if f.Body != nil && len(f.Body.Stmts) > 0 {
+				if _, ok := f.Body.Stmts[0].(*ast.OnErrStmt); ok {
+					c.p.errorf(c.fc.file.Path, f.Body.Stmts[0].Pos(), "on err must be in a block, not a par branch")
+				}
+			}
 			c.loopDepth++
 			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
+			c.parListeners = c.parListeners[:len(c.parListeners)-1]
 			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
@@ -1195,9 +1190,16 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			oldInPar := c.inPar
 			c.inPar = true
 			c.parArenas = append(c.parArenas, c.inArena)
+			c.parListeners = append(c.parListeners, c.hasListener())
+			if f.Body != nil && len(f.Body.Stmts) > 0 {
+				if _, ok := f.Body.Stmts[0].(*ast.OnErrStmt); ok {
+					c.p.errorf(c.fc.file.Path, f.Body.Stmts[0].Pos(), "on err must be in a block, not a par branch")
+				}
+			}
 			c.loopDepth++
 			c.parLoopBase = append(c.parLoopBase, c.loopDepth)
 			c.checkBlock(f.Body)
+			c.parListeners = c.parListeners[:len(c.parListeners)-1]
 			c.parLoopBase = c.parLoopBase[:len(c.parLoopBase)-1]
 			c.loopDepth--
 			c.inPar = oldInPar
@@ -1351,7 +1353,9 @@ func (c *checker) clearNilMap(e ast.Expr) {
 
 func (c *checker) voidValue(e ast.Expr) bool {
 	switch e := unparen(e).(type) {
-	case *ast.OrExpr:
+	case *ast.OnErrExpr:
+		return c.voidValue(e.X)
+	case *ast.TryExpr:
 		return c.voidValue(e.X)
 	case *ast.CallExpr:
 		return e.Info != nil && e.Info.Results == 0 && !e.Info.HasError
@@ -1380,6 +1384,7 @@ func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
 	oldInPar := c.inPar
 	c.inPar = true
 	c.parArenas = append(c.parArenas, c.inArena)
+	c.parListeners = append(c.parListeners, c.hasListener())
 	c.push()
 	for _, s := range body.Stmts {
 		if _, ok := s.(*ast.OnErrStmt); ok {
@@ -1423,7 +1428,7 @@ func hasOr(e ast.Expr) bool {
 		if _, ok := n.(*ast.FuncLit); ok {
 			return false
 		}
-		if _, ok := n.(*ast.OrExpr); ok {
+		if _, ok := n.(*ast.OnErrExpr); ok {
 			found = true
 			return false
 		}
@@ -1433,11 +1438,16 @@ func hasOr(e ast.Expr) bool {
 }
 
 func orCall(e ast.Expr) (*ast.CallExpr, bool) {
-	or, ok := e.(*ast.OrExpr)
-	if !ok {
+	var x ast.Expr
+	switch v := e.(type) {
+	case *ast.OnErrExpr:
+		x = v.X
+	case *ast.TryExpr:
+		x = v.X
+	default:
 		return nil, false
 	}
-	call, ok := or.X.(*ast.CallExpr)
+	call, ok := x.(*ast.CallExpr)
 	if !ok || call.Info == nil || !call.Info.HasError {
 		return nil, false
 	}
@@ -1453,7 +1463,7 @@ func stmtHasOr(s ast.Stmt) bool {
 		if _, ok := n.(*ast.FuncLit); ok {
 			return false
 		}
-		if _, ok := n.(*ast.OrExpr); ok {
+		if _, ok := n.(*ast.OnErrExpr); ok {
 			found = true
 			return false
 		}
@@ -1787,9 +1797,6 @@ func (w *parWalker) stmt(s ast.Stmt) {
 		for _, e := range s.Results {
 			w.expr(e)
 		}
-	case *ast.FailStmt:
-		w.expr(s.Err)
-		w.expr(s.Msg)
 	case *ast.ArenaStmt:
 		w.stmt(s.Body)
 	case *ast.DeferStmt:
@@ -1842,13 +1849,12 @@ func (w *parWalker) expr(e ast.Expr) {
 				w.stmt(s)
 			}
 		}
-	case *ast.OrExpr:
+	case *ast.TryExpr:
+		w.expr(e.X)
+	case *ast.OnErrExpr:
 		w.expr(e.X)
 		if e.Block != nil {
 			w.stmt(e.Block)
-		}
-		if e.PanicArg != nil {
-			w.expr(e.PanicArg)
 		}
 	}
 }
@@ -2028,13 +2034,12 @@ func (c *checker) collectParAliases(b *ast.Block) map[string][]*ast.Ident {
 					walkStmt(s)
 				}
 			}
-		case *ast.OrExpr:
+		case *ast.TryExpr:
+			walkExpr(e.X)
+		case *ast.OnErrExpr:
 			walkExpr(e.X)
 			if e.Block != nil {
 				walkStmt(e.Block)
-			}
-			if e.PanicArg != nil {
-				walkExpr(e.PanicArg)
 			}
 		}
 	}
@@ -2208,13 +2213,12 @@ func pureParMethod(fn *ast.FuncDecl) bool {
 					walkStmt(s)
 				}
 			}
-		case *ast.OrExpr:
+		case *ast.TryExpr:
+			walkExpr(e.X)
+		case *ast.OnErrExpr:
 			walkExpr(e.X)
 			if e.Block != nil {
 				walkStmt(e.Block)
-			}
-			if e.PanicArg != nil {
-				walkExpr(e.PanicArg)
 			}
 		}
 	}

@@ -21,9 +21,8 @@ fn main() void! {
         Shape.Empty,
     };
     for (var s in shapes) {
-        fmt.Println(area(s))
-            or fail;
-    };
+        fmt.Println(area(s))?;
+    };;
     var last = 0.0;
     match (shapes[0]) {
         case Circle { radius } => {
@@ -36,13 +35,11 @@ fn main() void! {
             last = 0.0;
         };
     };
-    fmt.Println(last)
-        or fail;
+    fmt.Println(last)?;
     var desc = match (shapes[0]) {
         case Circle { radius } => "circle";
         case Rect { w, h } => "rect";
         case Empty => "empty";
     };
-    fmt.Println(desc)
-        or fail;
+    fmt.Println(desc)?;
 };

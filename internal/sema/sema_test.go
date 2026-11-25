@@ -63,7 +63,7 @@ func TestHello(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
 fn main() void! {
-    fmt.Println("hello") or fail;
+    fmt.Println("hello")?;
 };
 `})
 	noErrors(t, p)
@@ -76,7 +76,7 @@ use net/http as http;
 use ./lib as lib;
 
 fn main() void! {
-    f.Println("hi") or fail;
+    f.Println("hi")?;
     var h = http.Header {};
     _ = h;
     _ = lib.Square(2);
@@ -159,21 +159,21 @@ func TestOrAndDefer(t *testing.T) {
 use fmt;
 
 fn read(path: str) str! {
-    var f = os.Open(path) or fail;
+    var f = os.Open(path)?;
     defer f.Close();
     var buf = u8[16] {};
-    var n = f.Read(buf[:]) or fail;
+    var n = f.Read(buf[:])?;
     _ = n;
-    fmt.Println(path) or fail;
+    fmt.Println(path)?;
     return path;
 };
 
 fn main() void! {
     var s = read("x") on err {
-        fmt.Println("failed", err) or fail("output");
+        fmt.Println("failed", err)?;
         return err;
     };
-    fmt.Println(s) or fail;
+    fmt.Println(s)?;
 };
 `})
 	noErrors(t, p)
@@ -240,15 +240,15 @@ fn main() void! {
     var a = 0;
     var b = 0;
     par {
-        a = load(1) or fail;
-        b = load(2) or fail;
+        a = load(1)?;
+        b = load(2)?;
     };
     var xs = i32[] {1, 2, 3};
     var out = i32[3] {};
     par for (var i = 0; i < 3; i += 1) limit 2 {
         out[i] = xs[i];
     };
-    a = load(3) or fail;
+    a = load(3)?;
 };
 `})
 	noErrors(t, p)
@@ -364,26 +364,6 @@ func TestLimitIsNotReserved(t *testing.T) {
 };
 `})
 	noErrors(t, p)
-}
-
-func TestOrHandlerReraiseRejected(t *testing.T) {
-	p := checkSrc(t, map[string]string{".": `fn mk() i32! { return 1; };
-
-fn g() i32! {
-    var v = mk()
-        on err {
-            fail(err);
-        };
-    return v;
-};
-
-fn main() void {
-    _ = g() on err { _ = err; };
-};
-`})
-	if !hasError(p, "just or fail") {
-		t.Fatalf("errors = %v", p.Errors)
-	}
 }
 
 func TestFreeMethodWarning(t *testing.T) {

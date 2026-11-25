@@ -13,7 +13,7 @@ fn pair(n: i32) i32, bool! {
 };
 
 fn pass(n: i32) i32, bool! {
-    return pair(n) or fail;
+    return pair(n)?;
 };
 
 fn handle(n: i32) i32, bool! {
@@ -23,22 +23,22 @@ fn handle(n: i32) i32, bool! {
 };
 
 fn must(n: i32) i32, bool! {
-    return pair(n) or fail("bad");
+    return pair(n)?;
 };
 
 fn main() void! {
-    var a, b = pair(1) or fail;
-    a, b = pair(2) or fail;
-    pair(3) or fail;
+    var a, b = pair(1)?;
+    a, b = pair(2)?;
+    pair(3)?;
     var c, d = pair(4) on err {
         return;
     };
-    var e, f = pair(5) or fail("bad");
+    var e, f = pair(5)?;
     var g, h, err = pair(6);
     assert(err == nil);
-    var i, j = pass(7) or fail;
-    var k, l = handle(8) or fail;
-    var m, n = must(9) or fail;
+    var i, j = pass(7)?;
+    var k, l = handle(8)?;
+    var m, n = must(9)?;
     _ = a + c + e + g + i + k + m;
     _ = b;
     _ = d;
@@ -60,14 +60,14 @@ fn pair() i32, bool! {
 };
 
 fn one() i32! {
-    return pair() or fail;
+    return pair()?;
 };
 
 fn main() void! {
-    var a = pair() or fail;
-    var b, c, d = pair() or fail;
+    var a = pair()?;
+    var b, c, d = pair()?;
     var x, y, z = 0, 0, 0;
-    x, y, z = pair() or fail;
+    x, y, z = pair()?;
 };
 `})
 	for _, want := range []string{
@@ -91,8 +91,8 @@ fn pair() i32, bool! {
 };
 
 fn main() void! {
-    var a = plain() or fail("x");
-    var b, c = pair() or fail("x");
+    var a = plain()?;
+    var b, c = pair()?;
 };
 `})
 	if !hasError(p, "call does not return an error") {
@@ -106,10 +106,10 @@ fn main() void! {
 func TestOrMultiNonCall(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `fn main() void! {
     var x = 1;
-    var a = x or fail;
+    var a = x?;
 };
 `})
-	if !hasError(p, "or expects a call") {
+	if !hasError(p, "? expects a call") {
 		t.Fatalf("missing non-call rejection: %v", p.Errors)
 	}
 }

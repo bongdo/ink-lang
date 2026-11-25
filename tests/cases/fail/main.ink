@@ -1,4 +1,3 @@
-use fmt;
 use errors;
 
 fn bad() i32! {
@@ -6,15 +5,14 @@ fn bad() i32! {
 };
 
 fn wrapped() i32! {
-    var n = bad()
-        or fail("ctx");
+    var n = bad()?;
     return n;
 };
 
 fn handled() i32! {
     var n = bad()
         on err {
-            fail(err, "handled");
+            print("handled:", err);
         };
     return n;
 };
@@ -22,8 +20,7 @@ fn handled() i32! {
 fn inGo() i32! {
     par {
         {
-            var n = bad()
-                or fail("worker");
+            var n = bad()?;
             _ = n;
         };
     };
@@ -34,20 +31,17 @@ fn main() void! {
     var a = i32(0);
     a = wrapped()
         on err {
-            fmt.Println("wrapped:", err)
-                or fail;
+            print("wrapped:", err);
         };
     var b = i32(0);
     b = handled()
         on err {
-            fmt.Println("handled:", err)
-                or fail;
+            print("handled:", err);
         };
     var c = i32(0);
     c = inGo()
         on err {
-            fmt.Println("spawn:", err)
-                or fail;
+            print("spawn:", err);
         };
     _ = a;
     _ = b;

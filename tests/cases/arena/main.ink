@@ -19,7 +19,6 @@ fn sum() i32 {
 };
 
 fn main() void! {
-    fmt.Println(sum())
-        or fail;
+    fmt.Println(sum())?;
     return;
 };

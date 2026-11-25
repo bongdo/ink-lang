@@ -1,6 +1,6 @@
-use errors;
 use fmt;
 use sync;
+use time;
 
 fn save(id: i32, wg: *sync.WaitGroup) void {
     defer wg.Done();
@@ -9,7 +9,7 @@ fn save(id: i32, wg: *sync.WaitGroup) void {
 
 fn failTask(wg: *sync.WaitGroup) void! {
     defer wg.Done();
-    fail(errors.New("boom"));
+    check(false, "boom");
 };
 
 fn main() void {
@@ -23,4 +23,5 @@ fn main() void {
             _ = fmt.Println("task:", err);
         };
     wg.Wait();
+    time.Sleep(20ms);
 };

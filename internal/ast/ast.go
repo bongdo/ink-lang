@@ -438,26 +438,20 @@ type MatchExpr struct {
 
 func (*MatchExpr) exprNode() {}
 
-type OrMode int
-
-const (
-	OrReturn OrMode = iota
-	OrPanic
-	OrHandle
-	OrFail
-)
-
-type OrExpr struct {
+type OnErrExpr struct {
 	Span
-	X        Expr
-	Mode     OrMode
-	Name     string
-	Block    *Block
-	PanicArg Expr
-	FailArg  Expr
+	X     Expr
+	Block *Block
 }
 
-func (*OrExpr) exprNode() {}
+func (*OnErrExpr) exprNode() {}
+
+type TryExpr struct {
+	Span
+	X Expr
+}
+
+func (*TryExpr) exprNode() {}
 
 type Case struct {
 	Span
@@ -498,14 +492,6 @@ type EmptyStmt struct {
 }
 
 func (*EmptyStmt) stmtNode() {}
-
-type FailStmt struct {
-	Span
-	Err Expr
-	Msg Expr
-}
-
-func (*FailStmt) stmtNode() {}
 
 type ArenaStmt struct {
 	Span

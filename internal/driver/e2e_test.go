@@ -189,7 +189,7 @@ func TestCheckRunsVet(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/vet\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	src := "use fmt;\n\nfn main() void! {\n    fmt.Println(str(42))\n        or fail;\n    return;\n};\n"
+	src := "use fmt;\n\nfn main() void! {\n    fmt.Println(str(42))\n?;\n    return;\n};\n"
 	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}

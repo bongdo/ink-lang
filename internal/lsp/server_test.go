@@ -423,7 +423,7 @@ func TestTypeDiagnostics(t *testing.T) {
 	files := map[string]string{
 		"go.mod": "module example.com/hello\n\ngo 1.27\n",
 	}
-	src := "use fmt;\n\nfn main() void! {\n    var n = 1 + \"x\";\n    fmt.Println(n) or fail;\n};\n"
+	src := "use fmt;\n\nfn main() void! {\n    var n = 1 + \"x\";\n    fmt.Println(n)?;\n};\n"
 	for name, text := range files {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {
 			t.Fatal(err)
@@ -645,8 +645,7 @@ func TestGoImportCompletion(t *testing.T) {
 	src := `use fmt;
 
 fn main() void! {
-    fmt.Println("hi")
-        or fail;
+    fmt.Println("hi")?;
 };
 `
 	root, _, uri := newProject(t, src)

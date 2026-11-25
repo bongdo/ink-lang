@@ -31,11 +31,8 @@ go 1.27
 `main.ink`:
 
 ```hare
-use fmt;
-
 fn main() void! {
-    fmt.Println("hello from hello")
-        or fail;
+    print("hello from hello");
 };
 ```
 
@@ -86,12 +83,10 @@ fn Square(x: i32) i32 {
 `main.ink`:
 
 ```hare
-use fmt;
 use ./lib;
 
 fn main() void! {
-    fmt.Println(lib.Square(7))
-        or fail;
+    print(lib.Square(7));
 };
 ```
 
@@ -134,20 +129,20 @@ function body are rejected; `ink fmt` formats canonical input.
 use os;
 
 fn exists(path: str) bool! {
-    var f = os.Open(path)
-        or fail;
+    var f = os.Open(path)?;
     defer f.Close();
     return true;
 };
 ```
 
-- `call() or fail;` propagates.
-- `call() or fail("context");` wraps and propagates.
+- `call()?;` propagates the error to the caller; the function must be `!`.
 - `call() on err { ... };` handles the error here; the name is always `err`.
+- `check(cond, "msg");` returns a fresh error when `cond` is false.
 - `on err { ... };` as the first statement of a function or block listens for
-  unhandled `par` errors. It cannot be empty and cannot use `fail` or `return`.
+  unhandled `par` errors. It cannot be empty and cannot use `?` or `return`.
+- `print(...)` writes a line to stdout and has no error.
 - `panic("message");` is a Go panic: `on err` does not catch it.
-- The handler always starts on a new line, indented once.
+- `_ = call();` discards a fallible result deliberately.
 
 ## Tests
 
@@ -171,10 +166,8 @@ fn main() void! {
     var users = 0;
     var orders = 0;
     par {
-        users = load(1)
-            or fail;
-        orders = load(2)
-            or fail;
+        users = load(1)?;
+        orders = load(2)?;
     };
 
     var xs = i32[] {1, 2, 3};

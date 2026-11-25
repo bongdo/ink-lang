@@ -39,7 +39,7 @@ Escape hatch тоже живёт здесь. В Ink нет `unsafe`-блока �
 
 | Слой | Что это | Что можно | Что нельзя |
 |---|---|---|---|
-| App | домен и UI на Ink | Ink-типы, `or fail`, `on err`, `par` (включая `spawn f()`) | `context.Context` без нужды, Go-интерфейсы и указатели в публичном API, `sync`/`atomic`, `chan`/`select` |
+| App | домен и UI на Ink | Ink-типы, `?`, `on err`, `par` (включая `spawn f()`) | `context.Context` без нужды, Go-интерфейсы и указатели в публичном API, `sync`/`atomic`, `chan`/`select` |
 | Facade | Ink-модуль с простым API | `use` Go-пакета внутри, маппинг типов | протаскивать Go-типы в сигнатуры |
 | Binding | Go-пакет для сложной библиотеки | всё, что нужно Go: ctx, goroutines, callbacks, locks | попадать в app-код напрямую |
 | Generated | `zz_ink.go`, `.ink/runtime` | генерируется компилятором | править руками |
@@ -131,7 +131,7 @@ struct Client {
     h: *httpc.Client,
 
     fn Get(ctx: context.Context, url: str) Response! {
-        var r = h.Get(ctx, url) or fail;
+        var r = h.Get(ctx, url)?;
         return Response { Status: r.Status, Body: r.Body };
     };
 
@@ -141,7 +141,7 @@ struct Client {
 };
 
 fn NewClient(base: str) Client! {
-    var h = httpc.New(base) or fail;
+    var h = httpc.New(base)?;
     return Client { h: h };
 };
 ```
@@ -289,7 +289,7 @@ var u = loadUser(ctx, name)
 - `error` → `void!`.
 - `(T, bool)` → `var v, ok = f();`, не `or`: bool — не error.
 - `(A, B, error)` — Go-форма. App-код может писать `(A, B)!` и
-  `var a, b = f() or fail;`; для публичного API facade лучше struct, чтобы
+  `var a, b = f()?;`; для публичного API facade лучше struct, чтобы
   не плодить multi-result сигнатуры. Ограничение — на app API, не на
   грамматику.
 - Ошибка из Go не становится panic; panic не маппится в обычный error.

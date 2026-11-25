@@ -43,11 +43,10 @@ fn main() void {
 	wantError(t, p, "arena value cannot leave the arena block")
 }
 
-func TestGoVoidOrFailWithListener(t *testing.T) {
+func TestGoVoidWithListener(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
-use errors;
 
-fn f() i32! { fail(errors.New("x")); };
+fn f() i32! { check(false, "x"); };
 
 fn handler() void {
     on err {
@@ -56,8 +55,7 @@ fn handler() void {
     };
     var a = i32(0);
     par {
-        a = f()
-            or fail;
+        a = f()?;
     };
     fmt.Println(a)
         on err { _ = err; };

@@ -4,8 +4,7 @@ use strconv;
 use ./lib;
 
 fn usage() void! {
-    fmt.Println("usage: ink run -- add SKU QTY PRICE | receive SKU QTY | value ID | top N | save PATH | load PATH; store: $STORE or store.json")
-        or fail;
+    fmt.Println("usage: ink run -- add SKU QTY PRICE | receive SKU QTY | value ID | top N | save PATH | load PATH; store: $STORE or store.json")?;
 };
 
 fn storePath() str {
@@ -32,62 +31,44 @@ fn open(path: str) lib.Store {
 fn main() void! {
     var args = os.Args;
     if (len(args) < 2) {
-        usage()
-            or fail;
+        usage()?;
         return;
     };
     var s = open(storePath());
     match (args[1]) {
         case "add" => {
-            var qty = strconv.Atoi(args[3])
-                or fail;
-            var price = strconv.ParseFloat(args[4], 64)
-                or fail;
+            var qty = strconv.Atoi(args[3])?;
+            var price = strconv.ParseFloat(args[4], 64)?;
             s.Add(args[2], i32(qty), price);
-            lib.Save(storePath(), &s)
-                or fail;
-            fmt.Println("ok")
-                or fail;
+            lib.Save(storePath(), &s)?;
+            fmt.Println("ok")?;
         };
         case "receive" => {
-            var qty = strconv.Atoi(args[3])
-                or fail;
-            var id = s.Receive(args[2], i32(qty))
-                or fail;
-            lib.Save(storePath(), &s)
-                or fail;
-            fmt.Println("order", id)
-                or fail;
+            var qty = strconv.Atoi(args[3])?;
+            var id = s.Receive(args[2], i32(qty))?;
+            lib.Save(storePath(), &s)?;
+            fmt.Println("order", id)?;
         };
         case "value" => {
-            var id = strconv.Atoi(args[2])
-                or fail;
-            var v = s.Value(i32(id))
-                or fail;
-            fmt.Println(v)
-                or fail;
+            var id = strconv.Atoi(args[2])?;
+            var v = s.Value(i32(id))?;
+            fmt.Println(v)?;
         };
         case "top" => {
-            var n = strconv.Atoi(args[2])
-                or fail;
+            var n = strconv.Atoi(args[2])?;
             for (var it in s.Top(i32(n))) {
-                fmt.Println(it.SKU, it.Qty)
-                    or fail;
+                fmt.Println(it.SKU, it.Qty)?;
             };
         };
         case "save" => {
-            lib.Save(args[2], &s)
-                or fail;
+            lib.Save(args[2], &s)?;
         };
         case "load" => {
-            var loaded = lib.Load(args[2])
-                or fail;
-            fmt.Println(len(loaded.Items))
-                or fail;
+            var loaded = lib.Load(args[2])?;
+            fmt.Println(len(loaded.Items))?;
         };
         else => {
-            usage()
-                or fail;
+            usage()?;
         };
     };
 };

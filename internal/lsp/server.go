@@ -2102,9 +2102,9 @@ func collectExprLocals(expr ast.Expr, offset int, names *[]string) {
 					}
 				}
 			}
-		case *ast.OrExpr:
+		case *ast.OnErrExpr:
 			if containsNode(n, offset) && n.Block != nil && containsNode(n.Block, offset) {
-				addLocalName(n.Name, names)
+				addLocalName("err", names)
 				collectBlockLocals(n.Block, offset, names)
 			}
 		}

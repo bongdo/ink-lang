@@ -277,14 +277,14 @@ defer _s_d.RunTo(0)
 - At normal block exit: `_s_d.RunTo(_s_mark)`.
 - On `return`: `_s_d.RunTo(0)` before the return.
 - On `break`/`continue`: run to the mark of the loop body being left.
-- On `or fail`: same as return/panic.
+- On `?`: same as return/panic.
 - Each `par`/`par for` worker declares its own `_s_d` inside the goroutine and
   runs `RunTo(0)` at worker exit. It never touches the enclosing function's
   stack.
 
-### Errors (`or`, `on err`)
+### Errors (`?`, `on err`, `check`, `print`)
 
-- `var x = f() or fail;` → `_s_v, _s_err := f(); if _s_err != nil { cleanup; return zero, _s_err }; x := _s_v`
+- `var x = f()?;` → `_s_v, _s_err := f(); if _s_err != nil { cleanup; return zero, _s_err }; x := _s_v`
 - For a `void!` function: `return _s_err`.
 - For `T!`: zero value `*new(T)`; a nil result uses `(T)(nil)`.
 - Multiple non-error results: `return a, b, nil`; `return a, b` appends nil;
@@ -296,7 +296,7 @@ defer _s_d.RunTo(0)
 - Direct call with no assignment and only an error result:
   `if _s_err := f(); _s_err != nil { ... }`.
 - `CallInfo.Results`, `ResultTypes` and `HasError` drive the shape.
-- `or` supports multiple non-error results: `var a, b = f() or fail;`
+- `?` supports multiple non-error results: `var a, b = f()?;`
   generates `a, b` from `CallInfo.ResultTypes[:Results]`. A multi-result call
   is still not a tuple value and cannot be nested in another expression.
 
@@ -364,7 +364,7 @@ if _s_err := _s_pe.First(); _s_err != nil {
   Workers run to completion; a panic is a Go panic and aborts the process.
 - Each goroutine has its own `DeferStack` and runs it to zero at worker exit,
   before reporting an error.
-- `or fail` drains the worker's `DeferStack` first, then adds at the worker's
+- `?` drains the worker's `DeferStack` first, then adds at the worker's
   ord and returns from the goroutine.
 - At the join, the winner goes to the block's `_s_onerr` if present; otherwise
   an error-returning function returns it. A `void` function without a listener

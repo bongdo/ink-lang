@@ -411,6 +411,8 @@ func (l *lexer) symbol() {
 		} else {
 			kind, size = token.Bang, 1
 		}
+	case '?':
+		kind, size = token.Question, 1
 	case '+':
 		switch n1 {
 		case '+':

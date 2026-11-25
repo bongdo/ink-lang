@@ -82,17 +82,13 @@ fn NewStore() Store {
 };
 
 fn Save(path: str, s: *Store) void! {
-    var data = json.Marshal(s)
-        or fail;
-    os.WriteFile(path, data, 0o644)
-        or fail;
+    var data = json.Marshal(s)?;
+    os.WriteFile(path, data, 0o644)?;
 };
 
 fn Load(path: str) Store! {
-    var data = os.ReadFile(path)
-        or fail;
+    var data = os.ReadFile(path)?;
     var s = NewStore();
-    json.Unmarshal(data, &s)
-        or fail;
+    json.Unmarshal(data, &s)?;
     return s;
 };

@@ -48,7 +48,7 @@ Delivery:
 
 - No cancel context is created. All workers run to completion; the winner is
   delivered only at the join. There is no early cancellation of siblings.
-- `or fail` in a worker: run the worker's deferred calls, then add the error at
+- `?` in a worker: run the worker's deferred calls, then add the error at
   the worker's ord and leave the worker. A panic in a deferred call is a Go
   panic (§3), not a collected error.
 - `par`/`par for` with an error-returning enclosing function: at the join the
@@ -59,10 +59,10 @@ Delivery:
 - Enclosing function cannot return an error (`void` or no `!`) and has no
   listener: a branch that can fail unhandled is a compile error. Every worker
   must handle its own errors.
-- `return`, `break`, `continue` may not cross a `par` boundary. `or fail` is the
+- `return`, `break`, `continue` may not cross a `par` boundary. `?` is the
   only way out of a worker.
 - A fallible call as a bare statement is rejected inside a worker too:
-  `f();` drops the error. Use `f() on err { ... };` or `f() or fail;`;
+  `f();` drops the error. Use `f()?;`, `f() on err { ... };` or `_ = f();`;
   `_ = f();` is the explicit discard.
 - The scope listener is written first in a function or block, is non-empty,
   and cannot `fail` or `return`. It is captured by each task at launch and may
@@ -93,7 +93,7 @@ func (p *ParErrors) First() error
 - Each worker owns a `DeferStack` (`var _s_d _s_rt.DeferStack` declared inside
   the goroutine). No worker touches the enclosing function's stack.
 - Deferred calls run LIFO at worker exit and before an error is reported
-  (`or fail`). A panic in a worker also runs them, then aborts the process.
+  (`?`). A panic in a worker also runs them, then aborts the process.
 - A `defer` written as a top-level statement of a `par` body is itself one
   worker: the deferred call runs when that worker ends, not when a sibling
   ends. Put related statements in a block (`par { { defer f(); ... }; };`) when
@@ -181,7 +181,7 @@ write to `c`.
   A `void!` call without a handler is rejected. The handler runs in the task,
   sees `err` and package-level names only, and cannot `fail` or `return`.
   A scope `on err` listener never receives a detached task error.
-- `or fail` after `spawn f(...)` is rejected: there is no function return to use.
+- `?` after `spawn f(...)` is rejected: there is no function return to use.
 - Panics are not recovered (§3).
 
 ## 8. Known limits

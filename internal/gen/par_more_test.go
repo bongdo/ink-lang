@@ -21,7 +21,7 @@ fn main() void! {
     par {
         {
             defer boom();
-            stop() or fail;
+            stop()?;
         };
     };
 };

@@ -21,12 +21,8 @@ struct User {
 
 fn main() void! {
     var u = User { ID: 1, Email: "a@b", Role: "admin", Pass: "secret" };
-    var b = json.Marshal(u)
-        or fail;
-    fmt.Println(str(b))
-        or fail;
-    var a = json.Marshal(u.admin())
-        or fail;
-    fmt.Println(str(a))
-        or fail;
+    var b = json.Marshal(u)?;
+    fmt.Println(str(b))?;
+    var a = json.Marshal(u.admin())?;
+    fmt.Println(str(a))?;
 };

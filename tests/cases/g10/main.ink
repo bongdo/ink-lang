@@ -43,11 +43,8 @@ fn apply(d: Doer) i32 {
 
 fn main() void! {
     sort.Slice(xs, less);
-    fmt.Println(xs)
-        or fail;
+    fmt.Println(xs)?;
     var d = Doubler { n: 21 };
-    fmt.Println(apply(&d))
-        or fail;
-    fmt.Println(&Stringer {})
-        or fail;
+    fmt.Println(apply(&d))?;
+    fmt.Println(&Stringer {})?;
 };

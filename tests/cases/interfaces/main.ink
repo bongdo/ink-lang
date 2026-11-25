@@ -18,15 +18,12 @@ struct Buffer {
 };
 
 fn emit(w: Writer, text: str) int! {
-    var n = w.Write(bytes(text))
-        or fail;
+    var n = w.Write(bytes(text))?;
     return n;
 };
 
 fn main() void! {
     var b = Buffer {};
-    var n = emit(&b, "hello")
-        or fail;
-    fmt.Println(n, b.Len(), str(b.data))
-        or fail;
+    var n = emit(&b, "hello")?;
+    fmt.Println(n, b.Len(), str(b.data))?;
 };

@@ -105,7 +105,7 @@
 </head>
 <body>
 
-<h1>Ink: <span class="mono">par</span>, <span class="mono">spawn</span>, <span class="mono">on err</span>, <span class="mono">or fail</span></h1>
+<h1>Ink: <span class="mono">par</span>, <span class="mono">spawn</span>, <span class="mono">on err</span>, <span class="mono">?</span></h1>
 <p class="lead">Два слова для параллельности: <code>par</code> ждёт, <code>spawn</code> — нет; два — для ошибок, паника — это паника Go.
    Никаких скрытых контекстов и «цветных» функций.</p>
 
@@ -125,10 +125,8 @@
       <h3 class="mono">par { ... };</h3>
       <p class="small">Ветки — верхнеуровневые операторы. Блок ждёт их и отдаёт первую ошибку.</p>
 <pre><span class="k">par</span> {
-    a = fetchA()
-        <span class="k">or fail</span>;
-    b = fetchB()
-        <span class="k">or fail</span>;
+    a = fetchA()?;
+    b = fetchB()?;
 };</pre>
     </div>
     <div class="card">
@@ -194,10 +192,9 @@
     </div>
     <div class="card">
       <span class="tag">вернуть</span>
-      <h3 class="mono">or fail</h3>
-      <p class="small">Утверждение: функция либо срабатывает, либо падает. С аргументом — оборачивает.</p>
-<pre>db.Exec(q)
-    <span class="k">or fail</span>(<span class="c">"save user"</span>);</pre>
+      <h3 class="mono">?</h3>
+      <p class="small">Утверждение: функция либо срабатывает, либо падает. Один символ — ошибка уходит вызывающему.</p>
+<pre>db.Exec(q)<span class="k">?</span>;</pre>
     </div>
   </div>
 
@@ -208,12 +205,11 @@
     };
 
     <span class="k">par</span> {
-        saveUser(1, <span class="c">"hello"</span>)
-            <span class="k">or fail</span>;   <span class="c">// ошибка придёт в log</span>
+        saveUser(1, <span class="c">"hello"</span>)<span class="k">?</span>;   <span class="c">// ошибка придёт в log</span>
     };
 };</pre>
   <p class="small muted">Слушатель — замыкание, захваченное задачей. Он может выполниться после выхода из функции:
-     только лог, метрики, паника. <code>fail</code>/<code>return</code> внутри запрещены.</p>
+     только лог, метрики, паника. <code>?</code>/<code>return</code> внутри запрещены.</p>
 
   <h3>Пустой обработчик запрещён</h3>
   <p class="small">Обработчик, который не выходит и не использует <code>err</code>, — это тихое проглатывание.
@@ -228,10 +224,9 @@
   <table>
     <tr><th>Форма</th><th>Что делает</th></tr>
     <tr><td class="mono">on err { ... }</td><td>обработать здесь</td></tr>
-    <tr><td class="mono">or fail</td><td>вернуть ошибку</td></tr>
-    <tr><td class="mono">or fail("ctx")</td><td>обернуть и вернуть</td></tr>
-    <tr><td class="mono">fail(err, "ctx")</td><td>внутри обработчика: обернуть и вернуть</td></tr>
-    <tr><td class="mono">error("msg")</td><td>создать ошибку</td></tr>
+    <tr><td class="mono">call()?</td><td>вернуть ошибку</td></tr>
+    <tr><td class="mono">check(false, "msg")</td><td>создать ошибку</td></tr>
+    <tr><td class="mono">print(...)</td><td>строка в stdout без ошибки</td></tr>
     <tr><td class="mono">panic(...)</td><td>Go-паника</td></tr>
   </table>
 </section>
@@ -264,8 +259,7 @@
 };
 
 <span class="k">par for</span> (var i = 0; i &lt; 8; i += 1) <span class="k">limit</span> 3 {
-    worker(i)
-        <span class="k">or fail</span>;
+    worker(i)<span class="k">?</span>;
 };</pre>
     </div>
   </div>

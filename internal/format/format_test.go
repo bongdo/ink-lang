@@ -41,10 +41,10 @@ fn area(s: Shape) f64 {
 };
 
 fn read(path: str) u8[]! {
-    var f = lib.Open(path) or fail;
+    var f = lib.Open(path)?;
     defer f.Close();
     var buf = u8[16] {};
-    var n = f.Read(buf[:]) or fail;
+    var n = f.Read(buf[:])?;
     return buf[:n];
 };
 
@@ -52,24 +52,24 @@ fn main() void! {
     var u = User { Name = "a", age = 1 };
     var s = u.Greet();
     if (len(s) > 0) {
-        fmt.Println(s) or fail;
+        fmt.Println(s)?;
     } else {
-        fmt.Println("empty") or fail;
+        fmt.Println("empty")?;
     };
     for (var i = 0; i < 10; i += 1) {
         if (i % 2 == 0) { continue; };
     };
     par {
-        fmt.Println("a") or fail;
-        fmt.Println("b") or fail;
+        fmt.Println("a")?;
+        fmt.Println("b")?;
     };
     {
-        fmt.Println("c") or fail;
+        fmt.Println("c")?;
     };
     var xs = u8[] {1, 2};
     var m = map[str, i32] { "a" = 1 };
     for (var k, v in m) {
-        fmt.Println(k, v) or fail;
+        fmt.Println(k, v)?;
     };
     var f = fn(x: i32) i32 => x + 1;
     var g = fn(x: i32) i32 { return x + 1; };
@@ -142,7 +142,7 @@ struct User {
 fn main() void {
     var x = 1; // tail
     if (x > 0) {
-        fmt.Println(x) or fail; // print
+        fmt.Println(x)?; // print
     }; // block
 };
 `
@@ -155,8 +155,7 @@ struct User {
 fn main() void {
     var x = 1; // tail
     if (x > 0) {
-        fmt.Println(x)
-            or fail; // print
+        fmt.Println(x)?; // print
     }; // block
 };
 `

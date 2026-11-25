@@ -45,6 +45,7 @@ const (
 	Shl
 	Shr
 	Bang
+	Question
 	AndAnd
 	OrOr
 
@@ -138,6 +139,7 @@ var names = map[Kind]string{
 	Shl:           "<<",
 	Shr:           ">>",
 	Bang:          "!",
+	Question:      "?",
 	AndAnd:        "&&",
 	OrOr:          "||",
 	PlusAssign:    "+=",

@@ -12,15 +12,11 @@ fn classify(n: i32) str {
 };
 
 fn main() void! {
-    fmt.Println(classify(0))
-        or fail;
-    fmt.Println(classify(10))
-        or fail;
-    fmt.Println(classify(99))
-        or fail;
+    fmt.Println(classify(0))?;
+    fmt.Println(classify(10))?;
+    fmt.Println(classify(99))?;
     fmt.Println(match (os.O_RDONLY) {
         case os.O_WRONLY => "write";
         else => "read";
-    })
-        or fail;
+    })?;
 };

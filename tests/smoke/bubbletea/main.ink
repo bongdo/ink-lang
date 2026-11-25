@@ -31,6 +31,5 @@ struct Model {
 fn main() void! {
     var m = Model {};
     var p = tea.NewProgram(&m);
-    p.Run()
-        or fail;
+    p.Run()?;
 };

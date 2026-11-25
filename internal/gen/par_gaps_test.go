@@ -57,11 +57,11 @@ fn work() void! {
     par {
         {
             defer fmt.Println("cleanup");
-            stop() or fail;
-            fmt.Println("unreachable") or fail;
+            stop()?;
+            fmt.Println("unreachable")?;
         };
     };
-    fmt.Println("unreachable") or fail;
+    fmt.Println("unreachable")?;
 };
 
 fn main() void! {
@@ -69,14 +69,14 @@ fn main() void! {
         {
             defer fmt.Println("d1");
             defer fmt.Println("d2");
-            fmt.Println("body") or fail;
+            fmt.Println("body")?;
         };
     };
     var caught = 0;
     work() on err {
         caught = 1;
     };
-    fmt.Println("caught", caught) or fail;
+    fmt.Println("caught", caught)?;
 };
 `,
 	})
@@ -103,7 +103,7 @@ fn main() void! {
         spin();
         out[i] = i * 10;
     };
-    fmt.Println(i, out[0], out[3], out[7]) or fail;
+    fmt.Println(i, out[0], out[3], out[7])?;
 };
 `,
 	})
@@ -118,7 +118,7 @@ func TestParRangeError(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use errors;
 
-fn check(k: i32) i32! {
+fn pick(k: i32) i32! {
     if (k == 1) {
         return 0, errors.New("key one");
     };
@@ -132,7 +132,7 @@ fn main() void! {
     var ks = i32[] { 1, 2 };
     var out = i32[8] {};
     par for (var i, k in ks) {
-        out[k] = check(k) or fail;
+        out[k] = pick(k)?;
     };
     var dummy = out[0] + out[1] + out[2];
     if (dummy < 0) {
@@ -200,10 +200,10 @@ fn main() void! {
             got = true;
         };
         par {
-            boom() or fail;
+            boom()?;
         };
     };
-    fmt.Println(got) or fail;
+    fmt.Println(got)?;
 };
 `,
 	})

@@ -397,7 +397,7 @@ fn main() i32! {
 };
 `,
 			code:    "err-manual",
-			want:    "var v = f() or fail;",
+			want:    "var v = f()?;",
 			notWant: "if (err != nil)",
 		},
 	}
@@ -871,8 +871,7 @@ func TestRenameShadowingPackageRejected(t *testing.T) {
 
 fn main() void! {
     var total = 1;
-    fmt.Println(total)
-        or fail;
+    fmt.Println(total)?;
     return;
 };
 `

@@ -26,7 +26,7 @@ not re-file.
 | JSON names and subsets are declared in `wire`/named blocks inside the struct, not Go tags. | One declaration owns the external names; unlisted fields are excluded; named views are explicit. |
 | Named views are package-local and encode-only. | Their generated method is lowercase, so another package cannot use it, and the unused-view check stays sound. Decoding uses the default `wire` view. |
 | Contract blocks on generic structs are rejected. | A scope cut for this version; generic receiver methods are legal Go, so this can be lifted without changing the syntax. |
-| `T or error` and `or return` are rejected. | `T!` and `or fail` replaced them; diagnostics point at the old form. |
+| `T or error`, `or return` and `or fail` are rejected. | `T!` and `?` replaced them; diagnostics point at the old form. |
 | `go` is rejected and `within` is removed. | Structured concurrency is `par`; `spawn` is detached. A deadline is `context.WithTimeout`, passed as an ordinary value. |
 | `spawn f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `spawn f(...) on err { ... };` at the launch site. |
 | Process exit does not wait for detached tasks. | Go's contract: when `main` returns the process exits, the tasks and their `defer`s are dropped. Use `par { ... }` or an explicit `sync.WaitGroup` when the work must finish. |
@@ -61,10 +61,10 @@ not re-file.
 | A pointer passed to a free or Go function, or an alias from a field/index read or a call result, is not tracked as a write. | No interprocedural alias or escape analysis. `ink run -race` and `ink test -race` are the dynamic oracle. |
 | `for ()` is rejected inside `par`. | A worker without a guaranteed exit can hang the block. |
 | A C-style `par for (i = 0; ...)` makes the body read a per-iteration copy of `i`; after the loop `i` holds the post value. | Deterministic capture without a closure per iteration. |
-| `or` is statement-level only: no `f(g() or fail)`, no `or` in multi-RHS or a `for` post. | No expression-level control flow; split the call into two statements. |
+| `?` is an expression: `f(g()?);` propagates from the inner call. | The error leaves the function before `f` runs; hoist the call when the order matters. |
 | A Go function returning `(T, bool)` needs two variables, not `or`. | `or` is for `error`; `ok` is a normal result. |
 | A local `const` is an error. | `const` is a package-level compile-time name; use `var` locally. |
-| Manual `if err != nil { return err; }` is rejected. | `or fail` is the one canonical propagation form. |
+| Manual `if err != nil { return err; }` is rejected. | `?` is the one canonical propagation form. |
 | `match` on `any` requires `else`. | Open types have no exhaustiveness; `else` makes the default explicit. |
 | Enum variants cannot share a name in one package, and an enum's zero value is not constructible. | Bare `case` patterns stay unambiguous; construction is explicit. |
 | `nil` needs an expected type or `nil[T]`. | `nil` is untyped; typed `var` covers most positions. |

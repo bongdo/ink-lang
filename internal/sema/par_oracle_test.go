@@ -446,7 +446,7 @@ fn main() void! {
     var a = 0;
     par {
         defer note();
-        a = load() or fail;
+        a = load()?;
     };
     a += 1;
 };
