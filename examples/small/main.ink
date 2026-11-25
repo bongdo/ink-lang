@@ -11,7 +11,6 @@ const Answer = 42;
 var packageVar = i32(7);
 
 alias UserId = u64;
-
 alias Handler = fn(i32) i32;
 
 // Struct: fields, methods with implicit self, JSON contract blocks.

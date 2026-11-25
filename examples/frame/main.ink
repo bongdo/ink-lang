@@ -3,9 +3,7 @@ use math;
 use runtime;
 
 const W = 480;
-
 const H = 270;
-
 const RowLen = W * 4;
 
 alias Row = u8[RowLen];

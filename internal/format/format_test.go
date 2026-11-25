@@ -452,6 +452,50 @@ func TestEmptyForLoop(t *testing.T) {
 	}
 }
 
+func TestConstAndAliasGroups(t *testing.T) {
+	src := `use fmt;
+
+const A = 1;
+
+const B = 2;
+const C = 3;
+
+var v = 1;
+
+alias X = u8;
+
+alias Y = u16;
+alias Z = u32;
+
+struct S {
+    a: i32,
+};
+`
+	want := `use fmt;
+
+const A = 1;
+const B = 2;
+const C = 3;
+
+var v = 1;
+
+alias X = u8;
+alias Y = u16;
+alias Z = u32;
+
+struct S {
+    a: i32,
+};
+`
+	out := formatSrc(t, src)
+	if out != want {
+		t.Fatalf("groups not collapsed:\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+	if again := formatSrc(t, out); again != out {
+		t.Fatalf("not idempotent:\n--- first ---\n%s\n--- second ---\n%s", out, again)
+	}
+}
+
 func TestVersionedImportKeepsAlias(t *testing.T) {
 	for _, want := range []string{
 		"use charm.land/bubbletea/v2 as tea;\n",

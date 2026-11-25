@@ -8,18 +8,14 @@ use ./lib;
 
 // Constants are compile-time values; `const` can size an array.
 const Answer = 42;
-
 const Name = "ink";
-
 const N = 3;
 
 var packageVar = i32(7);
 
 // Aliases do not create a new Go type.
 alias UserId = u64;
-
 alias Handler = fn(i32) i32;
-
 alias PairFn = fn(i32) (str, bool);
 
 // Struct: fields and methods live in the type body; `self` is implicit.

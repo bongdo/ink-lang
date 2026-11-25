@@ -3,11 +3,8 @@ use sort;
 use time;
 
 const W = 2560;
-
 const H = 1440;
-
 const RowLen = W * 4;
-
 const Frames = 240;
 
 alias Row = u8[RowLen];

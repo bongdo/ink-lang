@@ -134,6 +134,8 @@ fn pair() i32, bool { return 1, true; };
   there is no uninitialized declaration, so the zero value is written out:
   `var n = 0;`, `var u = User {};`, `var m = map[str, i32](nil);`.
 - `const` is package-level and untyped; a local `const` is an error, use `var`.
+  `ink fmt` keeps consecutive `const` declarations and consecutive `alias`
+  declarations together, with one blank line around each group.
 - Import paths are bare: `use fmt;`, `use encoding/json;`, `use ./lib as lib;`.
   A versioned path (`/v2`) requires an alias. No quotes. The local name is the
   last path element unless aliased, so a Go package whose name differs from its

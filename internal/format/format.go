@@ -18,10 +18,11 @@ func File(f *ast.File) []byte {
 		p.blank()
 	}
 	for i, d := range f.Decls {
-		if i > 0 {
+		tight := i > 0 && sameGroup(f.Decls[i-1], d)
+		if i > 0 && !tight {
 			p.blank()
 		}
-		p.decl(d)
+		p.decl(d, tight)
 	}
 	p.flush(len(f.Src) + 1)
 	p.trim()
@@ -170,9 +171,23 @@ func versionSegment(s string) bool {
 	return n >= 2
 }
 
-func (p *printer) decl(d ast.Decl) {
+func sameGroup(a, b ast.Decl) bool {
+	if av, ok := a.(*ast.VarDecl); ok {
+		bv, ok := b.(*ast.VarDecl)
+		return ok && av.Const && bv.Const
+	}
+	if at, ok := a.(*ast.TypeDecl); ok {
+		bt, ok := b.(*ast.TypeDecl)
+		return ok && at.Kind == ast.TypeAlias && bt.Kind == ast.TypeAlias
+	}
+	return false
+}
+
+func (p *printer) decl(d ast.Decl, tight bool) {
 	p.flush(d.Pos().Offset)
-	p.gap(d.Pos().Line)
+	if !tight {
+		p.gap(d.Pos().Line)
+	}
 	switch d := d.(type) {
 	case *ast.FuncDecl:
 		p.funcDecl(d)
