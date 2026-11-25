@@ -486,6 +486,7 @@ type parRef struct {
 	pe     string
 	ord    string
 	cancel string
+	chunk  string
 }
 
 func newWriter(f *fileGen, ctx string) *writer {

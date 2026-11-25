@@ -10,9 +10,7 @@ fn main() void! {
     fmt.Println(v)?;
     var w = i32(0);
     w = load(false)
-        on err {
-            fmt.Println("caught:", err)?;
-        };
+        on err { fmt.Println("caught:", err)?; };
     fmt.Println(w)?;
     var z = load(true)?;
     fmt.Println(z)?;

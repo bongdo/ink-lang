@@ -12,9 +12,7 @@ fn seed() lib.Store {
 
 fn mustReceive(s: *lib.Store, sku: str, qty: i32) i32 {
     return s.Receive(sku, qty)
-        on err {
-            panic(err);
-        };
+        on err { panic(err); };
 };
 
 test "receive decrements stock" {
@@ -28,9 +26,7 @@ test "cannot oversell" {
     var s = seed();
     var failed = false;
     s.Receive("A", 20)
-        on err {
-            failed = true;
-        };
+        on err { failed = true; };
     assert(failed);
     assert_eq(s.Items["A"].Qty, 10);
 };
@@ -39,9 +35,7 @@ test "discount applies once over ten units" {
     var s = seed();
     var id = mustReceive(&s, "B", 10);
     var v = s.Value(id)
-        on err {
-            panic(err);
-        };
+        on err { panic(err); };
     assert_eq(v, 90.0);
 };
 
@@ -49,9 +43,7 @@ test "value of small order has no discount" {
     var s = seed();
     var id = mustReceive(&s, "C", 2);
     var v = s.Value(id)
-        on err {
-            panic(err);
-        };
+        on err { panic(err); };
     assert_eq(v, 8.0);
 };
 
@@ -68,9 +60,7 @@ test "load rejects corrupt json" {
     defer os.Remove("corrupt.json");
     var failed = false;
     var s = lib.Load("corrupt.json")
-        on err {
-            failed = true;
-        };
+        on err { failed = true; };
     _ = s;
     assert(failed);
 };
@@ -81,13 +71,9 @@ test "load keeps the order counter" {
     var s = seed();
     var first = mustReceive(&s, "A", 1);
     lib.Save(path, &s)
-        on err {
-            panic(err);
-        };
+        on err { panic(err); };
     var loaded = lib.Load(path)
-        on err {
-            panic(err);
-        };
+        on err { panic(err); };
     var second = mustReceive(&loaded, "A", 1);
     assert_eq(first, 1);
     assert_eq(second, 2);

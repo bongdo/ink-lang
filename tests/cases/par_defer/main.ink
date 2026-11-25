@@ -25,8 +25,6 @@ fn main() void! {
     };
     var caught = 0;
     work()
-        on err {
-            caught = 1;
-        };
+        on err { caught = 1; };
     fmt.Println("caught", caught)?;
 };

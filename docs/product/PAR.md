@@ -16,8 +16,13 @@ this file wins. It covers `par { }`, `par for`, the detached `spawn f(args)` and
   `par { }` starts its own workers and its own error set. Each top-level
   statement is its own scope: a local declared in one worker is not visible in
   another.
-- `par for (...) { body }`: one worker per iteration; the whole body block is
-  sequential inside one worker.
+- `par for (...) { body }`: one unit of work per iteration; the whole body
+  block is sequential inside that unit. The generator may give a contiguous
+  chunk of iterations to one goroutine, so the live goroutine count is bounded
+  by `limit`, not by the iteration count. Each iteration keeps its own ordinal
+  and error: `?` or `check` records the error and moves to the next iteration,
+  not to the next chunk. Bodies with `defer`, `on err`, nested `par`/`spawn`,
+  `arena` or `return` keep the one-goroutine-per-iteration path.
 - `spawn f(args)`: one detached task, not a worker of any `par` statement. It is
   owned by the program and may outlive the function that launched it. Arguments
   and the receiver are evaluated before the task starts. A method call on a

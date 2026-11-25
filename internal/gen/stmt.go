@@ -766,7 +766,11 @@ func (w *writer) propagateParError(errName string) {
 		if w.par.pe != "" {
 			w.linef("%s.Add(%s, %s)", w.par.pe, w.par.ord, errName)
 		}
-		w.line("return")
+		if w.par.chunk != "" {
+			w.linef("continue %s", w.par.chunk)
+		} else {
+			w.line("return")
+		}
 		return
 	}
 	w.returnErr(errName)
@@ -1760,7 +1764,7 @@ func chunkSafeBody(b *ast.Block) bool {
 		switch n.(type) {
 		case *ast.FuncLit:
 			return false
-		case *ast.OnErrExpr, *ast.TryExpr, *ast.DeferStmt, *ast.OnErrStmt, *ast.WithinStmt,
+		case *ast.OnErrExpr, *ast.DeferStmt, *ast.OnErrStmt, *ast.WithinStmt,
 			*ast.ArenaStmt, *ast.ParStmt, *ast.GoCallStmt, *ast.ReturnStmt:
 			ok = false
 			return false
@@ -1770,12 +1774,37 @@ func chunkSafeBody(b *ast.Block) bool {
 	return ok
 }
 
+func bodyCanFail(b *ast.Block) bool {
+	can := false
+	ast.Inspect(b, func(n ast.Node) bool {
+		if can {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.TryExpr:
+			can = true
+			return false
+		case *ast.CallExpr:
+			if n.Info != nil && n.Info.Builtin == "check" {
+				can = true
+				return false
+			}
+		}
+		return true
+	})
+	return can
+}
+
 func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 	w.f.needPkg("rt")
 	w.line("{")
 	w.indent++
 	wg := w.next("wg")
 	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
+	pe := w.next("pe")
+	w.linef("var %s _s_rt.ParErrors", pe)
 	limit := w.next("limit")
 	if cl.limit != nil {
 		w.linef("%s := int(%s)", limit, w.expr(cl.limit))
@@ -1808,13 +1837,16 @@ func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 	w.linef("go func(%s, %s int) {", lo, hi)
 	w.indent++
 	w.linef("defer %s.Done()", wg)
-	w.linef("var _s_d _s_rt.DeferStack")
-	w.linef("defer _s_d.RunTo(0)")
 	sub := w.sub()
 	sub.results = nil
 	sub.err = false
-	sub.deferStack = true
-	sub.par = nil
+	sub.deferStack = false
+	sub.par = &parRef{pe: pe, ord: cl.name}
+	if bodyCanFail(s.Body) {
+		label := sub.next("iter")
+		sub.par.chunk = label
+		sub.linef("%s:", label)
+	}
 	sub.linef("for %s := %s; %s < %s; %s += %s {", cl.name, lo, cl.name, hi, cl.name, step)
 	sub.indent++
 	if s.Body != nil {
@@ -1831,6 +1863,123 @@ func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 	w.indent--
 	w.line("}")
 	w.linef("%s.Wait()", wg)
+	errName := w.next("err")
+	w.linef("if %s := %s.First(); %s != nil {", errName, pe, errName)
+	w.indent++
+	w.unhandled(errName)
+	w.indent--
+	w.line("}")
+	w.indent--
+	w.line("}")
+}
+
+func (w *writer) rangeChunkable(r *ast.RangeClause) bool {
+	if r == nil || r.IsMap {
+		return false
+	}
+	return w.chunkableRangeType(w.f.g.p.ExprTypes[r.X])
+}
+
+func (w *writer) chunkableRangeType(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.SliceType, *ast.ArrayType:
+		return true
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Kind == ast.TypeAlias {
+			return w.chunkableRangeType(t.Decl.Target)
+		}
+		if gt := w.f.g.p.GoTypeOf(t); gt != nil {
+			switch gt.Underlying().(type) {
+			case *types.Slice, *types.Array:
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (w *writer) chunkedRangeParFor(s *ast.ForStmt) {
+	r := s.Range
+	w.f.needPkg("rt")
+	w.line("{")
+	w.indent++
+	wg := w.next("wg")
+	w.linef("var %s %s.WaitGroup", wg, w.f.std("sync"))
+	pe := w.next("pe")
+	w.linef("var %s _s_rt.ParErrors", pe)
+	xs := w.next("xs")
+	w.linef("%s := %s", xs, w.expr(r.X))
+	n := w.next("n")
+	w.linef("%s := len(%s)", n, xs)
+	limit := w.next("limit")
+	if s.Limit != nil {
+		w.linef("%s := int(%s)", limit, w.expr(s.Limit))
+	} else {
+		w.linef("%s := %s.GOMAXPROCS(0)", limit, w.f.std("runtime"))
+	}
+	w.linef("if %s > %s { %s = %s }", limit, n, limit, n)
+	w.linef("if %s < 1 { %s = 1 }", limit, limit)
+	per := w.next("per")
+	w.linef("%s := (%s + %s - 1) / %s", per, n, limit, limit)
+	wkr := w.next("w")
+	w.linef("for %s := 0; %s < %s; %s++ {", wkr, wkr, limit, wkr)
+	w.indent++
+	lo := w.next("lo")
+	hi := w.next("hi")
+	w.linef("%s := %s * %s", lo, wkr, per)
+	w.linef("%s := %s + %s", hi, lo, per)
+	w.linef("if %s > %s { %s = %s }", hi, n, hi, n)
+	w.linef("%s.Add(1)", wg)
+	w.linef("go func(%s, %s int) {", lo, hi)
+	w.indent++
+	w.linef("defer %s.Done()", wg)
+	sub := w.sub()
+	sub.results = nil
+	sub.err = false
+	sub.deferStack = false
+	idx := sub.next("i")
+	sub.par = &parRef{pe: pe, ord: idx}
+	if bodyCanFail(s.Body) {
+		label := sub.next("iter")
+		sub.par.chunk = label
+		sub.linef("%s:", label)
+	}
+	sub.linef("for %s := %s; %s < %s; %s++ {", idx, lo, idx, hi, idx)
+	sub.indent++
+	switch len(r.Names) {
+	case 0:
+	case 1:
+		if r.Names[0] != "_" {
+			sub.linef("%s := %s[%s]", r.Names[0], xs, idx)
+			sub.linef("_ = %s", r.Names[0])
+		}
+	default:
+		if r.Names[0] != "_" {
+			sub.linef("%s := %s", r.Names[0], idx)
+			sub.linef("_ = %s", r.Names[0])
+		}
+		if r.Names[1] != "_" {
+			sub.linef("%s := %s[%s]", r.Names[1], xs, idx)
+			sub.linef("_ = %s", r.Names[1])
+		}
+	}
+	if s.Body != nil {
+		sub.genStmts(s.Body.Stmts)
+	}
+	sub.indent--
+	sub.line("}")
+	w.buf.WriteString(sub.buf.String())
+	w.indent--
+	w.linef("}(%s, %s)", lo, hi)
+	w.indent--
+	w.line("}")
+	w.linef("%s.Wait()", wg)
+	errName := w.next("err")
+	w.linef("if %s := %s.First(); %s != nil {", errName, pe, errName)
+	w.indent++
+	w.unhandled(errName)
+	w.indent--
+	w.line("}")
 	w.indent--
 	w.line("}")
 }
@@ -1838,6 +1987,10 @@ func (w *writer) chunkedParFor(s *ast.ForStmt, cl *chunkLoop) {
 func (w *writer) parForStmt(s *ast.ForStmt) {
 	if cl := chunkLoopOf(s); cl != nil {
 		w.chunkedParFor(s, cl)
+		return
+	}
+	if s.Range != nil && w.rangeChunkable(s.Range) && chunkSafeBody(s.Body) {
+		w.chunkedRangeParFor(s)
 		return
 	}
 	scratch := w.loopScratch(s.Body)
@@ -1898,46 +2051,44 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	}
 	w.line(head)
 	w.indent++
+	if s.Range != nil {
+		for _, n := range s.Range.Names {
+			if n != "_" {
+				w.linef("_ = %s", n)
+			}
+		}
+	}
 	w.linef("%s <- struct{}{}", sem)
 	var order []rename
 	var orderNames []string
-	if s.Range != nil {
-		for _, n := range s.Range.Names {
-			if n == "_" {
-				continue
+	if s.Range == nil {
+		if d, ok := s.Init.(*ast.DeclStmt); ok && d.Decl != nil {
+			for _, n := range d.Decl.Names {
+				if n == "_" {
+					continue
+				}
+				capture := w.next("i")
+				w.linef("%s := %s", capture, n)
+				w.linef("_ = %s", capture)
+				order = append(order, rename{name: capture, decl: d.Decl})
+				orderNames = append(orderNames, n)
 			}
-			capture := w.next("i")
-			w.linef("%s := %s", capture, n)
-			w.linef("_ = %s", capture)
-			order = append(order, rename{name: capture})
-			orderNames = append(orderNames, n)
-		}
-	} else if d, ok := s.Init.(*ast.DeclStmt); ok && d.Decl != nil {
-		for _, n := range d.Decl.Names {
-			if n == "_" {
-				continue
+		} else if a, ok := s.Init.(*ast.AssignStmt); ok {
+			for _, l := range a.Lhs {
+				id, ok := l.(*ast.Ident)
+				if !ok || id.Name == "_" {
+					continue
+				}
+				capture := w.next("i")
+				w.linef("%s := %s", capture, id.Name)
+				w.linef("_ = %s", capture)
+				var decl ast.Node
+				if id.Ref != nil {
+					decl = id.Ref.Decl
+				}
+				order = append(order, rename{name: capture, decl: decl})
+				orderNames = append(orderNames, id.Name)
 			}
-			capture := w.next("i")
-			w.linef("%s := %s", capture, n)
-			w.linef("_ = %s", capture)
-			order = append(order, rename{name: capture, decl: d.Decl})
-			orderNames = append(orderNames, n)
-		}
-	} else if a, ok := s.Init.(*ast.AssignStmt); ok {
-		for _, l := range a.Lhs {
-			id, ok := l.(*ast.Ident)
-			if !ok || id.Name == "_" {
-				continue
-			}
-			capture := w.next("i")
-			w.linef("%s := %s", capture, id.Name)
-			w.linef("_ = %s", capture)
-			var decl ast.Node
-			if id.Ref != nil {
-				decl = id.Ref.Decl
-			}
-			order = append(order, rename{name: capture, decl: decl})
-			orderNames = append(orderNames, id.Name)
 		}
 	}
 	ordName := "-1"
@@ -1951,10 +2102,12 @@ func (w *writer) parForStmt(s *ast.ForStmt) {
 	sub := w.sub()
 	sub.results = nil
 	sub.err = false
-	sub.deferStack = true
+	sub.deferStack = bodyHasDefer(s.Body)
 	sub.par = &parRef{pe: pe, ord: ordName}
-	sub.line("var _s_d _s_rt.DeferStack")
-	sub.line("defer _s_d.RunTo(0)")
+	if sub.deferStack {
+		sub.line("var _s_d _s_rt.DeferStack")
+		sub.line("defer _s_d.RunTo(0)")
+	}
 	if s.Body != nil {
 		for i, r := range order {
 			sub.renames[orderNames[i]] = r

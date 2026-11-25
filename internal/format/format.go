@@ -440,6 +440,29 @@ func (p *printer) block(b *ast.Block) {
 	p.write("}")
 }
 
+func canInlineHandler(b *ast.Block) bool {
+	if b == nil || len(b.Stmts) != 1 {
+		return false
+	}
+	simple := true
+	ast.Inspect(b.Stmts[0], func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.MatchExpr, *ast.OnErrExpr, *ast.FuncLit, *ast.Block, *ast.IfStmt,
+			*ast.ForStmt, *ast.ParStmt, *ast.ArenaStmt:
+			simple = false
+			return false
+		}
+		return simple
+	})
+	return simple
+}
+
+func (p *printer) inlineHandlerBlock(b *ast.Block) {
+	p.write("{ ")
+	p.inlineStmt(b.Stmts[0])
+	p.write(" }")
+}
+
 func (p *printer) stmt(s ast.Stmt) {
 	p.ind()
 	p.inlineStmt(s)
@@ -802,7 +825,11 @@ func (p *printer) exprPrec(e ast.Expr, parent int) {
 		p.indent++
 		p.ind()
 		p.write("on err ")
-		p.block(e.Block)
+		if canInlineHandler(e.Block) {
+			p.inlineHandlerBlock(e.Block)
+		} else {
+			p.block(e.Block)
+		}
 		p.indent--
 	default:
 		p.write("?")

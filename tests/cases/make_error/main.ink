@@ -24,8 +24,6 @@ fn main() void! {
     var xs = mk(1);
     fmt.Println(xs[0], mkPoint().X)?;
     bad()
-        on err {
-            fmt.Println(err)?;
-        };
+        on err { fmt.Println(err)?; };
     return;
 };

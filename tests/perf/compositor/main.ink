@@ -18,14 +18,12 @@ fn envInt(name: str, def: int) int {
             return def;
         };
         n = n * 10 + int(ch) - 48;
-    };
+    };;
     return n;
 };
 
 const ModePass = 0;
-
 const ModeMove = 1;
-
 const ModeResize = 2;
 
 struct View {
@@ -62,7 +60,7 @@ struct Server {
             if (v.xdg == xdg) {
                 return v;
             };
-        };
+        };;
         return nil;
     };
 
@@ -71,7 +69,7 @@ struct Server {
         next = append(next, v);
         for (var x in self.views) {
             next = append(next, x);
-        };
+        };;
         self.views = next;
     };
 
@@ -81,7 +79,7 @@ struct Server {
             if (x != v) {
                 keep = append(keep, x);
             };
-        };
+        };;
         self.views = keep;
     };
 
@@ -194,7 +192,7 @@ struct Server {
         var sum = 0.0;
         for (var x in ys) {
             sum += x;
-        };
+        };;
         var line = fmt.Sprintf("INKSTAT frames=%d views=%d work_us_mean=%.1f work_us_p50=%.1f work_us_p95=%.1f work_us_p99=%.1f work_us_max=%.1f", n, len(self.views), sum / f64(n), ys[n / 2], ys[(n * 95) / 100], ys[(n * 99) / 100], ys[n - 1]);
         _ = fmt.Println(line);
         self.work = nil;
@@ -305,7 +303,7 @@ struct Server {
                 if (self.handleKeyBinding(s)) {
                     handled = true;
                 };
-            };
+            };;
         };
         if (!handled) {
             self.seat.SetKeyboard(kb.Base());

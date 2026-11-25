@@ -133,7 +133,7 @@ fn main() void! {
 `,
 	})
 	src := p.source(t, "zz_ink.go")
-	contains(t, src, ".Add(_s_ord")
+	contains(t, src, ".Add(_s_i")
 	stdout, stderr, err := p.run(t)
 	if err == nil {
 		t.Fatalf("expected failure, stdout:\n%s", stdout)
@@ -144,6 +144,55 @@ fn main() void! {
 	if !strings.Contains(stderr, "key ") {
 		t.Fatalf("stderr does not contain a map iteration error: %s", stderr)
 	}
+}
+
+func TestParRangeContinuesAfterError(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `fn pick(n: i32) i32! {
+    check(n != 2, "two");
+    return n;
+};
+
+fn main() void {
+    on err { print("caught:", err); };
+    var xs = i32[] {1, 2, 3};
+    var out = i32[3] {};
+    par for (var i, x in xs) limit 1 {
+        out[i] = pick(x)?;
+    };
+    print(out[0], out[1], out[2]);
+};
+`,
+	})
+	stdout, stderr, err := p.run(t)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	}
+	expect(t, stdout, "caught: two\n1 0 3\n")
+}
+
+func TestParCstyleContinuesAfterError(t *testing.T) {
+	p := newProject(t, map[string]string{
+		"main.ink": `fn pick(n: i32) i32! {
+    check(n != 2, "two");
+    return n;
+};
+
+fn main() void {
+    on err { print("caught:", err); };
+    var out = i32[3] {};
+    par for (var i = 0; i < 3; i += 1) limit 1 {
+        out[i] = pick(i32(i + 1))?;
+    };
+    print(out[0], out[1], out[2]);
+};
+`,
+	})
+	stdout, stderr, err := p.run(t)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr:\n%s", err, stderr)
+	}
+	expect(t, stdout, "caught: two\n1 0 3\n")
 }
 
 func TestGoDetachedCallHandler(t *testing.T) {

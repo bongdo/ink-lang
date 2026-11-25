@@ -43,20 +43,12 @@ fn main() void! {
     var c3 = false;
     var c4 = false;
     run1()
-        on err {
-            c1 = true;
-        };
+        on err { c1 = true; };
     run2()
-        on err {
-            c2 = true;
-        };
+        on err { c2 = true; };
     run3()
-        on err {
-            c3 = true;
-        };
+        on err { c3 = true; };
     run4()
-        on err {
-            c4 = true;
-        };
+        on err { c4 = true; };
     fmt.Println(c1, c2, c3, c4)?;
 };

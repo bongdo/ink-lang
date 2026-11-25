@@ -140,9 +140,7 @@ fn handleDemo() i32 {
 
 fn panicDemo() i32 {
     var v = mayFail(true)
-        on err {
-            panic("unreachable");
-        };
+        on err { panic("unreachable"); };
     return v;
 };
 
@@ -263,9 +261,7 @@ fn main() void! {
     // `on err` handles the error here and keeps the previous value.
     var fallback = i32(0);
     fallback = mayFail(false)
-        on err {
-            print("fallback", err);
-        };
+        on err { print("fallback", err); };
     print(fallback);
 
     // Block-scoped defer.

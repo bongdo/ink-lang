@@ -18,14 +18,10 @@ fn storePath() str {
 fn open(path: str) lib.Store {
     var fresh = lib.NewStore();
     var found = os.Stat(path)
-        on err {
-            return fresh;
-        };
+        on err { return fresh; };
     _ = found;
     return lib.Load(path)
-        on err {
-            return fresh;
-        };
+        on err { return fresh; };
 };
 
 fn main() void! {

@@ -113,9 +113,7 @@ fn errJSON(msg: str) str {
 
 fn encode(v: any) str {
     var b = json.Marshal(v)
-        on err {
-            return errJSON("encode failed");
-        };
+        on err { return errJSON("encode failed"); };
     return str(b);
 };
 
@@ -136,14 +134,10 @@ fn dispatch(r: *http.Request) int, str {
         };
         if (method == "POST") {
             var data = io.ReadAll(r.Body)
-                on err {
-                    return 400, errJSON("unreadable body");
-                };
+                on err { return 400, errJSON("unreadable body"); };
             var req = CreateReq { Title: "" };
             json.Unmarshal(data, &req)
-                on err {
-                    return 400, errJSON("invalid json");
-                };
+                on err { return 400, errJSON("invalid json"); };
             if (len(strings.TrimSpace(req.Title)) == 0) {
                 return 400, errJSON("title required");
             };
@@ -154,9 +148,7 @@ fn dispatch(r: *http.Request) int, str {
 
     if (len(path) > 7 && path[:7] == "/items/") {
         var id = strconv.Atoi(path[7:])
-            on err {
-                return 404, errJSON("not found");
-            };
+            on err { return 404, errJSON("not found"); };
         if (method == "GET") {
             var it, ok = store.Get(id);
             if (!ok) {
@@ -166,14 +158,10 @@ fn dispatch(r: *http.Request) int, str {
         };
         if (method == "PATCH") {
             var data = io.ReadAll(r.Body)
-                on err {
-                    return 400, errJSON("unreadable body");
-                };
+                on err { return 400, errJSON("unreadable body"); };
             var req = PatchReq { Done: false };
             json.Unmarshal(data, &req)
-                on err {
-                    return 400, errJSON("invalid json");
-                };
+                on err { return 400, errJSON("invalid json"); };
             var it, ok = store.SetDone(id, req.Done);
             if (!ok) {
                 return 404, errJSON("not found");

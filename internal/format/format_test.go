@@ -206,6 +206,36 @@ fn main() void {
 	}
 }
 
+func TestOnErrSingleStatementInline(t *testing.T) {
+	src := `fn f() void! {
+    check(false, "x");
+};
+
+fn main() void! {
+    spawn f()
+        on err { print("x:", err); };
+    var v = f()
+        on err { return; };
+    _ = v;
+};
+`
+	want := `fn f() void! {
+    check(false, "x");
+};
+
+fn main() void! {
+    spawn f()
+        on err { print("x:", err); };
+    var v = f()
+        on err { return; };
+    _ = v;
+};
+`
+	if out := formatSrc(t, src); out != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, want)
+	}
+}
+
 func TestBlockCommentDiagnostic(t *testing.T) {
 	_, errs := parser.Parse("block.ink", []byte("fn main() void {\n    /* nope */\n};\n"))
 	if len(errs) != 1 || errs[0].Msg != "block comments are not supported; use //" {

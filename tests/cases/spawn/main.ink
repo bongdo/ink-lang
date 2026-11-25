@@ -13,8 +13,6 @@ fn main() void {
         save(7);
     };
     spawn failTask()
-        on err {
-            print("task:", err);
-        };
+        on err { print("task:", err); };
     time.Sleep(50ms);
 };

@@ -3,7 +3,6 @@ use sort;
 use time;
 
 const Frames = 3000;
-
 const Windows = 64;
 
 struct Rect {
@@ -39,7 +38,7 @@ fn stats(xs: f64[]) Stats {
     var sum = 0.0;
     for (var x in ys) {
         sum += x;
-    };
+    };;
     var mean = sum / f64(len(ys));
     var lowN = len(ys) / 100;
     if (lowN < 1) {
@@ -48,7 +47,7 @@ fn stats(xs: f64[]) Stats {
     var lowSum = 0.0;
     for (var i = len(ys) - lowN; i < len(ys); i += 1) {
         lowSum += ys[i];
-    };
+    };;
     var low = lowSum / f64(lowN);
     return Stats {
         Mean: mean,
@@ -75,7 +74,7 @@ test "baseline: timer only" {
         var t0 = time.Now();
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
-    };
+    };;
     report("timer", stats(xs));
 };
 
@@ -86,15 +85,15 @@ test "frame: heap alloc" {
         var rects = Rect[](Windows);
         for (var i = 0; i < Windows; i += 1) {
             rects[i] = tile(i, Windows, 1920.0, 1080.0, 8.0);
-        };
+        };;
         var acc = 0.0;
         for (var r in rects) {
             acc += r.W + r.H;
-        };
+        };;
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("heap", stats(xs));
 };
 
@@ -107,15 +106,15 @@ test "frame: arena" {
             var rects = Rect[](Windows);
             for (var i = 0; i < Windows; i += 1) {
                 rects[i] = tile(i, Windows, 1920.0, 1080.0, 8.0);
-            };
+            };;
             for (var r in rects) {
                 acc += r.W + r.H;
-            };
+            };;
         };
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("arena", stats(xs));
 };
 
@@ -126,15 +125,15 @@ test "frame: reused slice" {
         var t0 = time.Now();
         for (var i = 0; i < Windows; i += 1) {
             rects[i] = tile(i, Windows, 1920.0, 1080.0, 8.0);
-        };
+        };;
         var acc = 0.0;
         for (var r in rects) {
             acc += r.W + r.H;
-        };
+        };;
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("reused", stats(xs));
 };
 
@@ -145,15 +144,15 @@ test "frame: heap 256 windows" {
         var rects = Rect[](256);
         for (var i = 0; i < 256; i += 1) {
             rects[i] = tile(i, 256, 3840.0, 2160.0, 4.0);
-        };
+        };;
         var acc = 0.0;
         for (var r in rects) {
             acc += r.W + r.H;
-        };
+        };;
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("heap256", stats(xs));
 };
 
@@ -166,15 +165,15 @@ test "frame: arena 256 windows" {
             var rects = Rect[](256);
             for (var i = 0; i < 256; i += 1) {
                 rects[i] = tile(i, 256, 3840.0, 2160.0, 4.0);
-            };
+            };;
             for (var r in rects) {
                 acc += r.W + r.H;
-            };
+            };;
         };
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("arena256", stats(xs));
 };
 
@@ -187,16 +186,16 @@ test "frame: arena + copy out" {
             var rects = Rect[](Windows);
             for (var i = 0; i < Windows; i += 1) {
                 rects[i] = tile(i, Windows, 1920.0, 1080.0, 8.0);
-            };
+            };;
             copy(out, rects);
         };
         var acc = 0.0;
         for (var r in out) {
             acc += r.W + r.H;
-        };
+        };;
         var us = f64(time.Since(t0).Nanoseconds()) / 1000.0;
         xs = append(xs, us);
         assert(acc > 0.0);
-    };
+    };;
     report("arena+copy", stats(xs));
 };

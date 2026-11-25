@@ -9,9 +9,7 @@ fn wrapped() i32! {
 
 fn handled() i32! {
     var n = bad()
-        on err {
-            print("handled:", err);
-        };
+        on err { print("handled:", err); };
     return n;
 };
 
@@ -28,19 +26,13 @@ fn inGo() i32! {
 fn main() void! {
     var a = i32(0);
     a = wrapped()
-        on err {
-            print("wrapped:", err);
-        };
+        on err { print("wrapped:", err); };
     var b = i32(0);
     b = handled()
-        on err {
-            print("handled:", err);
-        };
+        on err { print("handled:", err); };
     var c = i32(0);
     c = inGo()
-        on err {
-            print("spawn:", err);
-        };
+        on err { print("spawn:", err); };
     _ = a;
     _ = b;
     _ = c;

@@ -34,9 +34,7 @@ fn main() void! {
     fmt.Println(describe(true))?;
     var e: error = nil;
     boom()
-        on err {
-            e = err;
-        };
+        on err { e = err; };
     fmt.Println(kind(e))?;
     fmt.Println(kind(&os.PathError { Op: "open", Path: "x", Err: e }))?;
 };

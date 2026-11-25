@@ -225,9 +225,7 @@ fn main() void! {
     // Inline handler leaves zero; another handler wraps and fails.
     print(inlineHandler());
     var wrapped = wrapHandler()
-        on err {
-            print("handled:", err);
-        };
+        on err { print("handled:", err); };
     print("wrapped:", wrapped);
 
     // Scope listener on par errors.
