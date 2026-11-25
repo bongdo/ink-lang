@@ -79,12 +79,12 @@
 <body>
 <div class="wrap">
   <h1>par {} vs общее состояние</h1>
-  <p class="sub">par — это структурный параллелизм и join. Он не защищает общий store, в который лезут независимые HTTP-хендлеры. Shared&lt;T&gt; — одна дверь к значению. Внешний store — отсутствие общего изменяемого состояния.</p>
+  <p class="sub">par — это структурный параллелизм и join. Он не защищает общий store, в который лезут независимые HTTP-хендлеры. gated struct + gate store { } — одни ворота к объекту. Внешний store — отсутствие общего изменяемого состояния.</p>
 
   <div class="tabs" role="tablist" aria-label="Модель">
     <button class="tab on" data-mode="par" role="tab" aria-selected="true">par {}</button>
     <button class="tab" data-mode="race" role="tab" aria-selected="false">общий store без lock</button>
-    <button class="tab" data-mode="shared" role="tab" aria-selected="false">Shared&lt;T&gt;</button>
+    <button class="tab" data-mode="shared" role="tab" aria-selected="false">gate store { }</button>
     <button class="tab" data-mode="store" role="tab" aria-selected="false">внешний store</button>
   </div>
 
@@ -107,7 +107,7 @@
 
   <div class="grid3">
     <div class="card"><h3>par {}</h3><p>Знаешь куски работы, запускаешь, ждёшь. Правило: не писать в общее. Это не синхронизация, это разделение.</p></div>
-    <div class="card"><h3>Shared&lt;T&gt;</h3><p>Одна дверь к одному значению. Пользователь не видит Lock/Unlock; копировать значение нельзя. Под капотом — mutex.</p></div>
+    <div class="card"><h3>gate store { }</h3><p>У gated-объекта одни ворота. Вне gate объект не виден; копировать нельзя. Под капотом — mutex, но пользователь его не трогает.</p></div>
     <div class="card"><h3>Внешний store</h3><p>Нет общего изменяемого состояния в памяти. Транзакции и сериализацию делает БД. Ни mutex, ни Go-адаптера.</p></div>
   </div>
 
@@ -233,8 +233,8 @@ shared.rows = clientRow(scenes.shared, "handler");
 el("rect", { x: 560, y: 62, width: 320, height: 260, rx: 18, class: "panel" }, scenes.shared);
 el("rect", { x: 330, y: 150, width: 150, height: 88, rx: 16, class: "plain", fill: "rgba(54,196,106,.12)", stroke: "rgba(54,196,106,.5)" }, scenes.shared);
 text(405, 178, "одна дверь", { "text-anchor": "middle", class: "label" }, scenes.shared);
-text(405, 198, "Shared<T>.With", { "text-anchor": "middle", class: "small mono" }, scenes.shared);
-text(405, 218, "lock не виден", { "text-anchor": "middle", class: "small" }, scenes.shared);
+text(405, 198, "gate store { ... }", { "text-anchor": "middle", class: "small mono" }, scenes.shared);
+text(405, 218, "Lock/Unlock не видны", { "text-anchor": "middle", class: "small" }, scenes.shared);
 el("rect", { x: 590, y: 92, width: 260, height: 190, rx: 12, class: "bar" }, scenes.shared);
 text(720, 122, "store.Items", { "text-anchor": "middle", class: "label mono" }, scenes.shared);
 shared.status = text(720, 170, "writes 8 / 8", { "text-anchor": "middle", class: "small mono", fill: C.green }, scenes.shared);
@@ -298,9 +298,9 @@ const copy = {
     chips: ["net/http", "не par", "data race", "lost update"]
   },
   shared: {
-    title: "Shared<T>",
-    text: "Одна дверь к одному значению: With(fn(s){...}) сериализует доступ. Пользователь не видит Lock/Unlock, копировать значение нельзя. Под капотом всё равно mutex.",
-    chips: ["одно значение", "auto unlock", "copy запрещён", "mutex под капотом"]
+    title: "gate store { }",
+    text: "У gated-объекта одни ворота: gate store { ... } — единственная зона, где объект виден. Методы gated-типа вызываются только под gate. Копировать нельзя, Lock/Unlock не видны. Под капотом mutex.",
+    chips: ["один объект", "gate == зона", "copy запрещён", "mutex под капотом"]
   },
   store: {
     title: "Внешний store",

@@ -346,6 +346,44 @@ func arenaRef(t ast.Type) bool {
 	return false
 }
 
+func hasPointers(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.PointerType, *ast.SliceType, *ast.MapType, *ast.FuncType:
+		return true
+	case *ast.ArrayType:
+		return hasPointers(t.Elem)
+	case *ast.NamedType:
+		if t.Decl != nil {
+			switch t.Decl.Kind {
+			case ast.TypeInterface, ast.TypeEnum:
+				return true
+			case ast.TypeStruct:
+				for _, f := range t.Decl.Fields {
+					if hasPointers(f.Type) {
+						return true
+					}
+				}
+				return false
+			case ast.TypeAlias:
+				if t.Decl.Target != nil {
+					return hasPointers(t.Decl.Target)
+				}
+				return false
+			}
+		}
+		if t.Package != "" {
+			return true
+		}
+		switch t.Name {
+		case "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+			"int", "uint", "f32", "f64", "rune", "byte", "Duration":
+			return false
+		}
+		return true
+	}
+	return true
+}
+
 func (c *checker) markFullArenaWrites(body *ast.Block) {
 	if body == nil {
 		return
@@ -359,7 +397,7 @@ func (c *checker) markFullArenaWrites(body *ast.Block) {
 		if !ok || call.Info == nil || call.Info.Builtin != "make" || len(call.TypeArgs) != 1 || len(call.Args) != 1 {
 			continue
 		}
-		if arenaRef(call.TypeArgs[0]) {
+		if hasPointers(call.TypeArgs[0]) {
 			continue
 		}
 		loop, ok := body.Stmts[i+1].(*ast.ForStmt)

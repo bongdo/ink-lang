@@ -24,6 +24,30 @@ func TestScratchClearsOnReuse(t *testing.T) {
 	s.End(b)
 }
 
+func TestScratchSliceUninitSkipsClear(t *testing.T) {
+	var s Scratch[int32]
+	b := s.Begin()
+	xs := b.Slice(4, 4)
+	for i := range xs {
+		xs[i] = int32(i + 1)
+	}
+	s.End(b)
+
+	b = s.Begin()
+	ys := b.SliceUninit(4, 4)
+	if ys[0] != 1 {
+		t.Fatalf("SliceUninit cleared memory: got %d", ys[0])
+	}
+	s.End(b)
+
+	b = s.Begin()
+	zs := b.Slice(4, 4)
+	if zs[0] != 0 {
+		t.Fatalf("Slice did not clear after SliceUninit: got %d", zs[0])
+	}
+	s.End(b)
+}
+
 func TestScratchKeepsLengthAndCapacity(t *testing.T) {
 	var s Scratch[int32]
 	b := s.Begin()

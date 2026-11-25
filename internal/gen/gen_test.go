@@ -744,6 +744,103 @@ fn main() void! {
 	expect(t, stdout, "[0 1 2 3 10 11 12 13 20 21 22 23] 90\n")
 }
 
+func TestArenaFullWriteSkipsClear(t *testing.T) {
+	const head = `use fmt;
+
+const N = 4;
+
+alias Row = i32[N];
+
+fn fill(y: int) Row {
+    var r = Row {};
+    r[0] = i32(y);
+    return r;
+};
+
+fn riskyRow(y: int) Row! {
+    return fill(y);
+};
+
+fn main() void! {
+    var out = i32[](N * 8);
+    arena {
+`
+	const tail = `
+        out[0] = rows[0][0];
+    };
+    fmt.Println(out[0])?;
+};
+`
+	cases := []struct {
+		name string
+		body string
+		full bool
+	}{
+		{"literal bound", "var rows = Row[](3);\npar for (var y = 0; y < 3; y += 1) limit 2 {\nrows[y] = fill(y);\n};", true},
+		{"len bound", "var rows = Row[](3);\nfor (var y = 0; y < len(rows); y += 1) {\nrows[y] = fill(y);\n};", true},
+		{"step two", "var rows = Row[](3);\nfor (var y = 0; y < 3; y += 2) {\nrows[y] = fill(y);\n};", false},
+		{"starts at one", "var rows = Row[](3);\nfor (var y = 1; y < 3; y += 1) {\nrows[y] = fill(y);\n};", false},
+		{"bound mismatch", "var rows = Row[](3);\nfor (var y = 0; y < N; y += 1) {\nrows[y] = fill(y);\n};", false},
+		{"explicit cap", "var rows = Row[](3, cap: 6);\nfor (var y = 0; y < 3; y += 1) {\nrows[y] = fill(y);\n};", false},
+		{"two names", "var rows, other = Row[](3), Row[](3);\nfor (var y = 0; y < 3; y += 1) {\nrows[y] = fill(y);\n};", false},
+		{"use before loop", "var rows = Row[](3);\nout[0] = rows[0][0];\nfor (var y = 0; y < 3; y += 1) {\nrows[y] = fill(y);\n};", false},
+		{"partial body", "var rows = Row[](3);\nfor (var y = 0; y < 3; y += 1) {\nif (y > 0) {\nrows[y] = fill(y);\n};\n};", false},
+		{"partial element", "var rows = Row[](3);\nfor (var y = 0; y < 3; y += 1) {\nrows[y][0] = i32(y);\n};", false},
+		{"reads the row", "var rows = Row[](3);\nfor (var y = 0; y < 3; y += 1) {\nrows[y] = rows[y];\n};", false},
+		{"fallible value", "var rows = Row[](3);\nfor (var y = 0; y < 3; y += 1) {\nrows[y] = riskyRow(y)?;\n};", false},
+	}
+	for _, c := range cases {
+		p := newProject(t, map[string]string{"main.ink": head + c.body + tail})
+		src := p.source(t, "zz_ink.go")
+		if got := strings.Contains(src, ".SliceUninit("); got != c.full {
+			t.Fatalf("%s: SliceUninit=%v, want %v\n%s", c.name, got, c.full, src)
+		}
+	}
+}
+
+func TestArenaPointerElementsKeepClear(t *testing.T) {
+	cases := map[string]string{
+		"string": `use fmt;
+
+fn main() void! {
+    arena {
+        var names = str[](3);
+        for (var y = 0; y < 3; y += 1) {
+            names[y] = "x";
+        };
+        fmt.Println(names[0])?;
+    };
+};
+`,
+		"struct with string": `use fmt;
+
+struct Label {
+    Text: str,
+    N: i32,
+};
+
+fn main() void! {
+    arena {
+        var labels = Label[](2);
+        for (var y = 0; y < 2; y += 1) {
+            labels[y] = Label { Text: "x", N: i32(y) };
+        };
+        fmt.Println(labels[0].N)?;
+    };
+};
+`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			p := newProject(t, map[string]string{"main.ink": src})
+			got := p.source(t, "zz_ink.go")
+			if strings.Contains(got, ".SliceUninit(") {
+				t.Fatalf("pointer element skipped the clear:\n%s", got)
+			}
+		})
+	}
+}
+
 func TestFusionRejectsOtherRows(t *testing.T) {
 	p := newProject(t, map[string]string{
 		"main.ink": `use fmt;
