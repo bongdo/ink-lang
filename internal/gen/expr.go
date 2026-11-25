@@ -348,6 +348,9 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 				case 0:
 					return batch + ".Slice(0, 0)"
 				case 1:
+					if c.Info != nil && c.Info.FullWrite {
+						return batch + ".SliceUninit(" + args[0] + ", " + args[0] + ")"
+					}
 					return batch + ".Slice(" + args[0] + ", " + args[0] + ")"
 				default:
 					return batch + ".Slice(" + args[0] + ", " + args[1] + ")"

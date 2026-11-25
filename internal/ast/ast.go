@@ -322,6 +322,7 @@ type CallInfo struct {
 	Fn          *FuncDecl
 	TypeParams  []*TypeParam
 	TypeArgs    []Type
+	FullWrite   bool
 }
 
 type CallExpr struct {

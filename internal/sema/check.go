@@ -346,6 +346,148 @@ func arenaRef(t ast.Type) bool {
 	return false
 }
 
+func (c *checker) markFullArenaWrites(body *ast.Block) {
+	if body == nil {
+		return
+	}
+	for i := 0; i+1 < len(body.Stmts); i++ {
+		decl, ok := body.Stmts[i].(*ast.DeclStmt)
+		if !ok || decl.Decl == nil || len(decl.Decl.Names) != 1 || len(decl.Decl.Values) != 1 {
+			continue
+		}
+		call, ok := unparen(decl.Decl.Values[0]).(*ast.CallExpr)
+		if !ok || call.Info == nil || call.Info.Builtin != "make" || len(call.TypeArgs) != 1 || len(call.Args) != 1 {
+			continue
+		}
+		if arenaRef(call.TypeArgs[0]) {
+			continue
+		}
+		loop, ok := body.Stmts[i+1].(*ast.ForStmt)
+		if !ok || !c.fullWriteLoop(loop, decl.Decl.Names[0], call.Args[0]) {
+			continue
+		}
+		call.Info.FullWrite = true
+	}
+}
+
+func (c *checker) fullWriteLoop(f *ast.ForStmt, name string, size ast.Expr) bool {
+	if f.Range != nil || f.Body == nil || len(f.Body.Stmts) != 1 {
+		return false
+	}
+	idx := loopIndex(f.Init)
+	if idx == "" {
+		return false
+	}
+	cond, ok := unparen(f.Cond).(*ast.BinaryExpr)
+	if !ok || cond.Op != token.Lt {
+		return false
+	}
+	left, ok := unparen(cond.X).(*ast.Ident)
+	if !ok || left.Name != idx || !c.sameBound(name, size, cond.Y) {
+		return false
+	}
+	if !incOne(f.Post, idx) {
+		return false
+	}
+	as, ok := f.Body.Stmts[0].(*ast.AssignStmt)
+	if !ok || as.Op != token.Assign || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	ix, ok := unparen(as.Lhs[0]).(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	base, ok := unparen(ix.X).(*ast.Ident)
+	if !ok || base.Name != name {
+		return false
+	}
+	at, ok := unparen(ix.Index).(*ast.Ident)
+	if !ok || at.Name != idx {
+		return false
+	}
+	return !mentions(as.Rhs[0], name) && !fallible(as.Rhs[0])
+}
+
+func loopIndex(s ast.Stmt) string {
+	switch s := s.(type) {
+	case *ast.DeclStmt:
+		if s.Decl == nil || len(s.Decl.Names) != 1 || len(s.Decl.Values) != 1 || !zeroLit(s.Decl.Values[0]) {
+			return ""
+		}
+		return s.Decl.Names[0]
+	case *ast.AssignStmt:
+		if s.Op != token.Assign || len(s.Lhs) != 1 || len(s.Rhs) != 1 || !zeroLit(s.Rhs[0]) {
+			return ""
+		}
+		if id, ok := unparen(s.Lhs[0]).(*ast.Ident); ok {
+			return id.Name
+		}
+	}
+	return ""
+}
+
+func zeroLit(e ast.Expr) bool {
+	n, ok := intLiteral(e)
+	return ok && n == 0
+}
+
+func incOne(s ast.Stmt, idx string) bool {
+	as, ok := s.(*ast.AssignStmt)
+	if !ok || as.Op != token.PlusAssign || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	id, idOK := unparen(as.Lhs[0]).(*ast.Ident)
+	n, nOK := intLiteral(as.Rhs[0])
+	return idOK && nOK && id.Name == idx && n == 1
+}
+
+func (c *checker) sameBound(name string, size, bound ast.Expr) bool {
+	if call, ok := unparen(bound).(*ast.CallExpr); ok {
+		if id, ok := unparen(call.Fun).(*ast.Ident); ok && id.Name == "len" && len(call.Args) == 1 {
+			if arg, ok := unparen(call.Args[0]).(*ast.Ident); ok && arg.Name == name {
+				return true
+			}
+		}
+	}
+	if n, ok := intLiteral(size); ok {
+		m, ok := intLiteral(bound)
+		return ok && n == m
+	}
+	si, ok := unparen(size).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	bi, ok := unparen(bound).(*ast.Ident)
+	if !ok || bi.Name != si.Name {
+		return false
+	}
+	sym := c.lookup(si.Name)
+	return sym != nil && sym.kind == ast.RefConst
+}
+
+func mentions(e ast.Expr, name string) bool {
+	found := false
+	ast.Inspect(e, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+func fallible(e ast.Expr) bool {
+	found := false
+	ast.Inspect(e, func(n ast.Node) bool {
+		switch n.(type) {
+		case *ast.TryExpr, *ast.OnErrExpr:
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
 func (c *checker) isArenaExpr(e ast.Expr) bool {
 	e = unparen(e)
 	switch e := e.(type) {
@@ -913,6 +1055,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.inArena++
 		c.checkBlock(s.Body)
 		c.inArena--
+		c.markFullArenaWrites(s.Body)
 	case *ast.ParStmt:
 		c.checkPar(s.Body, nil)
 	case *ast.GoCallStmt:

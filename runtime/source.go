@@ -121,9 +121,23 @@ type Batch[T any] struct {
 }
 
 func (b *Batch[T]) Slice(n, cap int) []T {
+	s, fresh := b.alloc(n, cap)
+	if !fresh {
+		clear(s[:cap])
+	}
+	return s
+}
+
+func (b *Batch[T]) SliceUninit(n, cap int) []T {
+	s, _ := b.alloc(n, cap)
+	return s
+}
+
+func (b *Batch[T]) alloc(n, cap int) ([]T, bool) {
 	if cap < n {
 		cap = n
 	}
+	fresh := false
 	if b.off+cap > len(b.buf) {
 		size := 2 * len(b.buf)
 		if size < b.off+cap {
@@ -132,10 +146,11 @@ func (b *Batch[T]) Slice(n, cap int) []T {
 		next := make([]T, size)
 		copy(next, b.buf[:b.off])
 		b.buf = next
+		fresh = true
 	}
 	start := b.off
 	b.off = start + cap
-	return b.buf[start : start+n : start+cap]
+	return b.buf[start : start+n : start+cap], fresh
 }
 
 func (b *Batch[T]) New() *T {
@@ -144,7 +159,6 @@ func (b *Batch[T]) New() *T {
 }
 
 func (b *Batch[T]) reset() {
-	clear(b.buf[:b.off])
 	b.off = 0
 }
 
