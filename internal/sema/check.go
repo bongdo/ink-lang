@@ -1048,12 +1048,12 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				if c.servedAliasExpr(rhs) {
 					c.markServedTarget(s.Lhs[i])
 				}
-				if sel, ok := unparen(s.Lhs[i]).(*ast.SelectorExpr); ok && sel.Ref != nil && sel.Ref.Field != nil {
-					if d := servedStructDecl(sel.Ref.Field.Type); d != nil && d.Served && c.isPointerType(sel.Ref.Field.Type) {
-						if _, isNil := unparen(rhs).(*ast.NilLit); !isNil && !c.servedAliasExpr(rhs) {
-							c.p.errorf(c.fc.file.Path, rhs.Pos(), "a field holding a served object needs a served object; keep the pointer in the type's methods")
-						}
-					}
+				servedNext := false
+				if id, ok := unparen(s.Lhs[i]).(*ast.Ident); ok && nextServes(c.nextStmt, id.Name) {
+					servedNext = true
+				}
+				if !servedNext {
+					c.checkServedPointer(lhsTypes[i], rhs)
 				}
 			}
 		}
@@ -1099,6 +1099,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 	case *ast.IfStmt:
 		c.resolveExpr(s.Cond, false)
+		c.markCopyTaint(s.Cond)
 		c.checkErrGuard(s)
 		c.checkBlock(s.Then)
 		if s.Else != nil {
@@ -1232,23 +1233,48 @@ func (c *checker) checkStmt(s ast.Stmt) {
 func (p *Program) markServedGlobals() {
 	for _, pkg := range p.Packages {
 		for _, f := range pkg.Files {
-			ast.Inspect(f, func(n ast.Node) bool {
-				s, ok := n.(*ast.ServeStmt)
-				if !ok {
-					return true
+			for _, d := range f.Decls {
+				inMain := false
+				inTest := false
+				switch x := d.(type) {
+				case *ast.FuncDecl:
+					inMain = pkg.IsMain && x.Name == "main"
+				case *ast.TestDecl:
+					inTest = true
+				default:
+					continue
 				}
-				if id, ok := unparen(s.X).(*ast.Ident); ok {
-					if d := pkg.Vars[id.Name]; d != nil {
-						d.Served = true
-						if t := p.global[pkg][id.Name]; t != nil {
-							if sd := servedStructDecl(t); sd != nil && len(sd.TypeParams) == 0 {
-								sd.Served = true
-							}
+				if !inMain && !inTest {
+					continue
+				}
+				ast.Inspect(d, func(n ast.Node) bool {
+					s, ok := n.(*ast.ServeStmt)
+					if !ok {
+						return true
+					}
+					id, ok := unparen(s.X).(*ast.Ident)
+					if !ok {
+						return true
+					}
+					v := pkg.Vars[id.Name]
+					if v == nil {
+						return true
+					}
+					if inMain {
+						v.ServedMain = true
+					}
+					if inTest {
+						v.ServedTest = true
+					}
+					v.Served = v.ServedMain || v.ServedTest
+					if t := p.global[pkg][id.Name]; t != nil {
+						if sd := servedStructDecl(t); sd != nil && len(sd.TypeParams) == 0 {
+							sd.Served = true
 						}
 					}
-				}
-				return true
-			})
+					return true
+				})
+			}
 		}
 	}
 }
@@ -1904,6 +1930,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 	c.push()
 	if f.Range != nil {
 		t := c.resolveExpr(f.Range.X, false)
+		c.markCopyTaint(f.Range.X)
 		iter := make(map[string]bool)
 		for _, n := range f.Range.Names {
 			iter[n] = true
@@ -1981,6 +2008,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 		}
 		if f.Cond != nil {
 			c.resolveExpr(f.Cond, false)
+			c.markCopyTaint(f.Cond)
 		}
 		if f.Post != nil {
 			if stmtHasOr(f.Post) {
@@ -2288,9 +2316,28 @@ func (c *checker) servedAliasExpr(e ast.Expr) bool {
 			d := servedStructDecl(x.Ref.Field.Type)
 			return d != nil && d.Served
 		}
+	case *ast.IndexExpr:
+		t := c.exprType(x)
+		d := servedStructDecl(t)
+		return d != nil && d.Served && c.isPointerType(t)
 	case *ast.UnaryExpr:
 		return x.Op == token.Amp && c.servedAliasExpr(x.X)
 	}
+	return false
+}
+
+func (c *checker) checkServedPointer(t ast.Type, value ast.Expr) bool {
+	if value == nil {
+		return true
+	}
+	d := servedStructDecl(t)
+	if d == nil || !d.Served || !c.isPointerType(t) {
+		return true
+	}
+	if _, isNil := unparen(value).(*ast.NilLit); isNil || c.servedAliasExpr(value) {
+		return true
+	}
+	c.p.errorf(c.fc.file.Path, value.Pos(), "a served pointer needs a served object or nil; serve the value first")
 	return false
 }
 
@@ -2336,6 +2383,15 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		types = append(types, c.resolveExpr(val, true))
 		c.checkVoidValue(val)
 		c.checkAssign(declType, val)
+		servedNext := false
+		for _, name := range v.Names {
+			if nextServes(c.nextStmt, name) {
+				servedNext = true
+			}
+		}
+		if !servedNext {
+			c.checkServedPointer(declType, val)
+		}
 		c.markCopyTaint(val)
 		if c.servedValueCopy(val) {
 			c.p.errorf(c.fc.file.Path, val.Pos(), "a served type is not copyable; use a pointer")

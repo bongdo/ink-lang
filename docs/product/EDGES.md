@@ -40,7 +40,7 @@ not re-file.
 | `serve` must directly follow the target's declaration or assignment. | Nothing runs between creation and serving, so no goroutine can touch the object first. |
 | Reassigning a served variable needs a new `serve`. | The replacement object starts unserved; methods would skip the lock. |
 | `*p = T {}` on a served object is rejected. | It overwrites the hidden mutex while a wrapper may hold it (`sync: unlock of unlocked mutex`). Reset fields in a method. |
-| A field holding a served pointer accepts only a served object or `nil`. | Replacing it with a fresh unserved object makes every later method call skip the lock. |
+| A field, map value or slice element holding a served pointer accepts only a served object or `nil`. | Replacing it with a fresh unserved object makes every later method call skip the lock. |
 | `spawn`/`par` reject an unserved instance of a served type. | The instance has no flag set, so its methods would not lock. Serve it first. Every global of a served type must be served in `main` or a test. |
 | `par`/`spawn` inside a served method is rejected. | The method already holds the object's lock; workers would deadlock or race. Use one method or a separate object. |
 | Aliasing `self` inside a served method is rejected. | A wrapper call on the alias would take the same lock again. Call `self.M()` directly. |

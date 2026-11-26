@@ -146,11 +146,13 @@ type IFaceMethod struct {
 
 type VarDecl struct {
 	Span
-	Names  []string
-	Type   Type
-	Values []Expr
-	Const  bool
-	Served bool
+	Names      []string
+	Type       Type
+	Values     []Expr
+	Const      bool
+	Served     bool
+	ServedMain bool
+	ServedTest bool
 }
 
 func (*VarDecl) declNode() {}
