@@ -431,6 +431,35 @@ calling a tool.
 document/workspace symbols, signature help, formatting, references, rename and
 quick fixes. `ink check` stays the source of truth.
 
+## Go boundary
+
+Ink imports Go packages directly. Pure-Go packages and Go bindings that already
+contain cgo (`net/http`, `encoding/json`, `charm.land/bubbletea/v2`,
+`raylib-go`, `go-wlroots`) need no wrapper: write `use` and keep their types out
+of the app API.
+
+A local Go package is a binding, not app code. Write one only when Ink cannot
+name the API:
+
+- C ABI: cgo `import "C"`, `//export`, C structs, C strings, link flags.
+- `unsafe`: pointer arithmetic, manual struct layout, raw `ioctl`, COM/OLE,
+  Cocoa/Objective-C, JNI.
+- Lifecycle/context/callback glue the library requires; generic or variadic
+  interface conformance; value-receiver interfaces; `chan`/`select`.
+
+Put it in `bindings/` or `ffi/`, expose an Ink facade, and never import it from
+app files. A same-module Go import gets the `local-go` warning.
+
+Direct `use` is the default for `net/http`, `encoding/json`, `os/exec`,
+`crypto/*`, `database/sql` with `modernc.org/sqlite`, `golang.org/x/sys/unix`
+and `x/sys/windows`, `bubbletea`, `raylib-go`, `go-wlroots`. An adapter is for
+raw `ioctl`/`statx` structs, COM, Cocoa, JNI, a custom C ABI, or Vulkan/Metal/
+D3D/ALSA/PipeWire when no Go binding fits.
+
+Not a reason for a local Go package: using a Go library, `go:embed`
+(`ink build -embed dir` plus `asset()`), locking (`serve`), or a hot loop. Ink
+runs on the same Go runtime; measure before moving a kernel into Go.
+
 ## Deliberately absent
 
 No `chan`, `select`, `async`/`await`, `switch`, `goto`, labels, `:=`, `while`,

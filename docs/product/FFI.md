@@ -4,6 +4,22 @@
 **Связано:** [syntax.md](../../vault/features/syntax.md), [SPEC.md](SPEC.md), [PAR.md](PAR.md),
 [EDGES.md](EDGES.md), [decisions.md](../maintain/decisions.md).
 
+## 0. Короткая граница для агента
+
+- Прямой `use` Go-пакета — норма: `net/http`, `encoding/json`, `os/exec`,
+  `crypto/*`, `database/sql` + `modernc.org/sqlite`, `golang.org/x/sys/unix`,
+  `x/sys/windows`, `bubbletea`, `raylib-go`, `go-wlroots`.
+- Локальный Go-пакет — **binding**, а не app-код. Он нужен только если Ink не
+  может выразить API: cgo/`import "C"`, `unsafe`/ABI, сырой `ioctl`, COM/OLE,
+  Cocoa/ObjC, JNI, lifecycle-обвязка с callback/ctx, generic/variadic
+  interface conformance, value-receiver интерфейсы, `chan`/`select`.
+- `go:embed` не требует Go: `ink build -embed dir` + `asset(path)`.
+- Замок не требует Go: `serve obj;` (type-wide, без пользовательского Go).
+- Горячий цикл не требует Go: Ink компилируется в тот же Go-runtime; сначала
+  измерение и арена/кодогенератор, потом отдельный Go-kernel.
+- C-библиотека: сначала ищи готовый Go-binding; свой адаптер — один раз на
+  зависимость, не на фичу. Держи его в `bindings/` или `ffi/`, facade — в Ink.
+
 ## 1. Позиция
 
 Ink не заменяет Go runtime и экосистему. Он компилируется в Go, живёт на
