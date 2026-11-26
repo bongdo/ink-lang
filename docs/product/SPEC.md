@@ -588,6 +588,10 @@ handles.
   There is one lock per type; independent parts are separate types.
 - `par`/`spawn` inside a served method or a `*T` free function is rejected: the
   lock is already held. Aliasing `self` or a served parameter is rejected.
+- Function literals inside a served method are rejected: an escaping closure
+  would call the raw method after the lock is released.
+- Served state cannot be passed as `any` or an interface to Ink or Go code; a
+  map, slice or struct that contains a served pointer is served state too.
 - `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
   Reset fields in a method instead.
 - A served object cannot be passed to Go or a builtin. A served type must come

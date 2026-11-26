@@ -446,6 +446,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 		if c.servedValueCopy(arg) {
 			c.p.errorf(c.fc.file.Path, arg.Pos(), "a served type is not copyable; pass a pointer")
 		}
+		if expected != nil && c.isInterfaceType(expected) && servedObject(c.exprType(arg)) {
+			c.p.errorf(c.fc.file.Path, arg.Pos(), "served state cannot be passed as any or an interface; pass the concrete type")
+		}
 	}
 	if info == nil {
 		info = &ast.CallInfo{Kind: ast.CallUnknown, Results: 1}
@@ -461,8 +464,46 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 }
 
 func servedObject(t ast.Type) bool {
-	d := servedStructDecl(t)
-	return d != nil && d.Served
+	return containsServedType(t, make(map[*ast.TypeDecl]bool))
+}
+
+func containsServedType(t ast.Type, seen map[*ast.TypeDecl]bool) bool {
+	switch x := t.(type) {
+	case *ast.PointerType:
+		return containsServedType(x.Elem, seen)
+	case *ast.SliceType:
+		return containsServedType(x.Elem, seen)
+	case *ast.ArrayType:
+		return containsServedType(x.Elem, seen)
+	case *ast.MapType:
+		return containsServedType(x.Key, seen) || containsServedType(x.Value, seen)
+	case *ast.GenericType:
+		if containsServedType(x.Base, seen) {
+			return true
+		}
+		for _, a := range x.Args {
+			if containsServedType(a, seen) {
+				return true
+			}
+		}
+	case *ast.NamedType:
+		if x.Decl == nil {
+			return false
+		}
+		if x.Decl.Kind == ast.TypeAlias {
+			return containsServedType(x.Decl.Target, seen)
+		}
+		if !seen[x.Decl] {
+			seen[x.Decl] = true
+			for _, fld := range x.Decl.Fields {
+				if containsServedType(fld.Type, seen) {
+					return true
+				}
+			}
+		}
+		return x.Decl.Served
+	}
+	return false
 }
 
 func builtinError(t ast.Type) bool {
@@ -1003,6 +1044,9 @@ func (c *checker) mapStructElement(e ast.Expr) bool {
 }
 
 func (c *checker) resolveFuncLit(lit *ast.FuncLit, expected *ast.FuncType) ast.Type {
+	if c.servedBody() {
+		c.p.errorf(c.fc.file.Path, lit.Pos(), "function literal inside a served method; schedule work outside the lock")
+	}
 	var params []ast.Type
 	if expected != nil {
 		params = expected.Params

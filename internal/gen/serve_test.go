@@ -48,7 +48,6 @@ fn main() void! {
 	})
 	src := p.source(t, "zz_ink.go")
 	contains(t, src, "_s_mu")
-	contains(t, src, "_s_served")
 	contains(t, src, "_s_raw_Add")
 	contains(t, src, "_s_held_addTwice")
 	contains(t, src, "_s_held_through")

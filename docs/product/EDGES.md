@@ -32,6 +32,8 @@ not re-file.
 | `serve obj;` marks the type served; every instance carries one lock. | A missed `serve` is not a race. It serializes reads and writes, including reads; split independent state into separate types. It does not make several method calls atomic. |
 | Fields of a served object are internal. | Use methods inside the type, or pass `*T` to a free function. The alternative is a silent race. |
 | A served pointer stored in another struct stays internal. | Field access through `Holder { ptr: &c }` is rejected; the pointee's fields are still internal. |
+| Function literals inside a served method are rejected. | An escaping closure would call the raw body after the method's lock is released. Schedule outside. |
+| Served state cannot be passed as `any`/an interface or inside a Go container. | The checker cannot prove the callee locks; `map`, slice and struct types that contain a served pointer count as served state. |
 | A served method may not return a reference to its own state. | Wrapper structs, `append` of served state, shallow values with slice fields and conversion to `any`/an interface are rejected. Return reference-free values or copy into fresh storage. |
 | A served type is not copyable. | The hidden mutex is a field of the type; `go vet` rejects any copy. Pass `*T`. |
 | `serve` targets a whole variable, not a field. | Serve the field's type at its creation, or add a method. |

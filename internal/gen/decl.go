@@ -68,9 +68,15 @@ func servedArgOf(fd *ast.FuncDecl) (servedArg, bool) {
 }
 
 func (g *generator) funcDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl) {
-	if recv != nil && recv.Served && !w.rawSelf && fd.Body != nil && !fd.NeedsCtx && len(recv.TypeParams) == 0 {
-		g.servedMethod(w, fd, recv)
-		return
+	if recv != nil && fd.Body != nil && !fd.NeedsCtx && len(fd.TypeParams) == 0 {
+		if sa, ok := servedArgOf(fd); ok && !recv.Served {
+			g.servedMethodArg(w, fd, recv, sa)
+			return
+		}
+		if recv.Served && !w.rawSelf {
+			g.servedMethod(w, fd, recv)
+			return
+		}
 	}
 	if recv == nil && fd.Body != nil && !fd.NeedsCtx && len(fd.TypeParams) == 0 {
 		if sa, ok := servedArgOf(fd); ok {
@@ -159,6 +165,46 @@ func (g *generator) servedMethod(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl
 	w.self = self
 	w.rawSelf = true
 	w.held = map[string]*ast.TypeDecl{self: recv}
+	g.funcBody(w, fd.Body, fd.Results, fd.Err, false)
+	w.indent--
+	w.line("}")
+	w.line("")
+}
+
+func (g *generator) servedMethodArg(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl, sa servedArg) {
+	name := fd.GoName
+	if name == "" {
+		name = fd.Name
+	}
+	raw := "_s_held_" + name
+	self := methodSelfName(fd, recv)
+	params := safeParams(fd.Params)
+	pstr := g.paramsStr(w.f, params, nil, false)
+	res := g.resultStr(w.f, fd.Results, fd.Err)
+	args := strings.Join(argNames(params), ", ")
+	arg := params[sa.index].Name
+	call := self + "." + raw + "(" + args + ")"
+	sig := "func (" + self + " *" + typeNameOf(recv) + ") "
+
+	w.directive(fd)
+	w.line(sig + name + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.line(arg + "._s_mu.Lock()")
+	w.line("defer " + arg + "._s_mu.Unlock()")
+	if len(fd.Results) > 0 || fd.Err {
+		w.line("return " + call)
+	} else {
+		w.line(call)
+	}
+	w.indent--
+	w.line("}")
+	w.line("")
+
+	w.directive(fd)
+	w.line(sig + raw + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.self = self
+	w.held = map[string]*ast.TypeDecl{arg: sa.decl}
 	g.funcBody(w, fd.Body, fd.Results, fd.Err, false)
 	w.indent--
 	w.line("}")
@@ -642,7 +688,6 @@ func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 		}
 		if d.Served {
 			w.line("_s_mu " + w.f.std("sync") + ".Mutex")
-			w.line("_s_served bool")
 		}
 		w.indent--
 		w.line("}")

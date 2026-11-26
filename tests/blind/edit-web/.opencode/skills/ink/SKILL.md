@@ -339,6 +339,11 @@ fn main() void {
 - `par`/`spawn` inside a served method or a free function with `*T` is rejected:
   the lock is already held. Do not alias `self` or a served parameter
   (`var p = self`); call it directly.
+- Function literals inside a served method are rejected: an escaping closure
+  would call the raw method after the lock is released. Schedule the work
+  outside, or pass a method name to a synchronous helper.
+- Served state cannot be passed as `any` or an interface to Ink or Go code; a
+  map, slice or struct that contains a served pointer is served state too.
 - `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
   Reset fields in a method instead.
 - A served object cannot be passed to a Go function or builtin; a served type
@@ -376,9 +381,7 @@ fn main() void {
 | `serve-field` | fields are internal; use a method or a free function with `*T` |
 | `serve-escape` | a served object cannot go to Go or a builtin; use a method |
 | `serve-target` | serve a whole variable; a field is not a target |
-| `serve-global` | serve a package variable first in `main` or a test |
-| `serve-order` | serve directly after creation, before any use, `par` or `spawn` |
-| `serve-already` | serve the variable once |
+| `serve-order` | keep `serve` at the top level of a function, not inside `par`/`spawn` |
 | `serve-return` | a served method cannot return a reference to its own state |
 | `serve-state` | copy values out; do not alias served state |
 | `serve-copy` | a served type is not copyable; pass `*T` |

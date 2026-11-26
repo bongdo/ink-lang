@@ -300,6 +300,28 @@ func (p *Program) checkServeFuncs() {
 						}
 					}
 				case *ast.TypeDecl:
+					for _, m := range d.Methods {
+						count := 0
+						for _, param := range m.Params {
+							if servedParamDecl(param.Type) != nil {
+								count++
+							}
+						}
+						if count > 1 {
+							p.errorf(f.Path, m.Pos(), "a function may serve one object; split %s", m.Name)
+						}
+						if count == 1 && (m.NeedsCtx || len(m.TypeParams) > 0) {
+							p.errorf(f.Path, m.Pos(), "a function with *T cannot need a context or type parameters")
+						}
+						if count == 1 {
+							for _, param := range m.Params {
+								if sd := servedParamDecl(param.Type); sd != nil && p.declPkg[sd] != pkg {
+									p.errorf(f.Path, param.Pos(), "a served object cannot cross packages; keep the function in the type's package")
+									break
+								}
+							}
+						}
+					}
 					if !d.Served {
 						continue
 					}
@@ -1563,9 +1585,6 @@ func (c *checker) servedFieldAllowed(e ast.Expr) bool {
 	}
 	if id.Ref != nil && id.Ref.Kind == ast.RefSelf {
 		return c.fn.decl != nil && c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
-	}
-	if c.fn.decl == nil || c.fn.decl.Owner != nil {
-		return false
 	}
 	sym := c.lookup(id.Name)
 	return sym != nil && sym.kind == ast.RefParam && servedParamDecl(sym.typ) != nil
