@@ -145,6 +145,8 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 	if p.stopped() {
 		return p
 	}
+	p.markServedGlobals()
+	p.markServedTypes()
 	p.checkFuncs()
 	if p.stopped() {
 		return p

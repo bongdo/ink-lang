@@ -150,6 +150,7 @@ type VarDecl struct {
 	Type   Type
 	Values []Expr
 	Const  bool
+	Served bool
 }
 
 func (*VarDecl) declNode() {}

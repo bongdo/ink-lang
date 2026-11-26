@@ -314,7 +314,8 @@ fn main() void {
 ```
 
 - `serve c;` gives the object one hidden lock and marks it served. It must run
-  before the object is shared; not inside `par` or `spawn`.
+  at the top level of a function, before the object is shared; not inside
+  `if`/`for`, `par` or `spawn`.
 - Every method call on a served object is serialized. A free function with a
   served `*T` parameter is serialized as a whole; calls from inside a served
   method use the already-held lock.
@@ -322,6 +323,12 @@ fn main() void {
   free function with `*T`. A served object is not copyable; use a pointer.
 - `par` workers may call methods on a served object; the calls serialize.
   One lock per object. For independent parts, use separate objects.
+- `par`/`spawn` inside a served method or a free function with `*T` is rejected:
+  the lock is already held. Do not alias `self` or a served parameter
+  (`var p = self`); call it directly.
+- A served object cannot be passed to a Go function or builtin; a served type
+  must come from the same package. Generic types and methods with a context are
+  not served.
 - `serve` does not make several method calls atomic and does not prevent
   deadlock between two served objects. A method that needs a composed update
   does it in one method.

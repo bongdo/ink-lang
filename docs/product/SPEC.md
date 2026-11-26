@@ -568,7 +568,8 @@ handles.
 ### 8.4 Served objects
 
 - `serve obj;` gives a struct object one hidden lock and a served flag. It must
-  run before the object is shared and cannot appear inside `par` or `spawn`.
+  run at the top level of a function, before the object is shared, and cannot
+  appear inside `if`/`for`, `par` or `spawn`.
 - Every method call on a served object is serialized. A free function with a
   served `*T` parameter is serialized as a whole; when it is called from inside
   a served method, the already-held lock is used.
@@ -576,6 +577,11 @@ handles.
   free function with `*T`. A served object is not copyable; use a pointer.
 - `par` workers may call methods on a served object; those calls serialize.
   There is one lock per object; independent parts are separate objects.
+- `par`/`spawn` inside a served method or a `*T` free function is rejected: the
+  lock is already held. Aliasing `self` or a served parameter is rejected.
+- A served object cannot be passed to Go or a builtin. A served type must come
+  from the same package; generic types, generic methods and context methods are
+  not served.
 - `serve` does not make several method calls atomic and does not prevent
   deadlock between two served objects. A composed update belongs in one method.
 

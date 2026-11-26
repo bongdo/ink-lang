@@ -32,6 +32,9 @@ not re-file.
 | `serve obj;` gives one lock per object. | It serializes reads and writes, including reads; split independent state into separate objects. It does not make several method calls atomic. |
 | Fields of a served object are internal. | Use methods inside the type, or pass `*T` to a free function. The alternative is a silent race. |
 | A served object is not copyable. | Copying a struct with a hidden mutex is rejected by `go vet`; use a pointer. |
+| `par`/`spawn` inside a served method is rejected. | The method already holds the object's lock; workers would deadlock or race. Use one method or a separate object. |
+| Aliasing `self` inside a served method is rejected. | A wrapper call on the alias would take the same lock again. Call `self.M()` directly. |
+| A served type must come from the same package. | Hidden lock fields are unexported; cross-package `serve` would not compile. |
 | Process exit does not wait for detached tasks. | Go's contract: when `main` returns the process exits, the tasks and their `defer`s are dropped. A `spawn` task has no join and `sync.WaitGroup` is rejected; use `par { ... }` when the work must finish. |
 | `par { }` and `par for` join and never cancel early. | All workers run to completion, then the lowest ordinal error is delivered. A deadline does not stop them. |
 | A detached task's `on err` handler runs in the task, not in the launching scope. | It sees `err` and package-level names only; locals of the launcher are rejected at compile time, so the handler cannot race with the caller. |
