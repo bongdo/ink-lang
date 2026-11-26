@@ -456,6 +456,9 @@ func (w *writer) servedCallName(c *ast.CallExpr, fun string) string {
 		if name == "" {
 			name = fd.Name
 		}
+		if sel, ok := c.Fun.(*ast.SelectorExpr); ok && fd.Owner != nil {
+			return w.expr(sel.X) + "._s_held_" + name
+		}
 		return "_s_held_" + name
 	}
 	return fun

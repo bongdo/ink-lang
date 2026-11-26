@@ -281,8 +281,8 @@ func (p *Program) checkServeFuncs() {
 					if count > 1 {
 						p.errorf(f.Path, d.Pos(), "a free function may serve one object; split %s", d.Name)
 					}
-					if count == 1 && len(d.TypeParams) > 0 {
-						p.errorf(f.Path, d.Pos(), "serve does not support generic functions")
+					if count == 1 && (d.NeedsCtx || len(d.TypeParams) > 0) {
+						p.errorf(f.Path, d.Pos(), "a function with *T cannot need a context or type parameters")
 					}
 					if count == 1 {
 						for _, param := range d.Params {
@@ -1046,6 +1046,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				if c.servedAliasExpr(rhs) {
 					c.markServedTarget(s.Lhs[i])
 				}
+				c.checkServedInterface(lhsTypes[i], rhs)
 			}
 		}
 		if len(s.Rhs) == 1 {
@@ -1143,6 +1144,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				}
 			}
 			c.checkAssign(want, e)
+			c.checkServedInterface(want, e)
 		}
 		if len(s.Results) > 1 {
 			for _, e := range s.Results {
@@ -1441,7 +1443,7 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a struct value")
 		return
 	}
-	if c.p.declPkg[decl] != c.fc.pkg {
+	if c.p.declPkg[decl] != c.fc.pkg && !decl.Served {
 		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve only works on a type from the same package")
 		return
 	}
@@ -1585,6 +1587,9 @@ func (c *checker) servedFieldAllowed(e ast.Expr) bool {
 	}
 	if id.Ref != nil && id.Ref.Kind == ast.RefSelf {
 		return c.fn.decl != nil && c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
+	}
+	if c.fn.decl == nil {
+		return false
 	}
 	sym := c.lookup(id.Name)
 	return sym != nil && sym.kind == ast.RefParam && servedParamDecl(sym.typ) != nil
@@ -2004,15 +2009,12 @@ func (c *checker) servedBody() bool {
 	if c.fn == nil || c.fn.decl == nil {
 		return false
 	}
-	if c.fn.decl.Owner != nil {
-		return c.fn.decl.Owner.Served
-	}
 	for _, p := range c.fn.decl.Params {
 		if servedParamDecl(p.Type) != nil {
 			return true
 		}
 	}
-	return false
+	return c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
 }
 
 func (c *checker) heldServedExpr(e ast.Expr) bool {
@@ -2170,6 +2172,15 @@ func (c *checker) servedRootAny(e ast.Expr) bool {
 	return false
 }
 
+func (c *checker) checkServedInterface(t ast.Type, e ast.Expr) {
+	if t == nil || e == nil || !c.isInterfaceType(t) {
+		return
+	}
+	if servedObject(c.exprType(e)) {
+		c.p.errorf(c.fc.file.Path, e.Pos(), "served state cannot be stored as any or an interface; keep the concrete type")
+	}
+}
+
 func (c *checker) servedValueCopy(e ast.Expr) bool {
 	if _, ok := unparen(e).(*ast.CompositeLit); ok {
 		return false
@@ -2246,6 +2257,7 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		types = append(types, c.resolveExpr(val, true))
 		c.checkVoidValue(val)
 		c.checkAssign(declType, val)
+		c.checkServedInterface(declType, val)
 		c.markCopyTaint(val)
 		if c.servedValueCopy(val) {
 			c.p.errorf(c.fc.file.Path, val.Pos(), "a served type is not copyable; use a pointer")

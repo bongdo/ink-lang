@@ -632,7 +632,16 @@ func (w *writer) onErrClosure(body *ast.Block) string {
 	return name
 }
 
-func (w *writer) serveStmt(s *ast.ServeStmt) {}
+func (w *writer) serveStmt(s *ast.ServeStmt) {
+	if s.X == nil {
+		return
+	}
+	x := w.expr(s.X)
+	if !isPointerType(w.f.g.p.ExprTypes[s.X]) {
+		x = "&" + x
+	}
+	w.line("_ = " + x)
+}
 
 func (w *writer) goCallStmt(s *ast.GoCallStmt) {
 	expr := s.Call
