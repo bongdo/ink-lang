@@ -57,6 +57,7 @@ type checker struct {
 	inArena         int
 	inServeTarget   int
 	inAssignLhs     int
+	callFun         ast.Expr
 	blockDepth      int
 	tparams         map[string]bool
 }
@@ -1346,6 +1347,15 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 		}
 	case *ast.TryExpr:
 		return p.exprTypeOf(x.X, vars, pkg)
+	case *ast.IndexExpr:
+		switch ct := p.exprTypeOf(x.X, vars, pkg).(type) {
+		case *ast.MapType:
+			return ct.Value
+		case *ast.SliceType:
+			return ct.Elem
+		case *ast.ArrayType:
+			return ct.Elem
+		}
 	case *ast.OnErrExpr:
 		return p.exprTypeOf(x.X, vars, pkg)
 	case *ast.FuncLit:

@@ -574,9 +574,10 @@ handles.
 - Every instance of a served type carries the lock, including one created after
   the `serve` statement or never named by it. A missed `serve` is not a data
   race; write it near the first creation to document intent.
-- Every method call on a served type is serialized. A free function with a
-  served `*T` parameter is serialized as a whole; when it is called from inside
-  a served method, the already-held lock is used.
+- Every method call on a served type is serialized. A free function or a method
+  of any type with a served `*T` parameter is a critical section on that
+  object; when it is called from inside a served method, the already-held lock
+  is used.
 - Fields of a served object are internal: outside its methods, use methods or a
   free function with `*T`. The served type is not copyable: pass `*T`, never a
   value.
@@ -590,8 +591,10 @@ handles.
   lock is already held. Aliasing `self` or a served parameter is rejected.
 - Function literals inside a served method are rejected: an escaping closure
   would call the raw method after the lock is released.
-- Served state cannot be passed as `any` or an interface to Ink or Go code; a
-  map, slice or struct that contains a served pointer is served state too.
+- Taking a method value of a served object is rejected; call it directly.
+- Served state cannot be stored or passed as `any`/an interface, including a
+  struct field, map value or slice element; a container that holds a served
+  pointer is served state too.
 - `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
   Reset fields in a method instead.
 - A served object cannot be passed to Go or a builtin. A served type must come

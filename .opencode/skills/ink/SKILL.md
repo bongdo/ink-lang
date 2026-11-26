@@ -323,9 +323,10 @@ fn main() void {
 - Every instance of a served type carries the lock, even one created after the
   `serve` statement or never named by it. A missed `serve` is not a data race.
   Write it once near the first creation to document intent.
-- Every method call on a served type is serialized. A free function with a
-  served `*T` parameter is serialized as a whole; calls from inside a served
-  method use the already-held lock.
+- Every method call on a served type is serialized. A free function or a method
+  of any type with a served `*T` parameter is a critical section on that
+  object: its body is serialized as a whole. Calls from inside a served method
+  use the already-held lock.
 - Fields of a served object are internal: outside its methods, use methods or a
   free function with `*T`. The served type is not copyable: pass `*T`, never a
   value.
@@ -342,8 +343,12 @@ fn main() void {
 - Function literals inside a served method are rejected: an escaping closure
   would call the raw method after the lock is released. Schedule the work
   outside, or pass a method name to a synchronous helper.
-- Served state cannot be passed as `any` or an interface to Ink or Go code; a
-  map, slice or struct that contains a served pointer is served state too.
+- Taking a method value of a served object (`var f = self.Inc`,
+  `invoke(self.Inc)`) is rejected; call the method directly. A callback would
+  take the same lock again or outlive it.
+- Served state cannot be stored or passed as `any`/an interface, including a
+  struct field, map value or slice element; a container that holds a served
+  pointer is served state too.
 - `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
   Reset fields in a method instead.
 - A served object cannot be passed to a Go function or builtin; a served type

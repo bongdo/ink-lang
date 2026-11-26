@@ -210,6 +210,9 @@ func (c *checker) resolveSelector(s *ast.SelectorExpr) ast.Type {
 			}
 			ft := c.funcType(m)
 			s.Ref = &ast.Ref{Kind: ast.RefFunc, Name: s.Name, Func: m, Type: st, TypeVal: ft}
+			if c.callFun != s && c.servedBase(s.X) {
+				c.p.errorf(c.fc.file.Path, s.Pos(), "method value on a served object; call it directly")
+			}
 			if c.fn != nil {
 				c.p.edges = append(c.p.edges, ctxEdge{from: c.fn.node(), to: m})
 			}
@@ -315,6 +318,9 @@ func (c *checker) resolvePackageMember(s *ast.SelectorExpr, id *ast.Ident, _ ast
 }
 
 func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
+	savedFun := c.callFun
+	c.callFun = call.Fun
+	defer func() { c.callFun = savedFun }()
 	var info *ast.CallInfo
 	var result ast.Type
 	var params []ast.Type
@@ -955,6 +961,7 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 			c.checkVoidValue(en.KeyExpr)
 			c.checkVoidValue(en.Value)
 			c.checkAssign(ty.Value, en.Value)
+			c.checkServedInterface(ty.Value, en.Value)
 		}
 	case *ast.SliceType, *ast.ArrayType:
 		var elem ast.Type
@@ -969,6 +976,7 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 			c.resolveExpr(en.Value, false)
 			c.checkVoidValue(en.Value)
 			c.checkAssign(elem, en.Value)
+			c.checkServedInterface(elem, en.Value)
 		}
 	case *ast.GenericType:
 		for _, en := range e.Entries {
@@ -1010,6 +1018,7 @@ func (c *checker) resolveFields(e *ast.CompositeLit, fields []*ast.Field, owner 
 		c.resolveExpr(en.Value, false)
 		c.checkVoidValue(en.Value)
 		c.checkAssign(f.Type, en.Value)
+		c.checkServedInterface(f.Type, en.Value)
 	}
 }
 
