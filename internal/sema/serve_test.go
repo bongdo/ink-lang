@@ -221,6 +221,46 @@ fn main() void {
 	wantError(t, p, "returning a reference to served state")
 }
 
+func TestServeNestedReferenceRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Item {
+    tags: str[],
+};
+
+struct Store {
+    items: Item[],
+
+    fn Tags() str[] {
+        return items[0].tags;
+    };
+
+    fn CopyOut() Item[] {
+        var out = Item[] {};
+        out = append(out, items...);
+        return out;
+    };
+
+    fn LoopOut() Item[] {
+        var out = Item[] {};
+        for (var it in items) {
+            out = append(out, it);
+        };;
+        return out;
+    };
+
+    fn AnyOut() any {
+        return any(items);
+    };
+};
+
+fn main() void {
+    var s = Store { items: Item[] { Item { tags: str[] { "a" } } } };
+    serve s;
+};
+`})
+	wantError(t, p, "returning a reference to served state")
+	wantError(t, p, "do not alias served state")
+}
+
 func TestServeValueCopyRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `struct Counter {
     n: i32,

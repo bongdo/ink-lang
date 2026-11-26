@@ -285,6 +285,7 @@ type Ref struct {
 	Use     *Use
 	Go      any
 	Served  bool
+	Tainted bool
 }
 
 type Ident struct {

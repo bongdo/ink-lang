@@ -154,7 +154,7 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	if c.inServeTarget == 0 && c.inAssignLhs == 0 && (sym.kind == ast.RefLocal || sym.kind == ast.RefParam) {
 		sym.used = true
 	}
-	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served}
+	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served, Tainted: sym.tainted}
 	id.Ref = ref
 	if sym.kind == ast.RefPackage {
 		c.fc.mark(id.Name)

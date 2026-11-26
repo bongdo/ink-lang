@@ -23,6 +23,7 @@ type symbol struct {
 	arenaDepth int
 	nilMap     bool
 	served     bool
+	tainted    bool
 	used       bool
 }
 
@@ -1023,7 +1024,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		if len(s.Rhs) == len(s.Lhs) {
 			for i, rhs := range s.Rhs {
-				if c.servedBody() && c.escapesServe(rhs) && !appendBack(s.Lhs[i], rhs) {
+				if c.servedBody() && c.escapesServe(rhs) && !c.appendBack(s.Lhs[i], rhs) {
 					c.p.errorf(c.fc.file.Path, rhs.Pos(), "do not alias served state inside its method; copy the values")
 				}
 				if c.servedAliasExpr(rhs) {
@@ -1315,17 +1316,35 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 			return p.exprTypeOf(x.X, vars, pkg)
 		}
 	case *ast.Ident:
-		return vars[x.Name]
+		if t := vars[x.Name]; t != nil {
+			return t
+		}
+		if fd := pkg.Funcs[x.Name]; fd != nil {
+			return &ast.FuncType{Results: fd.Results, Err: fd.Err}
+		}
+	case *ast.TryExpr:
+		return p.exprTypeOf(x.X, vars, pkg)
+	case *ast.SelectorExpr:
+		if d := p.servedTypeDeclIn(p.exprTypeOf(x.X, vars, pkg), pkg); d != nil {
+			if fld := fieldByName(d, x.Name); fld != nil {
+				return fld.Type
+			}
+		}
 	case *ast.CallExpr:
 		if id, ok := x.Fun.(*ast.Ident); ok {
-			if fd := pkg.Funcs[id.Name]; fd != nil && len(fd.Results) == 1 {
+			if t := vars[id.Name]; t != nil {
+				if ft, ok := t.(*ast.FuncType); ok && len(ft.Results) > 0 {
+					return ft.Results[0]
+				}
+			}
+			if fd := pkg.Funcs[id.Name]; fd != nil && len(fd.Results) > 0 {
 				return fd.Results[0]
 			}
 		}
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
 			if d := p.servedTypeDeclIn(p.exprTypeOf(sel.X, vars, pkg), pkg); d != nil {
 				for _, m := range d.Methods {
-					if m.Name == sel.Name && len(m.Results) == 1 {
+					if m.Name == sel.Name && len(m.Results) > 0 {
 						return m.Results[0]
 					}
 				}
@@ -1421,12 +1440,20 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 	}
 }
 
-func appendBack(lhs, rhs ast.Expr) bool {
+func (c *checker) appendBack(lhs, rhs ast.Expr) bool {
 	call, ok := unparen(rhs).(*ast.CallExpr)
 	if !ok || call.Info == nil || call.Info.Builtin != "append" || len(call.Args) == 0 {
 		return false
 	}
-	return sameTarget(lhs, call.Args[0])
+	if !sameTarget(lhs, call.Args[0]) {
+		return false
+	}
+	for _, arg := range call.Args[1:] {
+		if c.escapesServe(arg) {
+			return false
+		}
+	}
+	return true
 }
 
 func sameTarget(a, b ast.Expr) bool {
@@ -1765,6 +1792,12 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.declare(&symbol{name: f.Range.Names[0], kind: ast.RefLocal, typ: key, decl: f.Range})
 			c.declare(&symbol{name: f.Range.Names[1], kind: ast.RefLocal, typ: elem, decl: f.Range})
 		}
+		if !isMap && containsReference(elem) && c.servedRootAny(f.Range.X) {
+			name := f.Range.Names[len(f.Range.Names)-1]
+			if sym := c.lookupLocal(name); sym != nil {
+				sym.tainted = true
+			}
+		}
 		if f.Limit != nil {
 			c.resolveExpr(f.Limit, false)
 			if n, ok := c.constLimit(f.Limit); ok && n < 1 {
@@ -2022,9 +2055,25 @@ func (c *checker) escapesServe(e ast.Expr) bool {
 		}
 		return false
 	}
-	if call, ok := unparen(e).(*ast.CallExpr); ok && call.Info != nil && call.Info.Builtin == "append" && len(call.Args) > 0 {
-		if c.escapesServe(call.Args[0]) {
-			return true
+	if call, ok := unparen(e).(*ast.CallExpr); ok {
+		if call.Info != nil && call.Info.Builtin == "append" {
+			for _, arg := range call.Args {
+				if c.escapesServe(arg) {
+					return true
+				}
+			}
+		}
+		if call.Info != nil && call.Info.Kind == ast.CallConversion {
+			for _, rt := range call.Info.ResultTypes {
+				if c.isInterfaceType(rt) {
+					for _, arg := range call.Args {
+						if c.escapesServe(arg) {
+							return true
+						}
+					}
+					break
+				}
+			}
 		}
 	}
 	if c.servedRootAny(e) && containsReference(c.exprType(e)) {
@@ -2035,12 +2084,15 @@ func (c *checker) escapesServe(e ast.Expr) bool {
 	}
 	switch x := unparen(e).(type) {
 	case *ast.Ident:
+		if x.Ref != nil && x.Ref.Tainted {
+			return true
+		}
 		if x.Ref != nil && x.Ref.Kind == ast.RefField && c.fn != nil && c.fn.decl != nil &&
 			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served {
 			return true
 		}
 	case *ast.SelectorExpr:
-		return c.heldServedExpr(x.X)
+		return c.servedRootAny(x.X)
 	case *ast.IndexExpr:
 		return c.escapesServe(x.X)
 	case *ast.SliceExpr:
@@ -2060,6 +2112,9 @@ func (c *checker) servedRootAny(e ast.Expr) bool {
 	}
 	switch x := unparen(e).(type) {
 	case *ast.Ident:
+		if x.Ref != nil && x.Ref.Tainted {
+			return true
+		}
 		return x.Ref != nil && x.Ref.Kind == ast.RefField && c.fn != nil && c.fn.decl != nil &&
 			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
 	case *ast.SelectorExpr:
