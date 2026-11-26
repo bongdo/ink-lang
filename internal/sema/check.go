@@ -60,6 +60,7 @@ type checker struct {
 	blockDepth      int
 	started         bool
 	prevStmt        ast.Stmt
+	nextStmt        ast.Stmt
 	blockIndex      int
 	tparams         map[string]bool
 }
@@ -916,6 +917,11 @@ func (c *checker) checkBlock(b *ast.Block) {
 			c.prevStmt = prev
 			c.blockIndex = i
 		}
+		if i+1 < len(b.Stmts) {
+			c.nextStmt = b.Stmts[i+1]
+		} else {
+			c.nextStmt = nil
+		}
 		c.checkStmt(s)
 		prev = s
 	}
@@ -990,6 +996,17 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.inAssignLhs++
 		for _, e := range s.Lhs {
 			lhsTypes = append(lhsTypes, c.resolveExpr(e, false))
+			if id, ok := unparen(e).(*ast.Ident); ok && id.Name != "_" && id.Ref != nil &&
+				id.Ref.Kind != ast.RefField && id.Ref.Kind != ast.RefPackage {
+				if sym := c.lookup(id.Name); sym != nil && sym.served && !nextServes(c.nextStmt, id.Name) {
+					c.p.errorf(c.fc.file.Path, e.Pos(), "served object reassigned; serve %s again immediately", id.Name)
+				}
+			}
+			if u, ok := unparen(e).(*ast.UnaryExpr); ok && u.Op == token.Star {
+				if d := servedStructDecl(c.exprType(e)); d != nil && d.Served {
+					c.p.errorf(c.fc.file.Path, e.Pos(), "cannot replace a served object through a pointer; reset it in a method")
+				}
+			}
 			if sel, ok := unparen(e).(*ast.SelectorExpr); ok && c.mapStructElement(sel.X) {
 				c.p.errorf(c.fc.file.Path, e.Pos(), "cannot assign to a field of a map element; copy out, mutate, then write back")
 			}
@@ -1009,6 +1026,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			if len(s.Rhs) == len(lhsTypes) {
 				c.checkAssign(lhsTypes[i], e)
 			}
+			c.markCopyTaint(e)
 			if c.servedValueCopy(e) {
 				c.p.errorf(c.fc.file.Path, e.Pos(), "a served type is not copyable; use a pointer")
 			}
@@ -1324,14 +1342,32 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 		}
 	case *ast.TryExpr:
 		return p.exprTypeOf(x.X, vars, pkg)
+	case *ast.OnErrExpr:
+		return p.exprTypeOf(x.X, vars, pkg)
+	case *ast.FuncLit:
+		return &ast.FuncType{Results: x.Results, Err: x.Err}
 	case *ast.SelectorExpr:
-		if d := p.servedTypeDeclIn(p.exprTypeOf(x.X, vars, pkg), pkg); d != nil {
+		xt := p.exprTypeOf(x.X, vars, pkg)
+		if d := p.servedTypeDeclIn(xt, pkg); d != nil {
 			if fld := fieldByName(d, x.Name); fld != nil {
 				return fld.Type
+			}
+			if m := methodByName(d, x.Name); m != nil {
+				return &ast.FuncType{Results: m.Results, Err: m.Err}
+			}
+		}
+		if n, ok := xt.(*ast.NamedType); ok && n.Decl != nil && n.Decl.Kind == ast.TypeInterface {
+			for _, m := range n.Decl.IFace {
+				if m.Name == x.Name {
+					return ifaceFuncType(m)
+				}
 			}
 		}
 	case *ast.CallExpr:
 		if id, ok := x.Fun.(*ast.Ident); ok {
+			if id.Name == "new" && len(x.TypeArgs) > 0 {
+				return &ast.PointerType{Elem: x.TypeArgs[0]}
+			}
 			if t := vars[id.Name]; t != nil {
 				if ft, ok := t.(*ast.FuncType); ok && len(ft.Results) > 0 {
 					return ft.Results[0]
@@ -1437,6 +1473,42 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 		if d, ok := sym.decl.(*ast.VarDecl); ok {
 			d.Served = true
 		}
+	}
+}
+
+func nextServes(s ast.Stmt, name string) bool {
+	serve, ok := s.(*ast.ServeStmt)
+	if !ok {
+		return false
+	}
+	id, ok := unparen(serve.X).(*ast.Ident)
+	return ok && id.Name == name
+}
+
+func elemReference(t ast.Type) bool {
+	switch x := t.(type) {
+	case *ast.SliceType:
+		return containsReference(x.Elem)
+	case *ast.ArrayType:
+		return containsReference(x.Elem)
+	}
+	return false
+}
+
+func (c *checker) markCopyTaint(e ast.Expr) {
+	call, ok := unparen(e).(*ast.CallExpr)
+	if !ok || call.Info == nil || call.Info.Builtin != "copy" || len(call.Args) < 2 {
+		return
+	}
+	if !c.escapesServe(call.Args[1]) {
+		return
+	}
+	id, ok := unparen(call.Args[0]).(*ast.Ident)
+	if !ok || !elemReference(c.exprType(id)) {
+		return
+	}
+	if sym := c.lookupLocal(id.Name); sym != nil {
+		sym.tainted = true
 	}
 }
 
@@ -1792,7 +1864,7 @@ func (c *checker) checkFor(f *ast.ForStmt) {
 			c.declare(&symbol{name: f.Range.Names[0], kind: ast.RefLocal, typ: key, decl: f.Range})
 			c.declare(&symbol{name: f.Range.Names[1], kind: ast.RefLocal, typ: elem, decl: f.Range})
 		}
-		if !isMap && containsReference(elem) && c.servedRootAny(f.Range.X) {
+		if containsReference(elem) && c.servedRootAny(f.Range.X) && !(isMap && len(f.Range.Names) == 1) {
 			name := f.Range.Names[len(f.Range.Names)-1]
 			if sym := c.lookupLocal(name); sym != nil {
 				sym.tainted = true
@@ -2195,6 +2267,7 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		types = append(types, c.resolveExpr(val, true))
 		c.checkVoidValue(val)
 		c.checkAssign(declType, val)
+		c.markCopyTaint(val)
 		if c.servedValueCopy(val) {
 			c.p.errorf(c.fc.file.Path, val.Pos(), "a served type is not copyable; use a pointer")
 		}

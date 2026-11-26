@@ -214,6 +214,7 @@ fn decodeItem(rec: *httptest.ResponseRecorder) Item! {
 
 test "healthz" {
     store = newStore();
+    serve store;
     var rec = call("GET", "/healthz", "");
     assert_eq(rec.Code, 200);
     assert_eq(rec.Body.String(), `{"ok":true}`);
@@ -221,6 +222,7 @@ test "healthz" {
 
 test "create list get patch delete" {
     store = newStore();
+    serve store;
     var created = call("POST", "/items", `{"title":"first"}`);
     assert_eq(created.Code, 201);
     var it = decodeItem(created)?;
@@ -249,6 +251,7 @@ test "create list get patch delete" {
 
 test "empty list is an array" {
     store = newStore();
+    serve store;
     var rec = call("GET", "/items", "");
     assert_eq(rec.Code, 200);
     assert_eq(rec.Body.String(), "[]");
@@ -256,6 +259,7 @@ test "empty list is an array" {
 
 test "missing item is 404" {
     store = newStore();
+    serve store;
     assert_eq(call("GET", "/items/42", "").Code, 404);
     assert_eq(call("PATCH", "/items/42", `{"done":true}`).Code, 404);
     assert_eq(call("DELETE", "/items/42", "").Code, 404);
@@ -263,18 +267,21 @@ test "missing item is 404" {
 
 test "bad json is 400" {
     store = newStore();
+    serve store;
     assert_eq(call("POST", "/items", "{oops").Code, 400);
     assert_eq(call("PATCH", "/items/1", "{oops").Code, 400);
 };
 
 test "empty title is 400" {
     store = newStore();
+    serve store;
     assert_eq(call("POST", "/items", `{"title":""}`).Code, 400);
     assert_eq(call("POST", "/items", `{"title":"   "}`).Code, 400);
 };
 
 test "wrong method is 405 and unknown path is 404" {
     store = newStore();
+    serve store;
     assert_eq(call("DELETE", "/items", "").Code, 405);
     assert_eq(call("POST", "/healthz", "").Code, 405);
     assert_eq(call("TRACE", "/items/1", "").Code, 405);

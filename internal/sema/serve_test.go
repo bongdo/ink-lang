@@ -261,6 +261,47 @@ fn main() void {
 	wantError(t, p, "do not alias served state")
 }
 
+func TestServeReassignNeedsServe(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Counter {
+    n: i32,
+
+    fn Inc() void {
+        n += 1;
+    };
+};
+
+fn main() void {
+    var c = Counter { n: 0 };
+    serve c;
+    c = Counter { n: 0 };
+    c.Inc();
+};
+`})
+	wantError(t, p, "served object reassigned")
+}
+
+func TestServeDerefResetRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Counter {
+    n: i32,
+
+    fn Inc() void {
+        n += 1;
+    };
+};
+
+fn reset(c: *Counter) void {
+    *c = Counter { n: 0 };
+};
+
+fn main() void {
+    var c = Counter { n: 0 };
+    serve c;
+    reset(&c);
+};
+`})
+	wantError(t, p, "cannot replace a served object through a pointer")
+}
+
 func TestServeValueCopyRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `struct Counter {
     n: i32,

@@ -590,8 +590,10 @@ handles.
 - A served object cannot be passed to Go or a builtin. A served type must come
   from the same package; generic types, generic methods and methods that need an
   injected context are not served.
-- `serve` must directly follow the target's declaration or assignment; serving
-  the same variable twice is an error. A same-package factory may return a
+- `serve` must directly follow the target's declaration or assignment.
+  Reassigning a served variable needs `serve` again on the next line; `*p = T {}`
+  that overwrites a served object is rejected. Serving the same object twice is
+  an error. A same-package factory may return a
   served object, but servedness is checked syntactically: serve the returned
   variable at the call site before `par`. `serve` does not make several method
   calls atomic and does not prevent deadlock between two served objects. A

@@ -38,6 +38,8 @@ not re-file.
 | A package variable is served in `main` or a test only. | Other functions may run after goroutines start; the flag write would race. |
 | A same-package factory may return a served object. | Servedness is checked syntactically; serve the returned variable at the call site before `par`. A type from another package cannot be served: keep its lock behind the package that owns it. |
 | `serve` must directly follow the target's declaration or assignment. | Nothing runs between creation and serving, so no goroutine can touch the object first. |
+| Reassigning a served variable needs a new `serve`. | The replacement object starts unserved; methods would skip the lock. |
+| `*p = T {}` on a served object is rejected. | It overwrites the hidden mutex while a wrapper may hold it (`sync: unlock of unlocked mutex`). Reset fields in a method. |
 | `par`/`spawn` inside a served method is rejected. | The method already holds the object's lock; workers would deadlock or race. Use one method or a separate object. |
 | Aliasing `self` inside a served method is rejected. | A wrapper call on the alias would take the same lock again. Call `self.M()` directly. |
 | A served type must come from the same package. | Hidden lock fields are unexported; cross-package `serve` would not compile. |

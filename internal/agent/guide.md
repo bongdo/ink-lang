@@ -343,8 +343,10 @@ fn main() void {
   A type from another package cannot be served; keep its lock behind the
   package that owns it. A reference hidden behind a helper call is outside the
   check; keep such accessors out of the served type.
-- `serve` must directly follow the target's declaration or assignment, and
-  serving the same variable twice is an error. It does not make several method
+- `serve` must directly follow the target's declaration or assignment.
+  Reassigning a served variable needs `serve` again on the next line; `*p = T {}`
+  that overwrites a served object is rejected. Serving the same object twice is
+  an error. It does not make several method
   calls atomic and does not prevent deadlock between two served objects. A
   method that needs a composed update does it in one method.
 
