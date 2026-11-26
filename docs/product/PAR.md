@@ -151,7 +151,9 @@ Plain `par`, reject:
    it in the body is rejected as a captured write (§6).
 
 Allowed in both: reads of captured roots, reads of `self` fields, writes to
-locals declared inside the worker. Writes to globals are always rejected in
+locals declared inside the worker, and method calls on a served object. A served
+object has its own hidden lock; the call is not a captured write. `serve obj;`
+itself is rejected inside a worker: the object must be served before sharing. Writes to globals are always rejected in
 both forms: a global is shared with the whole program, not only with the other
 workers. A write to a captured *value* struct (`c.n = v`) is attributed to `c`
 and obeys the same root rules; in `par for` a non-slot write to `c` is rejected.

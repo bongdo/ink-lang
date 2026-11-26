@@ -29,6 +29,9 @@ not re-file.
 | `T or error`, `or return` and `or fail` are rejected. | `T!` and `?` replaced them; diagnostics point at the old form. |
 | `go` is rejected and `within` is removed. | Structured concurrency is `par`; `spawn` is detached. A deadline is `context.WithTimeout`, passed as an ordinary value. |
 | `spawn f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `spawn f(...) on err { ... };` at the launch site. |
+| `serve obj;` gives one lock per object. | It serializes reads and writes, including reads; split independent state into separate objects. It does not make several method calls atomic. |
+| Fields of a served object are internal. | Use methods inside the type, or pass `*T` to a free function. The alternative is a silent race. |
+| A served object is not copyable. | Copying a struct with a hidden mutex is rejected by `go vet`; use a pointer. |
 | Process exit does not wait for detached tasks. | Go's contract: when `main` returns the process exits, the tasks and their `defer`s are dropped. A `spawn` task has no join and `sync.WaitGroup` is rejected; use `par { ... }` when the work must finish. |
 | `par { }` and `par for` join and never cancel early. | All workers run to completion, then the lowest ordinal error is delivered. A deadline does not stop them. |
 | A detached task's `on err` handler runs in the task, not in the launching scope. | It sees `err` and package-level names only; locals of the launcher are rejected at compile time, so the handler cannot race with the caller. |

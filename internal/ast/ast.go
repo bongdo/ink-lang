@@ -101,14 +101,16 @@ type TypeDecl struct {
 	Variants   []*Variant
 	IFace      []*IFaceMethod
 	GoName     string
+	Served     bool
 }
 
 func (*TypeDecl) declNode() {}
 
 type Field struct {
 	Span
-	Name string
-	Type Type
+	Name   string
+	Type   Type
+	Served bool
 }
 
 type Contract struct {
@@ -281,6 +283,7 @@ type Ref struct {
 	Path    string
 	Use     *Use
 	Go      any
+	Served  bool
 }
 
 type Ident struct {
@@ -595,6 +598,13 @@ type GoCallStmt struct {
 }
 
 func (*GoCallStmt) stmtNode() {}
+
+type ServeStmt struct {
+	Span
+	X Expr
+}
+
+func (*ServeStmt) stmtNode() {}
 
 type OnErrStmt struct {
 	Span

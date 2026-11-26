@@ -522,6 +522,10 @@ func (p *printer) inlineStmt(s ast.Stmt) {
 		p.write("spawn ")
 		p.expr(s.Call)
 		p.write(";")
+	case *ast.ServeStmt:
+		p.write("serve ")
+		p.expr(s.X)
+		p.write(";")
 	case *ast.OnErrStmt:
 		p.write("on err ")
 		p.block(s.Body)

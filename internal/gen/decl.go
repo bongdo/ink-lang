@@ -19,7 +19,62 @@ func (g *generator) decl(w *writer, d ast.Decl) {
 	}
 }
 
+type servedArg struct {
+	index int
+	name  string
+	decl  *ast.TypeDecl
+}
+
+func servedPtrDecl(t ast.Type) *ast.TypeDecl {
+	for t != nil {
+		switch x := t.(type) {
+		case *ast.PointerType:
+			t = x.Elem
+		case *ast.GenericType:
+			t = x.Base
+		case *ast.NamedType:
+			if x.Decl == nil {
+				return nil
+			}
+			if x.Decl.Kind == ast.TypeAlias {
+				t = x.Decl.Target
+				continue
+			}
+			if x.Decl.Kind == ast.TypeStruct && x.Decl.Served {
+				return x.Decl
+			}
+			return nil
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func servedArgOf(fd *ast.FuncDecl) (servedArg, bool) {
+	if fd == nil || len(fd.Params) == 0 {
+		return servedArg{}, false
+	}
+	safe := safeParams(fd.Params)
+	for i, p := range fd.Params {
+		if d := servedPtrDecl(p.Type); d != nil {
+			return servedArg{index: i, name: safe[i].Name, decl: d}, true
+		}
+	}
+	return servedArg{}, false
+}
+
 func (g *generator) funcDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl) {
+	if recv != nil && recv.Served && !w.rawSelf && fd.Body != nil && !fd.NeedsCtx && len(recv.TypeParams) == 0 {
+		g.servedMethod(w, fd, recv)
+		return
+	}
+	if recv == nil && fd.Body != nil && !fd.NeedsCtx && len(fd.TypeParams) == 0 {
+		if sa, ok := servedArgOf(fd); ok {
+			g.servedFree(w, fd, sa)
+			return
+		}
+	}
 	name := fd.GoName
 	if name == "" {
 		name = fd.Name
@@ -60,8 +115,103 @@ func (g *generator) funcDecl(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl) {
 	}
 }
 
+func argNames(params []*ast.Param) []string {
+	names := make([]string, len(params))
+	for i, p := range params {
+		names[i] = p.Name
+	}
+	return names
+}
+
+func (g *generator) servedMethod(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl) {
+	name := fd.GoName
+	if name == "" {
+		name = fd.Name
+	}
+	raw := "_s_raw_" + name
+	self := methodSelfName(fd, recv)
+	params := safeParams(fd.Params)
+	pstr := g.paramsStr(w.f, params, nil, false)
+	res := g.resultStr(w.f, fd.Results, fd.Err)
+	args := strings.Join(argNames(params), ", ")
+	call := self + "." + raw + "(" + args + ")"
+
+	w.directive(fd)
+	w.line("func (" + self + " *" + typeNameOf(recv) + ") " + name + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.line("if " + self + "._s_served {")
+	w.indent++
+	w.line(self + "._s_mu.Lock()")
+	w.line("defer " + self + "._s_mu.Unlock()")
+	w.indent--
+	w.line("}")
+	if len(fd.Results) > 0 || fd.Err {
+		w.line("return " + call)
+	} else {
+		w.line(call)
+	}
+	w.indent--
+	w.line("}")
+	w.line("")
+
+	w.directive(fd)
+	w.line("func (" + self + " *" + typeNameOf(recv) + ") " + raw + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.self = self
+	w.rawSelf = true
+	w.held = map[string]*ast.TypeDecl{self: recv}
+	g.funcBody(w, fd.Body, fd.Results, fd.Err, false)
+	w.indent--
+	w.line("}")
+	w.line("")
+}
+
+func (g *generator) servedFree(w *writer, fd *ast.FuncDecl, sa servedArg) {
+	name := fd.GoName
+	if name == "" {
+		name = fd.Name
+	}
+	raw := "_s_held_" + name
+	params := safeParams(fd.Params)
+	pstr := g.paramsStr(w.f, params, nil, false)
+	res := g.resultStr(w.f, fd.Results, fd.Err)
+	args := strings.Join(argNames(params), ", ")
+	arg := params[sa.index].Name
+	call := raw + "(" + args + ")"
+
+	w.directive(fd)
+	w.line("func " + name + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.line("if " + arg + "._s_served {")
+	w.indent++
+	w.line(arg + "._s_mu.Lock()")
+	w.line("defer " + arg + "._s_mu.Unlock()")
+	w.indent--
+	w.line("}")
+	if len(fd.Results) > 0 || fd.Err {
+		w.line("return " + call)
+	} else {
+		w.line(call)
+	}
+	w.indent--
+	w.line("}")
+	w.line("")
+
+	w.directive(fd)
+	w.line("func " + raw + "(" + pstr + ")" + res + " {")
+	w.indent++
+	w.held = map[string]*ast.TypeDecl{arg: sa.decl}
+	g.funcBody(w, fd.Body, fd.Results, fd.Err, false)
+	w.indent--
+	w.line("}")
+	w.line("")
+}
+
 func (g *generator) intoName(fd *ast.FuncDecl) string {
 	if fd == nil || fd.Body == nil || fd.Err || fd.NeedsCtx || len(fd.Results) != 1 || len(fd.TypeParams) > 0 {
+		return ""
+	}
+	if _, ok := servedArgOf(fd); ok {
 		return ""
 	}
 	if fd.Name == "main" || strings.HasPrefix(fd.Name, "_s_") || !g.arrayType(fd.Results[0]) || bodyHasDefer(fd.Body) {
@@ -479,7 +629,7 @@ func (g *generator) typeDecl(w *writer, d *ast.TypeDecl) {
 func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 	w.directive(d)
 	wire := wireNames(d)
-	if len(d.Fields) == 0 {
+	if len(d.Fields) == 0 && !d.Served {
 		w.line("type " + name + g.typeParamsDecl(d.TypeParams) + " struct{}")
 	} else {
 		w.line("type " + name + g.typeParamsDecl(d.TypeParams) + " struct {")
@@ -494,6 +644,10 @@ func (g *generator) structDecl(w *writer, d *ast.TypeDecl, name string) {
 				tag = " `json:" + strconv.Quote(ext) + "`"
 			}
 			w.line(fld.Name + " " + g.typeStr(w.f, fld.Type) + tag)
+		}
+		if d.Served {
+			w.line("_s_mu " + w.f.std("sync") + ".Mutex")
+			w.line("_s_served bool")
 		}
 		w.indent--
 		w.line("}")

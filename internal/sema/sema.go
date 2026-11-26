@@ -149,6 +149,7 @@ func Check(parsed map[string][]*ast.File, opt Options) *Program {
 	if p.stopped() {
 		return p
 	}
+	p.checkServeFuncs()
 	p.checkVarCyclesAll()
 	p.checkFreeMethods()
 	p.checkTests()

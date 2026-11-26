@@ -33,7 +33,7 @@ cp /path/to/tests/blind/web/TASK.md .
 Build a small JSON HTTP service in Ink (stdlib only, no frameworks, no
 external modules):
 
-- In-memory todo store, safe for concurrent HTTP handlers (`sync.Mutex`).
+- In-memory todo store, safe for concurrent HTTP handlers. `use sync` is rejected; use the language's `serve` object.
 - `GET /healthz` -> `{"ok":true}`.
 - `GET /items` -> JSON array (empty array, not null, for an empty store).
 - `POST /items` with `{"title":"..."}` -> 201, created item with `id`.

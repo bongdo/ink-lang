@@ -198,6 +198,8 @@ Highlights:
 - `par { ... }`, `par for (...) limit N`, `spawn f(args)`, no visible
   `context`. `par` joins; `spawn` detaches and has no join. `par for` over a
   map and `for ()` inside `par` are rejected.
+- `serve obj;` gives one struct object a hidden lock; its methods and `*T` free
+  functions serialize. Fields are internal and the object is not copyable.
 - `defer` is block-scoped. Hidden context gets a non-ctx wrapper at Go interfaces.
 - `par` workers keep their own `defer` stack and reject unsafe
   map/pointer/alias writes; panics are not recovered. `ink check` type-checks

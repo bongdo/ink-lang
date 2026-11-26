@@ -151,7 +151,7 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	if c.inTaskCapture[sym] {
 		c.p.errorf(c.fc.file.Path, id.Pos(), "spawn on err cannot capture locals; pass data as arguments")
 	}
-	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path}
+	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served}
 	id.Ref = ref
 	if sym.kind == ast.RefPackage {
 		c.fc.mark(id.Name)
@@ -196,7 +196,8 @@ func (c *checker) resolveSelector(s *ast.SelectorExpr) ast.Type {
 			if !c.accessible(st, s.Name) {
 				c.p.errorf(c.fc.file.Path, s.Pos(), "field %s is not exported", s.Name)
 			}
-			s.Ref = &ast.Ref{Kind: ast.RefField, Name: s.Name, Field: fld, Type: st, TypeVal: fld.Type}
+			c.checkServedField(s)
+			s.Ref = &ast.Ref{Kind: ast.RefField, Name: s.Name, Field: fld, Type: st, TypeVal: fld.Type, Served: fld.Served}
 			return fld.Type
 		}
 		if m := methodByName(st, s.Name); m != nil {
@@ -435,6 +436,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 		} else {
 			c.checkAssign(expected, arg)
 		}
+		if (goCall || (info != nil && info.Kind == ast.CallBuiltin)) && servedObject(c.exprType(arg)) {
+			c.p.errorf(c.fc.file.Path, arg.Pos(), "served object cannot be passed to Go or a builtin; use a method")
+		}
 	}
 	if info == nil {
 		info = &ast.CallInfo{Kind: ast.CallUnknown, Results: 1}
@@ -447,6 +451,11 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 	}
 	_ = goCall
 	return result
+}
+
+func servedObject(t ast.Type) bool {
+	d := servedStructDecl(t)
+	return d != nil && d.Served
 }
 
 func builtinError(t ast.Type) bool {
@@ -487,6 +496,9 @@ func (c *checker) resolvePrint(call *ast.CallExpr) ast.Type {
 	for _, a := range call.Args {
 		c.resolveExpr(a, false)
 		c.checkVoidValue(a)
+		if servedObject(c.exprType(a)) {
+			c.p.errorf(c.fc.file.Path, a.Pos(), "served object cannot be passed to Go or a builtin; use a method")
+		}
 	}
 	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 0, Builtin: "print"}
 	return nil

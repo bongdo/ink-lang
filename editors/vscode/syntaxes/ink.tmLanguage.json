@@ -37,7 +37,7 @@
     },
     "keywords": {
       "patterns": [
-        { "name": "keyword.control.ink", "match": "\\b(if|else|for|in|match|case|return|break|continue|defer|par|within|limit|or)\\b" },
+        { "name": "keyword.control.ink", "match": "\\b(if|else|for|in|match|case|return|break|continue|defer|par|spawn|serve|arena|within|limit|or)\\b" },
         { "name": "keyword.other.ink", "match": "\\b(use|as|fn|alias|struct|enum|interface|var|const|test|nil|true|false)\\b" }
       ]
     },

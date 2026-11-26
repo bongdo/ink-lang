@@ -78,7 +78,7 @@ var builtinFuncs = []string{
 
 var keywords = []string{
 	"use", "as", "fn", "alias", "struct", "enum", "interface", "var", "const",
-	"return", "if", "else", "for", "in", "match", "case", "par", "spawn", "on",
+	"return", "if", "else", "for", "in", "match", "case", "par", "spawn", "serve", "on",
 	"limit", "defer", "break", "continue", "or", "fail", "arena", "test", "true", "false", "nil", "map",
 }
 
@@ -2069,6 +2069,8 @@ func collectStmtLocals(stmt ast.Stmt, offset int, names *[]string) {
 		if stmt.Body != nil && containsNode(stmt.Body, offset) {
 			collectBlockLocals(stmt.Body, offset, names)
 		}
+	case *ast.ServeStmt:
+		collectExprLocals(stmt.X, offset, names)
 	case *ast.WithinStmt:
 		collectExprLocals(stmt.Duration, offset, names)
 		if stmt.Body != nil && containsNode(stmt.Body, offset) {

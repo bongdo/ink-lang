@@ -100,6 +100,8 @@ func (w *writer) stmt(s ast.Stmt) {
 		w.parStmt(s)
 	case *ast.GoCallStmt:
 		w.goCallStmt(s)
+	case *ast.ServeStmt:
+		w.serveStmt(s)
 	case *ast.OnErrStmt:
 	case *ast.WithinStmt:
 		w.withinStmt(s)
@@ -628,6 +630,13 @@ func (w *writer) onErrClosure(body *ast.Block) string {
 	w.line("}")
 	w.linef("_ = %s", name)
 	return name
+}
+
+func (w *writer) serveStmt(s *ast.ServeStmt) {
+	if s.X == nil {
+		return
+	}
+	w.line(w.expr(s.X) + "._s_served = true")
 }
 
 func (w *writer) goCallStmt(s *ast.GoCallStmt) {

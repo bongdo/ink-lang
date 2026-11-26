@@ -31,8 +31,9 @@ go 1.27
   binds no name, so it is never reported as unused. It is allowed only for Go
   import paths; a local `use ./lib as _;` is an error.
 - `errors`, `sync` and `sync/atomic` are rejected in `.ink`; so is
-  `fmt.Errorf`. Errors are `?`, `on err` and `check`; concurrency is `par` and
-  `spawn`. The generated Go and a Go adapter may still use those packages.
+  `fmt.Errorf`. Errors are `?`, `on err` and `check`; concurrency is `par`,
+  `spawn` and `serve` for shared object state. The generated Go and a Go adapter
+  may still use those packages.
 - Generated Go lives next to the sources as `zz_ink.go` and
   `zz_ink_test.go`. `.ink/` holds generated support files.
 
@@ -426,7 +427,7 @@ Forms:
   constructor in app code.
 - `print(...)` — write a line to stdout like `fmt.Println`; it has no error
   result and needs no `_ =`.
-- `panic(...)` — Go's panic, not an error handler (§8.5).
+- `panic(...)` — Go's panic, not an error handler (§8.6).
 
 An inline handler may continue instead of leaving the scope; the expression
 then keeps the zero value of its type. A scope listener is captured by each
@@ -513,7 +514,9 @@ spawn saveUser(1, "hello")       // detached task
     on err { log(err); };
 ```
 
-Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or handles.
+Two scheduling keywords, `par` and `spawn`. `serve` (§8.4) is the shared-state
+primitive, not a third scheduler. No pools, queues, `send`, `close`, `wait` or
+handles.
 
 ### 8.1 `par { }`
 
@@ -529,7 +532,7 @@ Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or ha
   `void` function without a listener each worker must handle its own errors.
 - No early cancellation: all workers run to completion, then the first error
   is delivered.
-- Panics are not recovered (§8.5).
+- Panics are not recovered (§8.6).
 
 ### 8.2 `par for`
 
@@ -562,7 +565,21 @@ Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or ha
   `par { }` and `par for` in its own scope.
 - Panics are not recovered.
 
-### 8.4 `on err` and error order
+### 8.4 Served objects
+
+- `serve obj;` gives a struct object one hidden lock and a served flag. It must
+  run before the object is shared and cannot appear inside `par` or `spawn`.
+- Every method call on a served object is serialized. A free function with a
+  served `*T` parameter is serialized as a whole; when it is called from inside
+  a served method, the already-held lock is used.
+- Fields of a served object are internal: outside its methods, use methods or a
+  free function with `*T`. A served object is not copyable; use a pointer.
+- `par` workers may call methods on a served object; those calls serialize.
+  There is one lock per object; independent parts are separate objects.
+- `serve` does not make several method calls atomic and does not prevent
+  deadlock between two served objects. A composed update belongs in one method.
+
+### 8.5 `on err` and error order
 
 - A scope listener is `on err { ... };` as the first statement of a function
   or block; its rules are in §6. The nearest lexical listener wins and it
@@ -575,14 +592,14 @@ Two keywords, `par` and `spawn`. No pools, queues, `send`, `close`, `wait` or ha
 - `return`, `break` and `continue` may not cross a `par` boundary. `?` is the
   way out of a worker.
 
-### 8.5 Panic
+### 8.6 Panic
 
 - `panic` is Go's panic: not an error, never delivered to `on err`, never
   recovered or wrapped by `par`.
 - A panic in any worker runs that goroutine's deferred calls, prints the stack
   and exits the process with status 2. Other goroutines are not unwound.
 
-### 8.6 Write rules
+### 8.7 Write rules
 
 - Plain `par`: a captured root may be written by at most one top-level
   statement, and no other statement may read it. Writes through a captured

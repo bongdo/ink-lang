@@ -262,9 +262,9 @@ for (var i, x in xs) { ... };
   are reserved and cannot be shadowed anywhere.
 - Reserved words cannot be identifiers: `use`, `fail`, `as`, `fn`, `type`,
   `struct`, `enum`, `interface`, `var`, `const`, `return`, `if`, `else`,
-  `for`, `in`, `match`, `case`, `par`, `spawn`, `on`, `arena`, `defer`, `break`,
-  `continue`, `or`, `test`, `true`, `false`, `nil`, `map`. `go` and `within`
-  are removed keywords with their own diagnostics.
+  `for`, `in`, `match`, `case`, `par`, `spawn`, `serve`, `on`, `arena`, `defer`,
+  `break`, `continue`, `or`, `test`, `true`, `false`, `nil`, `map`. `go` and
+  `within` are removed keywords with their own diagnostics.
 
 ## Concurrency
 
@@ -296,8 +296,41 @@ spawn save(1, "hello");         // detached, program-owned
 - Maps: no range in `par for`, no writes in `par`. Collect keys, write locally.
 - `sync`, `sync/atomic` and `sync.WaitGroup` are not available: `par` is the
   join, `spawn` is the detach. If you must wait for the work, use `par`; a
-  detached task has no join and may be dropped at process exit. A shared lock
-  belongs behind a Go adapter, not in app code.
+  detached task has no join and may be dropped at process exit. For shared
+  mutable state, use a served object.
+
+## Served objects
+
+```hare
+struct Counter {
+    n: i32,
+
+    fn Add(d: i32) void { n += d; };
+    fn Value() i32 { return n; };
+};
+
+fn main() void {
+    var c = Counter { n: 0 };
+    serve c;
+    c.Add(1);          // one at a time
+    print(c.Value());
+};
+```
+
+- `serve c;` gives the object one hidden lock and marks it served. It must run
+  before the object is shared; not inside `par` or `spawn`.
+- Every method call on a served object is serialized. A free function with a
+  served `*T` parameter is serialized as a whole; calls from inside a served
+  method use the already-held lock.
+- Fields of a served object are internal: outside its methods, use methods or a
+  free function with `*T`. A served object is not copyable; use a pointer.
+- `par` workers may call methods on a served object; the calls serialize.
+  One lock per object. For independent parts, use separate objects.
+- `serve` does not make several method calls atomic and does not prevent
+  deadlock between two served objects. A method that needs a composed update
+  does it in one method.
+
+
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
   APIs that need it. `par` never creates or cancels a context.
 - Panics are Go panics: `on err` does not catch them and `par` does not recover
@@ -317,7 +350,8 @@ spawn save(1, "hello");         // detached, program-owned
 | `err-manual` | replace manual propagation with `?` |
 | `error-ctor` | write `check(false, "msg")`; `error` is a type |
 | `go-errors` | drop `use errors;`; use `?`, `on err`, `check` |
-| `go-sync` | drop `use sync;`; use `par` to join, `spawn` to detach |
+| `go-sync` | drop `use sync;`; use `par`/`spawn` and `serve` for shared state |
+| `serve-field` | fields are internal; use a method or a free function with `*T` |
 | `fmt-errorf` | drop `fmt.Errorf`; use `check(cond, "msg")` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |

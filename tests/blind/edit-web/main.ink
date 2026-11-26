@@ -7,7 +7,6 @@ use os;
 use io;
 use strconv;
 use strings;
-use example.com/blind-web-svc/guard;
 
 struct Item {
     ID: int,
@@ -38,13 +37,10 @@ struct PatchReq {
 };
 
 struct Store {
-    mu: *guard.Lock,
     items: Item[],
     next: int,
 
     fn Add(title: str) Item {
-        mu.Lock();
-        defer mu.Unlock();
         var it = Item { ID: next, Title: title, Done: false };
         next += 1;
         items = append(items, it);
@@ -52,8 +48,6 @@ struct Store {
     };
 
     fn List() Item[] {
-        mu.Lock();
-        defer mu.Unlock();
         var out = Item[] {};
         for (var it in items) {
             out = append(out, it);
@@ -62,8 +56,6 @@ struct Store {
     };
 
     fn Get(id: int) Item, bool {
-        mu.Lock();
-        defer mu.Unlock();
         for (var it in items) {
             if (it.ID == id) {
                 return it, true;
@@ -73,8 +65,6 @@ struct Store {
     };
 
     fn SetDone(id: int, done: bool) Item, bool {
-        mu.Lock();
-        defer mu.Unlock();
         for (var i = 0; i < len(items); i += 1) {
             if (items[i].ID == id) {
                 items[i].Done = done;
@@ -85,8 +75,6 @@ struct Store {
     };
 
     fn Delete(id: int) bool {
-        mu.Lock();
-        defer mu.Unlock();
         var kept = Item[](cap: len(items));
         var found = false;
         for (var it in items) {
@@ -102,7 +90,7 @@ struct Store {
 };
 
 fn newStore() *Store {
-    return &Store { mu: guard.New(), items: Item[] {}, next: 1 };
+    return &Store { items: Item[] {}, next: 1 };
 };
 
 var store = newStore();
@@ -200,6 +188,7 @@ fn addr() str {
 };
 
 fn main() void! {
+    serve store;
     var srv = &http.Server { Addr: addr(), Handler: http.HandlerFunc(handle) };
     _ = fmt.Printf("starting on %s\n", addr());
     srv.ListenAndServe()
@@ -294,6 +283,7 @@ test "wrong method is 405 and unknown path is 404" {
 
 test "concurrent handlers share the store" {
     store = newStore();
+    serve store;
     par for (var i = 0; i < 50; i += 1) limit 8 {
         var rec = call("POST", "/items", `{"title":"x"}`);
         assert_eq(rec.Code, 201);

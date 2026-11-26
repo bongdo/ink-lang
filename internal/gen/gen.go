@@ -475,6 +475,8 @@ type writer struct {
 	skip       map[ast.Stmt]bool
 	fuse       map[*ast.ForStmt]*ast.ForStmt
 	into       string
+	rawSelf    bool
+	held       map[string]*ast.TypeDecl
 }
 
 type rename struct {
@@ -534,9 +536,16 @@ func (w *writer) sub() *writer {
 		scratch: w.scratch,
 		onErr:   w.onErr,
 		self:    w.self,
+		rawSelf: w.rawSelf,
 	}
 	for k, v := range w.renames {
 		sub.renames[k] = v
+	}
+	if len(w.held) > 0 {
+		sub.held = make(map[string]*ast.TypeDecl, len(w.held))
+		for k, v := range w.held {
+			sub.held[k] = v
+		}
 	}
 	return sub
 }

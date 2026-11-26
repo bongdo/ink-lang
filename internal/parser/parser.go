@@ -1004,6 +1004,11 @@ func (p *parser) parseStmt() ast.Stmt {
 		return p.parseRemovedGoStmt()
 	case token.Spawn:
 		return p.parseGoStmt()
+	case token.Serve:
+		start := p.next().Pos
+		x := p.parseExpr()
+		p.consumeSemi()
+		return &ast.ServeStmt{Span: p.fin(start), X: x}
 	case token.On:
 		return p.parseOnErrStmt()
 	case token.Par:

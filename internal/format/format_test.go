@@ -236,6 +236,18 @@ fn main() void! {
 	}
 }
 
+func TestServeStatement(t *testing.T) {
+	src := `fn main() void {
+    var c = Counter { n: 0 };
+    serve c;
+    print(c.Value());
+};
+`
+	if out := formatSrc(t, src); out != src {
+		t.Fatalf("got:\n%s\nwant:\n%s", out, src)
+	}
+}
+
 func TestBlockCommentDiagnostic(t *testing.T) {
 	_, errs := parser.Parse("block.ink", []byte("fn main() void {\n    /* nope */\n};\n"))
 	if len(errs) != 1 || errs[0].Msg != "block comments are not supported; use //" {

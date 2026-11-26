@@ -22,6 +22,7 @@ type symbol struct {
 	arena      bool
 	arenaDepth int
 	nilMap     bool
+	served     bool
 }
 
 type scope struct {
@@ -52,6 +53,7 @@ type checker struct {
 	parListeners    []bool
 	parArenas       []int
 	inArena         int
+	inServeTarget   int
 	tparams         map[string]bool
 }
 
@@ -253,6 +255,48 @@ func (p *Program) checkFuncs() {
 					for _, m := range d.Methods {
 						c := &checker{p: p, fc: fc, fn: p.funcs[m]}
 						c.checkFunction(m, nil)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (p *Program) checkServeFuncs() {
+	for _, pkg := range p.Packages {
+		for _, f := range pkg.Files {
+			for _, d := range f.Decls {
+				switch d := d.(type) {
+				case *ast.FuncDecl:
+					count := 0
+					for _, param := range d.Params {
+						if servedPtrDecl(param.Type) != nil {
+							count++
+						}
+					}
+					if count > 1 {
+						p.errorf(f.Path, d.Pos(), "a free function may serve one object; split %s", d.Name)
+					}
+					if count == 1 && len(d.TypeParams) > 0 {
+						p.errorf(f.Path, d.Pos(), "serve does not support generic functions")
+					}
+				case *ast.TypeDecl:
+					if !d.Served {
+						continue
+					}
+					for _, m := range d.Methods {
+						if m.NeedsCtx {
+							p.errorf(f.Path, m.Pos(), "a served method cannot take a context; keep it outside the object")
+						}
+						if len(m.TypeParams) > 0 {
+							p.errorf(f.Path, m.Pos(), "serve does not support generic methods")
+						}
+						for _, param := range m.Params {
+							if servedPtrDecl(param.Type) != nil {
+								p.errorf(f.Path, param.Pos(), "a served method cannot take another served object; pass values or call it outside")
+								break
+							}
+						}
 					}
 				}
 			}
@@ -1089,6 +1133,8 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		} else {
 			c.resolveExpr(s.Call, false)
 		}
+	case *ast.ServeStmt:
+		c.checkServe(s)
 	case *ast.ArenaStmt:
 		c.inArena++
 		c.checkBlock(s.Body)
@@ -1101,6 +1147,161 @@ func (c *checker) checkStmt(s ast.Stmt) {
 	case *ast.OnErrStmt:
 		c.checkOnErr(s)
 	}
+}
+
+func (c *checker) checkServe(s *ast.ServeStmt) {
+	if s.X == nil {
+		return
+	}
+	c.inServeTarget++
+	c.resolveExpr(s.X, false)
+	c.inServeTarget--
+	decl := servedStructDecl(c.exprType(s.X))
+	if decl == nil {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a struct value")
+		return
+	}
+	if len(decl.TypeParams) > 0 {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve does not support generic types")
+		return
+	}
+	if c.inPar || c.inTaskHandler > 0 {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must run before sharing; not inside par or spawn")
+		return
+	}
+	if !serveAddressable(s.X) {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a variable or field")
+		return
+	}
+	decl.Served = true
+	switch x := unparen(s.X).(type) {
+	case *ast.Ident:
+		if x.Ref != nil {
+			x.Ref.Served = true
+		}
+		if sym := c.lookup(x.Name); sym != nil {
+			sym.served = true
+		}
+	case *ast.SelectorExpr:
+		if x.Ref != nil {
+			x.Ref.Served = true
+			if x.Ref.Field != nil {
+				x.Ref.Field.Served = true
+			}
+		}
+	}
+}
+
+func (c *checker) checkServedField(s *ast.SelectorExpr) {
+	if c.inServeTarget > 0 || !c.servedBase(s.X) || c.servedFieldAllowed(s.X) {
+		return
+	}
+	c.p.errorf(c.fc.file.Path, s.Pos(), "fields of a served object are internal; use a method or a free function with *T")
+}
+
+func (c *checker) servedBase(e ast.Expr) bool {
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		if x.Ref != nil && x.Ref.Served {
+			return true
+		}
+		return x.Ref != nil && x.Ref.Kind == ast.RefSelf && c.fn != nil && c.fn.decl != nil &&
+			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
+	case *ast.SelectorExpr:
+		if x.Ref != nil && x.Ref.Served {
+			return true
+		}
+		return c.servedBase(x.X)
+	case *ast.IndexExpr:
+		return c.servedBase(x.X)
+	case *ast.UnaryExpr:
+		return x.Op == token.Star && c.servedBase(x.X)
+	}
+	return false
+}
+
+func (c *checker) servedFieldAllowed(e ast.Expr) bool {
+	if c.fn == nil {
+		return false
+	}
+	id, ok := unparen(e).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	if id.Ref != nil && id.Ref.Kind == ast.RefSelf {
+		return c.fn.decl != nil && c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
+	}
+	if c.fn.decl == nil || c.fn.decl.Owner != nil {
+		return false
+	}
+	sym := c.lookup(id.Name)
+	return sym != nil && sym.kind == ast.RefParam && servedPtrDecl(sym.typ) != nil
+}
+
+func servedPtrDecl(t ast.Type) *ast.TypeDecl {
+	for t != nil {
+		switch x := t.(type) {
+		case *ast.PointerType:
+			t = x.Elem
+		case *ast.GenericType:
+			t = x.Base
+		case *ast.NamedType:
+			if x.Decl == nil {
+				return nil
+			}
+			if x.Decl.Kind == ast.TypeAlias {
+				t = x.Decl.Target
+				continue
+			}
+			if x.Decl.Kind == ast.TypeStruct && x.Decl.Served {
+				return x.Decl
+			}
+			return nil
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func servedStructDecl(t ast.Type) *ast.TypeDecl {
+	for t != nil {
+		switch x := t.(type) {
+		case *ast.PointerType:
+			t = x.Elem
+		case *ast.GenericType:
+			t = x.Base
+		case *ast.NamedType:
+			if x.Decl == nil {
+				return nil
+			}
+			if x.Decl.Kind == ast.TypeAlias {
+				t = x.Decl.Target
+				continue
+			}
+			if x.Decl.Kind == ast.TypeStruct {
+				return x.Decl
+			}
+			return nil
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func serveAddressable(e ast.Expr) bool {
+	switch e := unparen(e).(type) {
+	case *ast.Ident:
+		return e.Ref == nil || e.Ref.Kind != ast.RefPackage
+	case *ast.SelectorExpr:
+		return serveAddressable(e.X)
+	case *ast.IndexExpr:
+		return true
+	case *ast.UnaryExpr:
+		return e.Op == token.Star
+	}
+	return false
 }
 
 func (c *checker) checkOnErr(s *ast.OnErrStmt) {
@@ -1952,6 +2153,8 @@ func (w *parWalker) stmt(s ast.Stmt) {
 		}
 	case *ast.ExprStmt:
 		w.expr(s.X)
+	case *ast.ServeStmt:
+		w.expr(s.X)
 	case *ast.IfStmt:
 		w.expr(s.Cond)
 		w.stmt(s.Then)
@@ -2065,10 +2268,25 @@ func parPackageRef(e ast.Expr) bool {
 
 func (w *parWalker) method(sel *ast.SelectorExpr) {
 	w.expr(sel.X)
-	if w.pureMethod(sel) || w.slotMethod(sel.X) {
+	if w.pureMethod(sel) || w.slotMethod(sel.X) || w.servedReceiver(sel.X) {
 		return
 	}
 	w.writeMethod(sel.X)
+}
+
+func (w *parWalker) servedReceiver(e ast.Expr) bool {
+	if root := rootIdent(e); root != nil && root.Ref != nil {
+		if root.Ref.Served {
+			return true
+		}
+		if root.Ref.Kind == ast.RefSelf && w.c.fn != nil && w.c.fn.decl != nil && w.c.fn.decl.Owner != nil && w.c.fn.decl.Owner.Served {
+			return true
+		}
+	}
+	if d := servedStructDecl(w.c.exprType(e)); d != nil && d.Served {
+		return true
+	}
+	return false
 }
 
 func (w *parWalker) writeMethod(e ast.Expr) {

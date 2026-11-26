@@ -83,6 +83,7 @@ const (
 	Par
 	Go
 	Spawn
+	Serve
 	On
 	Within
 	Arena
@@ -175,6 +176,7 @@ var names = map[Kind]string{
 	Par:           "par",
 	Go:            "go",
 	Spawn:         "spawn",
+	Serve:         "serve",
 	On:            "on",
 	Within:        "within",
 	Arena:         "arena",

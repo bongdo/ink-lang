@@ -208,6 +208,7 @@ func (w *writer) call(c *ast.CallExpr) string {
 		return w.typeStr(target) + "(" + arg + ")"
 	}
 	fun, prefix, _ := w.callTarget(c)
+	fun = w.servedCallName(c, fun)
 	if len(c.TypeArgs) > 0 {
 		parts := make([]string, 0, len(c.TypeArgs))
 		for _, t := range c.TypeArgs {
@@ -419,6 +420,45 @@ func (w *writer) isLocalDecl(fd *ast.FuncDecl) bool {
 		}
 	}
 	return false
+}
+
+func (w *writer) heldName(e ast.Expr) (string, bool) {
+	id, ok := unparen(e).(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	if w.rawSelf && id.Ref != nil && id.Ref.Kind == ast.RefSelf {
+		return w.selfRef(), true
+	}
+	if w.held != nil && w.held[id.Name] != nil {
+		return id.Name, true
+	}
+	return "", false
+}
+
+func (w *writer) servedCallName(c *ast.CallExpr, fun string) string {
+	if sel, ok := c.Fun.(*ast.SelectorExpr); ok {
+		if recv, held := w.heldName(sel.X); held && sel.Ref != nil && sel.Ref.Func != nil &&
+			sel.Ref.Func.Owner != nil && sel.Ref.Func.Owner.Served {
+			return recv + "._s_raw_" + sel.Name
+		}
+	}
+	fd := calledDecl(c)
+	if fd == nil || len(fd.TypeParams) > 0 {
+		return fun
+	}
+	sa, ok := servedArgOf(fd)
+	if !ok || sa.index >= len(c.Args) {
+		return fun
+	}
+	if _, held := w.heldName(c.Args[sa.index]); held {
+		name := fd.GoName
+		if name == "" {
+			name = fd.Name
+		}
+		return "_s_held_" + name
+	}
+	return fun
 }
 
 func calledDecl(c *ast.CallExpr) *ast.FuncDecl {

@@ -205,6 +205,40 @@ derive a context, and a deadline does not stop workers. The checks are static;
 escapes the static pass cannot see are covered only by `-race`; see
 [`examples/limits`](../../examples/limits/README.md).
 
+## Shared state
+
+`par` is for independent work. For an object that several goroutines or HTTP
+handlers touch, lift it once with `serve`:
+
+```ink
+struct Counter {
+    n: i32,
+
+    fn Add(d: i32) void {
+        n += d;
+    };
+
+    fn Value() i32 {
+        return n;
+    };
+};
+
+fn main() void {
+    var c = Counter { n: 0 };
+    serve c;          // before sharing
+    c.Add(1);         // serialized
+    print(c.Value());
+};
+```
+
+- `serve` gives the object one hidden lock; methods and free functions with a
+  `*Counter` parameter are serialized.
+- Fields are internal: use methods, or pass `*Counter` to a free function.
+- A served object is not copyable; use a pointer. One lock per object; split
+  independent state into separate objects.
+- `serve` does not make several method calls atomic and does not prevent
+  deadlock between two served objects.
+
 ## Formatting
 
 ```sh

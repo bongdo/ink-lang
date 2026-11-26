@@ -32,6 +32,8 @@ func TestClassify(t *testing.T) {
 		{"const is only allowed at package level; use var", "const-local"},
 		{"use ? instead of if err != nil { return err }", "err-manual"},
 		{"import errors is not available in Ink; use ? and on err", "go-errors"},
+		{"fields of a served object are internal; use a method", "serve-field"},
+		{"served object cannot be passed to Go or a builtin", "serve-escape"},
 		{"import sync is not available in Ink; use par and spawn", "go-sync"},
 		{"fmt.Errorf is not available in Ink; use check(cond, \"msg\")", "fmt-errorf"},
 		{"cannot infer type of nil; use nil[T] or an expected type", "nil-untyped"},
