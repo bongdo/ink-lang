@@ -151,7 +151,7 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	if c.inTaskCapture[sym] {
 		c.p.errorf(c.fc.file.Path, id.Pos(), "spawn on err cannot capture locals; pass data as arguments")
 	}
-	if c.inServeTarget == 0 && (sym.kind == ast.RefLocal || sym.kind == ast.RefParam) {
+	if c.inServeTarget == 0 && c.inAssignLhs == 0 && (sym.kind == ast.RefLocal || sym.kind == ast.RefParam) {
 		sym.used = true
 	}
 	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served}

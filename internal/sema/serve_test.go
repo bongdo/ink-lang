@@ -150,6 +150,77 @@ fn main() void {
 	wantError(t, p, "returning a reference to served state")
 }
 
+func TestServeAppendBackAllowed(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Store {
+    items: i32[],
+
+    fn Add(v: i32) void {
+        items = append(items, v);
+    };
+
+    fn Count() i32 {
+        return len(items);
+    };
+};
+
+fn main() void {
+    var s = Store { items: i32[] {} };
+    serve s;
+    s.Add(1);
+    print(s.Count());
+};
+`})
+	noErrors(t, p)
+}
+
+func TestServePointerThroughHolderRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Counter {
+    n: i32,
+
+    fn Inc() void {
+        n += 1;
+    };
+};
+
+struct Holder {
+    ptr: *Counter,
+};
+
+fn main() void {
+    var c = Counter { n: 0 };
+    serve c;
+    var h = Holder { ptr: &c };
+    print(h.ptr.n);
+};
+`})
+	wantError(t, p, "fields of a served object are internal")
+}
+
+func TestServeWrapperReturnRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Wrap {
+    items: i32[],
+};
+
+struct Store {
+    items: i32[],
+
+    fn Wrap() Wrap {
+        return Wrap { items: items };
+    };
+
+    fn Grow() i32[] {
+        return append(items, 1);
+    };
+};
+
+fn main() void {
+    var s = Store { items: i32[] { 1 } };
+    serve s;
+};
+`})
+	wantError(t, p, "returning a reference to served state")
+}
+
 func TestServeValueCopyRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `struct Counter {
     n: i32,

@@ -55,6 +55,7 @@ type checker struct {
 	parArenas       []int
 	inArena         int
 	inServeTarget   int
+	inAssignLhs     int
 	blockDepth      int
 	started         bool
 	prevStmt        ast.Stmt
@@ -985,6 +986,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		c.checkVarDecl(s.Decl)
 	case *ast.AssignStmt:
 		var lhsTypes []ast.Type
+		c.inAssignLhs++
 		for _, e := range s.Lhs {
 			lhsTypes = append(lhsTypes, c.resolveExpr(e, false))
 			if sel, ok := unparen(e).(*ast.SelectorExpr); ok && c.mapStructElement(sel.X) {
@@ -995,6 +997,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			}
 			c.clearNilMap(e)
 		}
+		c.inAssignLhs--
 		for i, e := range s.Rhs {
 			c.checkMatchValue(e)
 			if len(s.Rhs) == len(lhsTypes) {
@@ -1020,7 +1023,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		if len(s.Rhs) == len(s.Lhs) {
 			for i, rhs := range s.Rhs {
-				if c.servedBody() && c.escapesServe(rhs) {
+				if c.servedBody() && c.escapesServe(rhs) && !appendBack(s.Lhs[i], rhs) {
 					c.p.errorf(c.fc.file.Path, rhs.Pos(), "do not alias served state inside its method; copy the values")
 				}
 				if c.servedAliasExpr(rhs) {
@@ -1261,6 +1264,9 @@ func (p *Program) markServedTypes() {
 					continue
 				}
 				types := make(map[string]ast.Type)
+				for name, t := range p.global[pkg] {
+					types[name] = t
+				}
 				for _, param := range fn.Params {
 					types[param.Name] = param.Type
 				}
@@ -1391,7 +1397,17 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 		}
 	}
 	first := sym.kind == ast.RefGlobal && c.blockIndex == 0
-	if !first && !prevDefines(c.prevStmt, id.Name) {
+	afterServe := false
+	afterListener := false
+	if sym.kind == ast.RefGlobal {
+		switch c.prevStmt.(type) {
+		case *ast.ServeStmt:
+			afterServe = true
+		case *ast.OnErrStmt:
+			afterListener = c.blockIndex == 1
+		}
+	}
+	if !first && !afterServe && !afterListener && !prevDefines(c.prevStmt, id.Name) {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must directly follow the declaration or assignment of %s", id.Name)
 		return
 	}
@@ -1403,6 +1419,26 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 			d.Served = true
 		}
 	}
+}
+
+func appendBack(lhs, rhs ast.Expr) bool {
+	call, ok := unparen(rhs).(*ast.CallExpr)
+	if !ok || call.Info == nil || call.Info.Builtin != "append" || len(call.Args) == 0 {
+		return false
+	}
+	return sameTarget(lhs, call.Args[0])
+}
+
+func sameTarget(a, b ast.Expr) bool {
+	switch x := unparen(a).(type) {
+	case *ast.Ident:
+		y, ok := unparen(b).(*ast.Ident)
+		return ok && x.Name == y.Name
+	case *ast.SelectorExpr:
+		y, ok := unparen(b).(*ast.SelectorExpr)
+		return ok && x.Name == y.Name && sameTarget(x.X, y.X)
+	}
+	return false
 }
 
 func prevDefines(s ast.Stmt, name string) bool {
@@ -1444,19 +1480,28 @@ func (c *checker) servedBase(e ast.Expr) bool {
 				return true
 			}
 		}
-		return x.Ref != nil && x.Ref.Kind == ast.RefSelf && c.fn != nil && c.fn.decl != nil &&
-			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
+		if x.Ref != nil && x.Ref.Kind == ast.RefSelf && c.fn != nil && c.fn.decl != nil &&
+			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served {
+			return true
+		}
 	case *ast.SelectorExpr:
 		if x.Ref != nil && x.Ref.Served {
 			return true
 		}
-		return c.servedBase(x.X)
+		if c.servedBase(x.X) {
+			return true
+		}
 	case *ast.IndexExpr:
-		return c.servedBase(x.X)
+		if c.servedBase(x.X) {
+			return true
+		}
 	case *ast.UnaryExpr:
-		return x.Op == token.Star && c.servedBase(x.X)
+		if x.Op == token.Star && c.servedBase(x.X) {
+			return true
+		}
 	}
-	return false
+	d := servedStructDecl(c.exprType(e))
+	return d != nil && d.Served
 }
 
 func (c *checker) servedFieldAllowed(e ast.Expr) bool {
@@ -1926,9 +1971,63 @@ func referenceType(t ast.Type) bool {
 	return false
 }
 
-func (c *checker) escapesServe(e ast.Expr) bool {
+func containsReference(t ast.Type) bool {
+	return containsReferenceSeen(t, make(map[*ast.TypeDecl]bool))
+}
 
+func containsReferenceSeen(t ast.Type, seen map[*ast.TypeDecl]bool) bool {
+	switch t := t.(type) {
+	case *ast.PointerType, *ast.SliceType, *ast.MapType, *ast.FuncType, *ast.InterfaceType:
+		return true
+	case *ast.ArrayType:
+		return containsReferenceSeen(t.Elem, seen)
+	case *ast.GenericType:
+		if containsReferenceSeen(t.Base, seen) {
+			return true
+		}
+		for _, a := range t.Args {
+			if containsReferenceSeen(a, seen) {
+				return true
+			}
+		}
+	case *ast.NamedType:
+		if t.Decl == nil {
+			return false
+		}
+		if t.Decl.Kind == ast.TypeAlias {
+			return containsReferenceSeen(t.Decl.Target, seen)
+		}
+		if t.Decl.Kind != ast.TypeStruct || seen[t.Decl] {
+			return false
+		}
+		seen[t.Decl] = true
+		for _, fld := range t.Decl.Fields {
+			if containsReferenceSeen(fld.Type, seen) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (c *checker) escapesServe(e ast.Expr) bool {
 	if c.heldServedExpr(e) {
+		return true
+	}
+	if lit, ok := unparen(e).(*ast.CompositeLit); ok {
+		for _, entry := range lit.Entries {
+			if c.escapesServe(entry.Value) {
+				return true
+			}
+		}
+		return false
+	}
+	if call, ok := unparen(e).(*ast.CallExpr); ok && call.Info != nil && call.Info.Builtin == "append" && len(call.Args) > 0 {
+		if c.escapesServe(call.Args[0]) {
+			return true
+		}
+	}
+	if c.servedRootAny(e) && containsReference(c.exprType(e)) {
 		return true
 	}
 	if !referenceType(c.exprType(e)) {

@@ -326,7 +326,9 @@ fn main() void {
   free function with `*T`. The served type is not copyable, including an
   instance that was never served: pass `*T`, never a value.
 - A method may not return a pointer, slice, map or other reference to its own
-  state (`return self`, `return items`); return a copy or a value.
+  state (`return self`, `return items`, `append(items, ...)`), nor a value that
+  contains one (`Wrap { items: items }`). Return a value with no reference
+  fields, or copy the data into fresh storage.
 - `par` workers may call methods on a served object; the calls serialize.
   One lock per object. For independent parts, use separate objects.
 - `par`/`spawn` inside a served method or a free function with `*T` is rejected:

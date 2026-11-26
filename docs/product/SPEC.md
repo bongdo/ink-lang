@@ -580,7 +580,9 @@ handles.
   free function with `*T`. The served type is not copyable, including an
   instance that was never served: pass `*T`, never a value.
 - A method may not return a pointer, slice, map or other reference to its own
-  state; return a copy or a value.
+  state, nor a value that contains one; `append` of served state and wrapper
+  structs are rejected. Return a value with no reference fields, or copy the
+  data into fresh storage.
 - `par` workers may call methods on a served object; those calls serialize.
   There is one lock per object; independent parts are separate objects.
 - `par`/`spawn` inside a served method or a `*T` free function is rejected: the

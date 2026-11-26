@@ -31,6 +31,8 @@ not re-file.
 | `spawn f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `spawn f(...) on err { ... };` at the launch site. |
 | `serve obj;` gives one lock per object. | It serializes reads and writes, including reads; split independent state into separate objects. It does not make several method calls atomic. |
 | Fields of a served object are internal. | Use methods inside the type, or pass `*T` to a free function. The alternative is a silent race. |
+| A served pointer stored in another struct stays internal. | Field access through `Holder { ptr: &c }` is rejected; the pointee's fields are still internal. |
+| A served method may not return a reference to its own state. | Wrapper structs, `append` of served state and shallow values with slice fields are rejected. Return reference-free values or copy into fresh storage. |
 | A served type is not copyable, not only the served object. | The hidden mutex is a field of the type; `go vet` rejects any copy. Pass `*T`. |
 | `serve` targets a whole variable, not a field. | Serve the field's type at its creation, or add a method. |
 | A package variable is served in `main` or a test only. | Other functions may run after goroutines start; the flag write would race. |
