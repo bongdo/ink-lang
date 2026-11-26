@@ -1048,6 +1048,13 @@ func (c *checker) checkStmt(s ast.Stmt) {
 				if c.servedAliasExpr(rhs) {
 					c.markServedTarget(s.Lhs[i])
 				}
+				if sel, ok := unparen(s.Lhs[i]).(*ast.SelectorExpr); ok && sel.Ref != nil && sel.Ref.Field != nil {
+					if d := servedStructDecl(sel.Ref.Field.Type); d != nil && d.Served && c.isPointerType(sel.Ref.Field.Type) {
+						if _, isNil := unparen(rhs).(*ast.NilLit); !isNil && !c.servedAliasExpr(rhs) {
+							c.p.errorf(c.fc.file.Path, rhs.Pos(), "a field holding a served object needs a served object; keep the pointer in the type's methods")
+						}
+					}
+				}
 			}
 		}
 		if len(s.Rhs) == 1 {
@@ -1078,6 +1085,7 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.checkMatchValue(s.X)
 		}
 		c.resolveExpr(s.X, true)
+		c.markCopyTaint(s.X)
 		if call, ok := unparen(s.X).(*ast.CallExpr); ok && call.Info != nil && call.Info.HasError && !isPanicExpr(call) {
 			if call.Info.Builtin == "check" {
 				if c.inTaskHandler > 0 {
@@ -1356,10 +1364,16 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 				return &ast.FuncType{Results: m.Results, Err: m.Err}
 			}
 		}
-		if n, ok := xt.(*ast.NamedType); ok && n.Decl != nil && n.Decl.Kind == ast.TypeInterface {
-			for _, m := range n.Decl.IFace {
-				if m.Name == x.Name {
-					return ifaceFuncType(m)
+		if n, ok := xt.(*ast.NamedType); ok {
+			d := n.Decl
+			if d == nil {
+				d = pkg.Types[n.Name]
+			}
+			if d != nil && d.Kind == ast.TypeInterface {
+				for _, m := range d.IFace {
+					if m.Name == x.Name {
+						return ifaceFuncType(m)
+					}
 				}
 			}
 		}
@@ -1378,12 +1392,34 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 			}
 		}
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
-			if d := p.servedTypeDeclIn(p.exprTypeOf(sel.X, vars, pkg), pkg); d != nil {
-				for _, m := range d.Methods {
-					if m.Name == sel.Name && len(m.Results) > 0 {
-						return m.Results[0]
-					}
-				}
+			return p.methodResultOf(p.exprTypeOf(sel.X, vars, pkg), sel.Name, pkg)
+		}
+	}
+	return nil
+}
+
+func (p *Program) methodResultOf(t ast.Type, name string, pkg *Package) ast.Type {
+	if d := p.servedTypeDeclIn(t, pkg); d != nil {
+		if m := methodByName(d, name); m != nil && len(m.Results) > 0 {
+			return m.Results[0]
+		}
+	}
+	n, ok := t.(*ast.NamedType)
+	if !ok {
+		return nil
+	}
+	d := n.Decl
+	if d == nil {
+		d = pkg.Types[n.Name]
+	}
+	if d == nil || d.Kind != ast.TypeInterface {
+		return nil
+	}
+	for _, m := range d.IFace {
+		if m.Name == name {
+			ft := ifaceFuncType(m)
+			if len(ft.Results) > 0 {
+				return ft.Results[0]
 			}
 		}
 	}
@@ -1495,6 +1531,14 @@ func elemReference(t ast.Type) bool {
 	return false
 }
 
+func (c *checker) unservedServedObject(e ast.Expr) bool {
+	d := servedStructDecl(c.exprType(e))
+	if d == nil || !d.Served {
+		return false
+	}
+	return !c.servedAliasExpr(e)
+}
+
 func (c *checker) markCopyTaint(e ast.Expr) {
 	call, ok := unparen(e).(*ast.CallExpr)
 	if !ok || call.Info == nil || call.Info.Builtin != "copy" || len(call.Args) < 2 {
@@ -1503,11 +1547,14 @@ func (c *checker) markCopyTaint(e ast.Expr) {
 	if !c.escapesServe(call.Args[1]) {
 		return
 	}
-	id, ok := unparen(call.Args[0]).(*ast.Ident)
-	if !ok || !elemReference(c.exprType(id)) {
+	if !elemReference(c.exprType(call.Args[0])) {
 		return
 	}
-	if sym := c.lookupLocal(id.Name); sym != nil {
+	root := rootIdent(call.Args[0])
+	if root == nil {
+		return
+	}
+	if sym := c.lookupLocal(root.Name); sym != nil {
 		sym.tainted = true
 	}
 }
@@ -1724,6 +1771,14 @@ func (c *checker) checkGoCall(s *ast.GoCallStmt) {
 		return
 	}
 	t := c.resolveExpr(call, false)
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && c.unservedServedObject(sel.X) {
+		c.p.errorf(c.fc.file.Path, sel.X.Pos(), "spawn of an unserved object; serve it first")
+	}
+	for _, arg := range call.Args {
+		if c.unservedServedObject(arg) {
+			c.p.errorf(c.fc.file.Path, arg.Pos(), "spawn of an unserved object; serve it first")
+		}
+	}
 	if call.Info == nil {
 		return
 	}

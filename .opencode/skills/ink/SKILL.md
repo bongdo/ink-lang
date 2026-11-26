@@ -349,8 +349,11 @@ fn main() void {
   check; keep such accessors out of the served type.
 - `serve` must directly follow the target's declaration or assignment.
   Reassigning a served variable needs `serve` again on the next line; `*p = T {}`
-  that overwrites a served object is rejected. Serving the same object twice is
-  an error. It does not make several method
+  that overwrites a served object is rejected. A field that holds a served
+  pointer accepts only a served object or `nil`. Serving the same object twice
+  is an error.
+- `spawn` and `par` require a served object; an unserved instance of a served
+  type is rejected before it can bypass the lock. It does not make several method
   calls atomic and does not prevent deadlock between two served objects. A
   method that needs a composed update does it in one method.
 
