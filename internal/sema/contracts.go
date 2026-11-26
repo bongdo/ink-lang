@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 func (p *Program) resolveContracts(fc *fileCtx, d *ast.TypeDecl) {

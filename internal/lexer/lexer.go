@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 type Comment struct {

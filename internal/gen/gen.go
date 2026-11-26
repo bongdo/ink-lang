@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/sema"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/sema"
 )
 
 type File struct {

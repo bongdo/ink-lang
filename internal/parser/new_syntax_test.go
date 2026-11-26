@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 func TestResultList(t *testing.T) {

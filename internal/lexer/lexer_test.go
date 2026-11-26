@@ -1,11 +1,11 @@
 package lexer
 
 import (
-	"github.com/bongdo/ink/internal/diag"
+	"github.com/bongdo/ink-lang/internal/diag"
 	"strings"
 	"testing"
 
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 func mustLex(t *testing.T, src string) ([]token.Token, []Comment, []Error) {

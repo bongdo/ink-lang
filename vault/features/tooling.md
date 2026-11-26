@@ -50,6 +50,22 @@ id: tooling
 - `ink uml` на чистом проекте печатает `@startuml … @enduml` и выходит 0.
 - При ошибке парсинга выходит 1 и не печатает диаграмму.
 
+## Распространение
+
+Канонический модуль — `github.com/bongdo/ink-lang`. Каналы установки:
+`go install` в `GOBIN`, Nix flake, готовые бинари с `install.sh`, и
+per-project `go get -tool` / `go tool ink`.
+
+- «ок. сделай все 5 пунктов. у тебя есть доступ к github» —
+  `ses_de933a54effe6uQfKh9RUMJ03w`, 2026-11-26.
+
+Критерии приёмки:
+
+- Чистая машина с Go: `GOBIN=~/.local/bin go install ...@v0.3.0`, затем `ink version`.
+- Чистая машина с Nix: `nix profile install github:bongdo/ink-lang`, затем `ink version`.
+- `curl .../install.sh | sh` ставит проверенный по checksum бинарь.
+- `go get -tool ...` + `go tool ink` работают в Go-модуле проекта.
+
 ## Открытые вопросы
 
 - Один печататель типов для hover/completion/codegen или три?

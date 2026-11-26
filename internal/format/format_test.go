@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink-lang/internal/parser"
 )
 
 const sample = `use fmt;

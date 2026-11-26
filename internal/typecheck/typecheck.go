@@ -21,12 +21,12 @@ import (
 
 	gotoken "go/token"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/config"
-	"github.com/bongdo/ink/internal/gen"
-	"github.com/bongdo/ink/internal/sema"
-	"github.com/bongdo/ink/internal/token"
-	inkrt "github.com/bongdo/ink/runtime"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/config"
+	"github.com/bongdo/ink-lang/internal/gen"
+	"github.com/bongdo/ink-lang/internal/sema"
+	"github.com/bongdo/ink-lang/internal/token"
+	inkrt "github.com/bongdo/ink-lang/runtime"
 )
 
 type Options struct {

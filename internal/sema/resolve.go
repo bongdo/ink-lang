@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 var builtinTypes = map[string]string{

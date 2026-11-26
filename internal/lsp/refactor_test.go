@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/sema"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/sema"
 )
 
 func decodeLocations(t *testing.T, result json.RawMessage) []Location {

@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bongdo/ink/internal/agent"
-	"github.com/bongdo/ink/internal/config"
-	"github.com/bongdo/ink/internal/driver"
-	"github.com/bongdo/ink/internal/lsp"
-	"github.com/bongdo/ink/internal/mcp"
-	"github.com/bongdo/ink/internal/uml"
+	"github.com/bongdo/ink-lang/internal/agent"
+	"github.com/bongdo/ink-lang/internal/config"
+	"github.com/bongdo/ink-lang/internal/driver"
+	"github.com/bongdo/ink-lang/internal/lsp"
+	"github.com/bongdo/ink-lang/internal/mcp"
+	"github.com/bongdo/ink-lang/internal/uml"
 )
 
 func main() {

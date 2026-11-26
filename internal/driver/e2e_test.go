@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 func copyTree(t *testing.T, src, dst string) {

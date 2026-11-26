@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/parser"
 )
 
 func TestConformanceCases(t *testing.T) {

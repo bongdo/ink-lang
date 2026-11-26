@@ -3,7 +3,7 @@ package format
 import (
 	"testing"
 
-	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink-lang/internal/parser"
 )
 
 func TestContractRoundTrip(t *testing.T) {

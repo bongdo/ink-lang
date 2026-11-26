@@ -8,9 +8,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/lexer"
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/lexer"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 const maxErrors = 100

@@ -3,7 +3,7 @@ package gen
 import (
 	"sort"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 func (w *writer) matchExpr(m *ast.MatchExpr) string {

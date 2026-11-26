@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 type symbol struct {

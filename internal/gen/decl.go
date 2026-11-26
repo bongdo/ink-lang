@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 func (g *generator) decl(w *writer, d ast.Decl) {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 func (w *writer) expr(e ast.Expr) string {

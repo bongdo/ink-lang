@@ -1,4 +1,4 @@
-module github.com/bongdo/ink
+module github.com/bongdo/ink-lang
 
 go 1.27
 

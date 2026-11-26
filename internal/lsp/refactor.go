@@ -8,9 +8,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/diag"
-	"github.com/bongdo/ink/internal/token"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/diag"
+	"github.com/bongdo/ink-lang/internal/token"
 )
 
 type renameTarget struct {

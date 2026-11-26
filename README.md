@@ -25,11 +25,37 @@ fn main() void! {
 
 ## Install
 
-Requires Go 1.27+.
+The compiler is pure Go: no C toolchain is needed.
+
+With Go 1.27+, install the binary into a directory already on your `PATH`:
 
 ```sh
-go install github.com/bongdo/ink/cmd/ink@v0.2.0
+GOBIN="$HOME/.local/bin" go install github.com/bongdo/ink-lang/cmd/ink@v0.3.0
+ink version
 ```
+
+With Nix:
+
+```sh
+nix profile install github:bongdo/ink-lang
+```
+
+Or download a release binary:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/bongdo/ink-lang/main/install.sh | sh
+```
+
+To pin the compiler per project without installing it globally, every Ink
+project is already a Go module:
+
+```sh
+go get -tool github.com/bongdo/ink-lang/cmd/ink@v0.3.0
+go tool ink version
+```
+
+`ink new` and `ink init` write `go tool ink` into `opencode.json` when the
+project has that tool directive.
 
 From a checkout:
 

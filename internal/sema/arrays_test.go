@@ -3,7 +3,7 @@ package sema
 import (
 	"testing"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 func varType(t *testing.T, p *Program, name string) ast.Type {

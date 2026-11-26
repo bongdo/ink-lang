@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 type generator struct {

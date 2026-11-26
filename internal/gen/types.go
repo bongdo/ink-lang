@@ -4,7 +4,7 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/bongdo/ink/internal/ast"
+	"github.com/bongdo/ink-lang/internal/ast"
 )
 
 const backgroundCtx = "_s_context.Background()"

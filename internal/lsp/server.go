@@ -20,14 +20,14 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/config"
-	"github.com/bongdo/ink/internal/diag"
-	"github.com/bongdo/ink/internal/format"
-	"github.com/bongdo/ink/internal/parser"
-	"github.com/bongdo/ink/internal/sema"
-	"github.com/bongdo/ink/internal/token"
-	"github.com/bongdo/ink/internal/typecheck"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/config"
+	"github.com/bongdo/ink-lang/internal/diag"
+	"github.com/bongdo/ink-lang/internal/format"
+	"github.com/bongdo/ink-lang/internal/parser"
+	"github.com/bongdo/ink-lang/internal/sema"
+	"github.com/bongdo/ink-lang/internal/token"
+	"github.com/bongdo/ink-lang/internal/typecheck"
 )
 
 const (

@@ -10,38 +10,41 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"syscall"
 
-	"github.com/bongdo/ink/internal/agent"
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/config"
-	"github.com/bongdo/ink/internal/diag"
-	"github.com/bongdo/ink/internal/format"
-	"github.com/bongdo/ink/internal/gen"
-	"github.com/bongdo/ink/internal/parser"
-	"github.com/bongdo/ink/internal/sema"
-	"github.com/bongdo/ink/internal/token"
-	"github.com/bongdo/ink/internal/typecheck"
-	inkrt "github.com/bongdo/ink/runtime"
+	"github.com/bongdo/ink-lang/internal/agent"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/config"
+	"github.com/bongdo/ink-lang/internal/diag"
+	"github.com/bongdo/ink-lang/internal/format"
+	"github.com/bongdo/ink-lang/internal/gen"
+	"github.com/bongdo/ink-lang/internal/parser"
+	"github.com/bongdo/ink-lang/internal/sema"
+	"github.com/bongdo/ink-lang/internal/token"
+	"github.com/bongdo/ink-lang/internal/typecheck"
+	inkrt "github.com/bongdo/ink-lang/runtime"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
-func openCodeConfig(inkPath string) []byte {
-	quoted, _ := json.Marshal(inkPath)
+func openCodeConfig(ink []string) []byte {
+	lsp, _ := json.Marshal(append(append([]string{}, ink...), "lsp"))
+	format, _ := json.Marshal(append(append([]string{}, ink...), "fmt", "-w", "$FILE"))
+	mcp, _ := json.Marshal(append(append([]string{}, ink...), "mcp"))
 	return []byte(fmt.Sprintf(`{
   "$schema": "https://opencode.ai/config.json",
   "lsp": {
     "ink": {
-      "command": [%s, "lsp"],
+      "command": %s,
       "extensions": [".ink"]
     }
   },
   "formatter": {
     "ink": {
-      "command": [%s, "fmt", "-w", "$FILE"],
+      "command": %s,
       "extensions": [".ink"]
     }
   },
@@ -49,23 +52,51 @@ func openCodeConfig(inkPath string) []byte {
     "servers": {
       "ink": {
         "type": "local",
-        "command": [%s, "mcp"],
+        "command": %s,
         "codemode": false
       }
     }
   }
 }
-`, quoted, quoted, quoted))
+`, lsp, format, mcp))
 }
 
-func inkCommand() string {
+func inkCommand(dir string) []string {
+	if hasInkTool(dir) {
+		return []string{"go", "tool", "ink"}
+	}
 	if _, err := exec.LookPath("ink"); err == nil {
-		return "ink"
+		return []string{"ink"}
 	}
 	if exe, err := os.Executable(); err == nil {
-		return exe
+		if filepath.Base(exe) == "ink" && strings.Contains(filepath.ToSlash(exe), "/go-build/") {
+			return []string{"go", "tool", "ink"}
+		}
+		return []string{exe}
 	}
-	return "ink"
+	return []string{"ink"}
+}
+
+func hasInkTool(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return false
+	}
+	want := mainModulePath() + "/cmd/ink"
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "tool" && fields[1] == want {
+			return true
+		}
+	}
+	return false
+}
+
+func mainModulePath() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
+		return info.Main.Path
+	}
+	return "github.com/bongdo/ink-lang"
 }
 
 var ErrCheck = errors.New("check failed")
@@ -1019,7 +1050,7 @@ func New(dir string) error {
 	if err := os.WriteFile(filepath.Join(abs, ".gitignore"), []byte(gitignore), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(abs, "opencode.json"), openCodeConfig(inkCommand()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(abs, "opencode.json"), openCodeConfig(inkCommand(abs)), 0o644); err != nil {
 		return err
 	}
 	skillDir := filepath.Join(abs, ".opencode", "skills", "ink")
@@ -1033,7 +1064,8 @@ func New(dir string) error {
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		return err
 	}
-	plugin := strings.ReplaceAll(agent.PluginSource, "__INK__", inkCommand())
+	command, _ := json.Marshal(inkCommand(abs))
+	plugin := strings.ReplaceAll(agent.PluginSource, "__INK__", string(command))
 	if err := os.WriteFile(filepath.Join(pluginDir, "index.ts"), []byte(plugin), 0o644); err != nil {
 		return err
 	}
@@ -1062,6 +1094,12 @@ func Init(dir string) error {
 			return err
 		}
 		if err := os.WriteFile(agents, []byte(agent.ShortGuide), 0o644); err != nil {
+			return err
+		}
+	}
+	configPath := filepath.Join(abs, "opencode.json")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if err := os.WriteFile(configPath, openCodeConfig(inkCommand(abs)), 0o644); err != nil {
 			return err
 		}
 	}

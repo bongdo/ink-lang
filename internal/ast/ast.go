@@ -1,6 +1,6 @@
 package ast
 
-import "github.com/bongdo/ink/internal/token"
+import "github.com/bongdo/ink-lang/internal/token"
 
 type Node interface {
 	Pos() token.Pos

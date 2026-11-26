@@ -8,3 +8,5 @@ editors/vscode/node_modules/
 editors/vscode/out/
 tests/cases/*/bin/
 examples/*/bin/
+result
+.direnv/

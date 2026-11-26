@@ -3,8 +3,8 @@ package uml
 import (
 	"testing"
 
-	"github.com/bongdo/ink/internal/ast"
-	"github.com/bongdo/ink/internal/parser"
+	"github.com/bongdo/ink-lang/internal/ast"
+	"github.com/bongdo/ink-lang/internal/parser"
 )
 
 func parse(t *testing.T, path, src string) *ast.File {

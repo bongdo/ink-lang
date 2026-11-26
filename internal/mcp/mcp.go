@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bongdo/ink/internal/driver"
+	"github.com/bongdo/ink-lang/internal/driver"
 )
 
 type request struct {

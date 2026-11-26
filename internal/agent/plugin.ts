@@ -1,7 +1,7 @@
 import { Plugin } from "@opencode/plugin"
 import { execFileSync } from "node:child_process"
 
-const INK = "__INK__"
+const INK = __INK__
 const last = new Map<string, string>()
 
 export default Plugin.define({
@@ -14,7 +14,7 @@ export default Plugin.define({
       if (!file || !String(file).endsWith(".ink")) return
       let out = ""
       try {
-        out = execFileSync(INK, ["check", "--json"], { cwd: ctx.location.directory, encoding: "utf8" })
+        out = execFileSync(INK[0], [...INK.slice(1), "check", "--json"], { cwd: ctx.location.directory, encoding: "utf8" })
       } catch (e: any) {
         out = e.stdout ?? ""
       }
