@@ -335,14 +335,15 @@ fn main() void {
 - A served object cannot be passed to a Go function or builtin; a served type
   must come from the same package. Generic types and methods that need an injected
   context are not served.
-- A factory may return a served object, but `serve` is checked syntactically:
-  serve the returned variable at the call site before `par`. A returned
-  reference hidden behind a helper call is outside the check; keep such
-  accessors out of the served type.
-- `serve` is idempotent; serving the same variable twice is harmless. It does
-  not make several method calls atomic and does not prevent deadlock between
-  two served objects. A method that needs a composed update does it in one
-  method.
+- A same-package factory may return a served object, but `serve` is checked
+  syntactically: serve the returned variable at the call site before `par`.
+  A type from another package cannot be served; keep its lock behind the
+  package that owns it. A reference hidden behind a helper call is outside the
+  check; keep such accessors out of the served type.
+- `serve` must directly follow the target's declaration or assignment, and
+  serving the same variable twice is an error. It does not make several method
+  calls atomic and does not prevent deadlock between two served objects. A
+  method that needs a composed update does it in one method.
 
 
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
@@ -367,6 +368,13 @@ fn main() void {
 | `go-sync` | drop `use sync;`; use `par`/`spawn` and `serve` for shared state |
 | `serve-field` | fields are internal; use a method or a free function with `*T` |
 | `serve-escape` | a served object cannot go to Go or a builtin; use a method |
+| `serve-target` | serve a whole variable; a field is not a target |
+| `serve-global` | serve a package variable first in `main` or a test |
+| `serve-order` | serve directly after creation, before any use, `par` or `spawn` |
+| `serve-already` | serve the variable once |
+| `serve-return` | a served method cannot return a reference to its own state |
+| `serve-state` | copy values out; do not alias served state |
+| `serve-copy` | a served type is not copyable; pass `*T` |
 | `fmt-errorf` | drop `fmt.Errorf`; use `check(cond, "msg")` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |

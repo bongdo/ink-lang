@@ -57,6 +57,8 @@ type checker struct {
 	inServeTarget   int
 	blockDepth      int
 	started         bool
+	prevStmt        ast.Stmt
+	blockIndex      int
 	tparams         map[string]bool
 }
 
@@ -900,11 +902,20 @@ func (c *checker) checkBlock(b *ast.Block) {
 	}
 	c.listeners = append(c.listeners, has)
 	c.push()
+	var prev ast.Stmt
+	if c.blockDepth == 1 {
+		c.prevStmt = nil
+	}
 	for i, s := range b.Stmts {
 		if _, ok := s.(*ast.OnErrStmt); ok && i != 0 {
 			c.p.errorf(c.fc.file.Path, s.Pos(), "on err must be the first statement of its block")
 		}
+		if c.blockDepth == 1 {
+			c.prevStmt = prev
+			c.blockIndex = i
+		}
 		c.checkStmt(s)
+		prev = s
 	}
 	c.pop()
 	c.listeners = c.listeners[:len(c.listeners)-1]
@@ -1009,8 +1020,8 @@ func (c *checker) checkStmt(s ast.Stmt) {
 		}
 		if len(s.Rhs) == len(s.Lhs) {
 			for i, rhs := range s.Rhs {
-				if c.servedBody() && c.heldServedExpr(rhs) {
-					c.p.errorf(c.fc.file.Path, rhs.Pos(), "do not alias a served object inside its method; call it directly")
+				if c.servedBody() && c.escapesServe(rhs) {
+					c.p.errorf(c.fc.file.Path, rhs.Pos(), "do not alias served state inside its method; copy the values")
 				}
 				if c.servedAliasExpr(rhs) {
 					c.markServedTarget(s.Lhs[i])
@@ -1305,6 +1316,15 @@ func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package)
 				return fd.Results[0]
 			}
 		}
+		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
+			if d := p.servedTypeDeclIn(p.exprTypeOf(sel.X, vars, pkg), pkg); d != nil {
+				for _, m := range d.Methods {
+					if m.Name == sel.Name && len(m.Results) == 1 {
+						return m.Results[0]
+					}
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -1364,6 +1384,17 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must run before par or spawn in the same function")
 		return
 	}
+	if prev, ok := c.prevStmt.(*ast.ServeStmt); ok {
+		if pid, ok := unparen(prev.X).(*ast.Ident); ok && pid.Name == id.Name {
+			c.p.errorf(c.fc.file.Path, s.Pos(), "%s is already served", id.Name)
+			return
+		}
+	}
+	first := sym.kind == ast.RefGlobal && c.blockIndex == 0
+	if !first && !prevDefines(c.prevStmt, id.Name) {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must directly follow the declaration or assignment of %s", id.Name)
+		return
+	}
 	decl.Served = true
 	id.Ref.Served = true
 	sym.served = true
@@ -1372,6 +1403,27 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 			d.Served = true
 		}
 	}
+}
+
+func prevDefines(s ast.Stmt, name string) bool {
+	switch s := s.(type) {
+	case *ast.DeclStmt:
+		if s.Decl == nil {
+			return false
+		}
+		for _, n := range s.Decl.Names {
+			if n == name {
+				return true
+			}
+		}
+	case *ast.AssignStmt:
+		for _, lhs := range s.Lhs {
+			if id, ok := unparen(lhs).(*ast.Ident); ok && id.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (c *checker) checkServedField(s *ast.SelectorExpr) {
@@ -1875,6 +1927,7 @@ func referenceType(t ast.Type) bool {
 }
 
 func (c *checker) escapesServe(e ast.Expr) bool {
+
 	if c.heldServedExpr(e) {
 		return true
 	}
@@ -1891,8 +1944,33 @@ func (c *checker) escapesServe(e ast.Expr) bool {
 		return c.heldServedExpr(x.X)
 	case *ast.IndexExpr:
 		return c.escapesServe(x.X)
+	case *ast.SliceExpr:
+		return c.escapesServe(x.X)
 	case *ast.UnaryExpr:
-		return x.Op == token.Star && c.escapesServe(x.X)
+		if x.Op == token.Amp {
+			return c.servedRootAny(x.X)
+		}
+		return c.escapesServe(x.X)
+	}
+	return false
+}
+
+func (c *checker) servedRootAny(e ast.Expr) bool {
+	if c.heldServedExpr(e) {
+		return true
+	}
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		return x.Ref != nil && x.Ref.Kind == ast.RefField && c.fn != nil && c.fn.decl != nil &&
+			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served
+	case *ast.SelectorExpr:
+		return c.heldServedExpr(x.X)
+	case *ast.IndexExpr:
+		return c.servedRootAny(x.X)
+	case *ast.SliceExpr:
+		return c.servedRootAny(x.X)
+	case *ast.UnaryExpr:
+		return c.servedRootAny(x.X)
 	}
 	return false
 }
@@ -1994,8 +2072,8 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 	}
 	alias := false
 	for _, val := range v.Values {
-		if c.servedBody() && c.heldServedExpr(val) {
-			c.p.errorf(c.fc.file.Path, val.Pos(), "do not alias a served object inside its method; call it directly")
+		if c.servedBody() && c.escapesServe(val) {
+			c.p.errorf(c.fc.file.Path, val.Pos(), "do not alias served state inside its method; copy the values")
 		}
 		if c.servedAliasExpr(val) {
 			alias = true

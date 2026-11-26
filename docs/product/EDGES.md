@@ -34,7 +34,8 @@ not re-file.
 | A served type is not copyable, not only the served object. | The hidden mutex is a field of the type; `go vet` rejects any copy. Pass `*T`. |
 | `serve` targets a whole variable, not a field. | Serve the field's type at its creation, or add a method. |
 | A package variable is served in `main` or a test only. | Other functions may run after goroutines start; the flag write would race. |
-| A factory may return a served object. | Servedness is checked syntactically; serve the returned variable at the call site before `par`. |
+| A same-package factory may return a served object. | Servedness is checked syntactically; serve the returned variable at the call site before `par`. A type from another package cannot be served: keep its lock behind the package that owns it. |
+| `serve` must directly follow the target's declaration or assignment. | Nothing runs between creation and serving, so no goroutine can touch the object first. |
 | `par`/`spawn` inside a served method is rejected. | The method already holds the object's lock; workers would deadlock or race. Use one method or a separate object. |
 | Aliasing `self` inside a served method is rejected. | A wrapper call on the alias would take the same lock again. Call `self.M()` directly. |
 | A served type must come from the same package. | Hidden lock fields are unexported; cross-package `serve` would not compile. |

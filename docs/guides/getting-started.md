@@ -232,16 +232,17 @@ fn main() void {
 ```
 
 - `serve` gives the object one hidden lock; methods and free functions with a
-  `*Counter` parameter are serialized. Write it right after creation, before
-  any use or alias, `par` or `spawn`.
+  `*Counter` parameter are serialized. Write it directly after the object's
+  declaration or assignment, before any use or alias, `par` or `spawn`.
 - Fields are internal: use methods, or pass `*Counter` to a free function.
 - The served type is not copyable, even for an instance that was never served;
   use a pointer. One lock per object; split independent state into separate
   objects.
 - A method may not return a reference to its own state; return a copy or value.
 - Serve a whole variable, not a field; a package variable is served in `main`
-  or a test. A factory may return a served object, but serve the returned
-  variable at the call site.
+  or a test. A same-package factory may return a served object, but serve the
+  returned variable at the call site. A type from another package cannot be
+  served; keep its lock behind the package that owns it.
 - `serve` does not make several method calls atomic and does not prevent
   deadlock between two served objects.
 

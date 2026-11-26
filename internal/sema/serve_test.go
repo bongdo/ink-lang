@@ -87,7 +87,7 @@ fn main() void {
 	wantError(t, p, "serve does not support generic types")
 }
 
-func TestServeTwiceAllowed(t *testing.T) {
+func TestServeTwiceRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": serveUser + `
 fn main() void {
     var u = User { Name: "Alice", age: 30 };
@@ -95,7 +95,7 @@ fn main() void {
     serve u;
 };
 `})
-	noErrors(t, p)
+	wantError(t, p, "u is already served")
 }
 
 func TestServeReturnReferenceRejected(t *testing.T) {
@@ -117,6 +117,37 @@ fn main() void {
 };
 `})
 	wantError(t, p, "returning a reference to served state escapes the lock")
+}
+
+func TestServeAliasReferenceRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Store {
+    items: i32[],
+
+    fn Alias() i32[] {
+        var x = items;
+        return x;
+    };
+
+    fn Element() *i32 {
+        return &items[0];
+    };
+
+    fn Slice() i32[] {
+        return items[0:len(items)];
+    };
+
+    fn Leak(out: i32[]) void {
+        out = items;
+    };
+};
+
+fn main() void {
+    var s = Store { items: i32[] { 1 } };
+    serve s;
+};
+`})
+	wantError(t, p, "do not alias served state")
+	wantError(t, p, "returning a reference to served state")
 }
 
 func TestServeValueCopyRejected(t *testing.T) {
