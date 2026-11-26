@@ -568,21 +568,29 @@ handles.
 ### 8.4 Served objects
 
 - `serve obj;` gives a struct object one hidden lock and a served flag. It must
-  run at the top level of a function, before the object is shared, and cannot
-  appear inside `if`/`for`, `par` or `spawn`.
+  run at the top level of a function, immediately after creation, before any
+  use, alias, `par` or `spawn`; it cannot appear inside `if`/`for`, `par` or
+  `spawn`.
+- The target is a whole local or package variable, not a field. A package
+  variable is served in `main` or a test, before other goroutines start.
 - Every method call on a served object is serialized. A free function with a
   served `*T` parameter is serialized as a whole; when it is called from inside
   a served method, the already-held lock is used.
 - Fields of a served object are internal: outside its methods, use methods or a
-  free function with `*T`. A served object is not copyable; use a pointer.
+  free function with `*T`. The served type is not copyable, including an
+  instance that was never served: pass `*T`, never a value.
+- A method may not return a pointer, slice, map or other reference to its own
+  state; return a copy or a value.
 - `par` workers may call methods on a served object; those calls serialize.
   There is one lock per object; independent parts are separate objects.
 - `par`/`spawn` inside a served method or a `*T` free function is rejected: the
   lock is already held. Aliasing `self` or a served parameter is rejected.
 - A served object cannot be passed to Go or a builtin. A served type must come
-  from the same package; generic types, generic methods and context methods are
-  not served.
-- `serve` does not make several method calls atomic and does not prevent
+  from the same package; generic types, generic methods and methods that need an
+  injected context are not served.
+- `serve` is idempotent. A factory may return a served object, but servedness
+  is checked syntactically: serve the returned variable at the call site before
+  `par`. `serve` does not make several method calls atomic and does not prevent
   deadlock between two served objects. A composed update belongs in one method.
 
 ### 8.5 `on err` and error order

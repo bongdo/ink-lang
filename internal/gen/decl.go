@@ -57,6 +57,9 @@ func servedArgOf(fd *ast.FuncDecl) (servedArg, bool) {
 	}
 	safe := safeParams(fd.Params)
 	for i, p := range fd.Params {
+		if _, ok := p.Type.(*ast.PointerType); !ok {
+			continue
+		}
 		if d := servedPtrDecl(p.Type); d != nil {
 			return servedArg{index: i, name: safe[i].Name, decl: d}, true
 		}

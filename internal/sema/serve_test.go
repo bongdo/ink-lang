@@ -98,6 +98,95 @@ fn main() void {
 	noErrors(t, p)
 }
 
+func TestServeReturnReferenceRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Store {
+    items: i32[],
+
+    fn Items() i32[] {
+        return items;
+    };
+
+    fn Me() *Store {
+        return self;
+    };
+};
+
+fn main() void {
+    var s = Store { items: i32[] { 1 } };
+    serve s;
+};
+`})
+	wantError(t, p, "returning a reference to served state escapes the lock")
+}
+
+func TestServeValueCopyRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Counter {
+    n: i32,
+
+    fn Value() i32 {
+        return n;
+    };
+};
+
+fn show(c: Counter) i32 {
+    return c.Value();
+};
+
+fn main() void {
+    var c = Counter { n: 1 };
+    serve c;
+    print(show(c));
+};
+`})
+	wantError(t, p, "a served type is not copyable")
+}
+
+func TestServeAfterParRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": serveUser + `
+fn main() void {
+    var u = User { Name: "Alice", age: 30 };
+    par {
+        print("x");
+    };
+    serve u;
+};
+`})
+	wantError(t, p, "serve must run before par or spawn")
+}
+
+func TestServeFieldRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": `struct Inner {
+    n: i32,
+};
+
+struct Outer {
+    inner: Inner,
+};
+
+fn main() void {
+    var o = Outer { inner: Inner { n: 0 } };
+    serve o.inner;
+};
+`})
+	wantError(t, p, "serve needs a whole object")
+}
+
+func TestServeGlobalOutsideMainRejected(t *testing.T) {
+	p := checkSrc(t, map[string]string{".": serveUser + `
+var u = User { Name: "Alice", age: 30 };
+
+fn setup() void {
+    serve u;
+};
+
+fn main() void {
+    setup();
+    print(u.Greet());
+};
+`})
+	wantError(t, p, "serve a package variable in main or a test")
+}
+
 func TestServeMethodWithServedParamRejected(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": serveUser + `
 struct Other {

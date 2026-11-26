@@ -23,6 +23,7 @@ type symbol struct {
 	arenaDepth int
 	nilMap     bool
 	served     bool
+	used       bool
 }
 
 type scope struct {
@@ -55,6 +56,7 @@ type checker struct {
 	inArena         int
 	inServeTarget   int
 	blockDepth      int
+	started         bool
 	tparams         map[string]bool
 }
 
@@ -271,7 +273,7 @@ func (p *Program) checkServeFuncs() {
 				case *ast.FuncDecl:
 					count := 0
 					for _, param := range d.Params {
-						if servedPtrDecl(param.Type) != nil {
+						if servedParamDecl(param.Type) != nil {
 							count++
 						}
 					}
@@ -283,9 +285,16 @@ func (p *Program) checkServeFuncs() {
 					}
 					if count == 1 {
 						for _, param := range d.Params {
-							if sd := servedPtrDecl(param.Type); sd != nil && p.declPkg[sd] != pkg {
+							if sd := servedParamDecl(param.Type); sd != nil && p.declPkg[sd] != pkg {
 								p.errorf(f.Path, param.Pos(), "a served object cannot cross packages; keep the function in the type's package")
 								break
+							}
+						}
+					}
+					for _, param := range d.Params {
+						if sd := servedStructDecl(param.Type); sd != nil && sd.Served {
+							if _, ok := param.Type.(*ast.PointerType); !ok {
+								p.errorf(f.Path, param.Pos(), "a served type is not copyable; take %s", "*"+sd.Name)
 							}
 						}
 					}
@@ -301,7 +310,7 @@ func (p *Program) checkServeFuncs() {
 							p.errorf(f.Path, m.Pos(), "serve does not support generic methods")
 						}
 						for _, param := range m.Params {
-							if servedPtrDecl(param.Type) != nil {
+							if servedParamDecl(param.Type) != nil {
 								p.errorf(f.Path, param.Pos(), "a served method cannot take another served object; pass values or call it outside")
 								break
 							}
@@ -985,6 +994,9 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			if len(s.Rhs) == len(lhsTypes) {
 				c.checkAssign(lhsTypes[i], e)
 			}
+			if c.servedValueCopy(e) {
+				c.p.errorf(c.fc.file.Path, e.Pos(), "a served type is not copyable; use a pointer")
+			}
 			if len(s.Lhs) == 1 && len(s.Rhs) == 1 {
 				blank := false
 				if id, ok := s.Lhs[0].(*ast.Ident); ok && id.Name == "_" {
@@ -1083,6 +1095,12 @@ func (c *checker) checkStmt(s ast.Stmt) {
 			c.checkMatchValue(e)
 			c.resolveExpr(e, true)
 			c.checkVoidValue(e)
+			if c.servedBody() && c.escapesServe(e) {
+				c.p.errorf(c.fc.file.Path, e.Pos(), "returning a reference to served state escapes the lock; copy the value")
+			}
+			if c.servedValueCopy(e) {
+				c.p.errorf(c.fc.file.Path, e.Pos(), "a served type is not copyable; return a pointer")
+			}
 			var want ast.Type
 			if c.fn != nil {
 				if i < len(c.fn.results) {
@@ -1243,7 +1261,7 @@ func (p *Program) markServedTypes() {
 							if n.Type != nil {
 								t = n.Type
 							} else if i < len(n.Values) {
-								t = p.exprTypeOf(n.Values[i], types)
+								t = p.exprTypeOf(n.Values[i], types, pkg)
 							}
 							if t != nil {
 								types[name] = t
@@ -1271,16 +1289,22 @@ func (p *Program) markServedTypes() {
 	}
 }
 
-func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type) ast.Type {
+func (p *Program) exprTypeOf(e ast.Expr, vars map[string]ast.Type, pkg *Package) ast.Type {
 	switch x := unparen(e).(type) {
 	case *ast.CompositeLit:
 		return x.Type
 	case *ast.UnaryExpr:
 		if x.Op == token.Amp {
-			return p.exprTypeOf(x.X, vars)
+			return p.exprTypeOf(x.X, vars, pkg)
 		}
 	case *ast.Ident:
 		return vars[x.Name]
+	case *ast.CallExpr:
+		if id, ok := x.Fun.(*ast.Ident); ok {
+			if fd := pkg.Funcs[id.Name]; fd != nil && len(fd.Results) == 1 {
+				return fd.Results[0]
+			}
+		}
 	}
 	return nil
 }
@@ -1292,6 +1316,29 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 	c.inServeTarget++
 	c.resolveExpr(s.X, false)
 	c.inServeTarget--
+	id, ok := unparen(s.X).(*ast.Ident)
+	if !ok {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a whole object: a local or package variable, not a field")
+		return
+	}
+	sym := c.lookup(id.Name)
+	if sym == nil {
+		return
+	}
+	if sym.kind == ast.RefParam || sym.kind == ast.RefSelf {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve an object at creation, not a parameter or self")
+		return
+	}
+	if sym.kind == ast.RefLocal && sym.used {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve must run before the object is used")
+		return
+	}
+	inMain := c.fn != nil && c.fn.decl != nil && c.fn.decl.Name == "main"
+	inTest := c.fn != nil && c.fn.test != nil
+	if sym.kind == ast.RefGlobal && !inMain && !inTest {
+		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve a package variable in main or a test, before other goroutines start")
+		return
+	}
 	decl := servedStructDecl(c.exprType(s.X))
 	if decl == nil {
 		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a struct value")
@@ -1313,30 +1360,16 @@ func (c *checker) checkServe(s *ast.ServeStmt) {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must run at the top level of a function, before sharing")
 		return
 	}
-	if !serveAddressable(s.X) {
-		c.p.errorf(c.fc.file.Path, s.X.Pos(), "serve needs a variable or field")
+	if c.started {
+		c.p.errorf(c.fc.file.Path, s.Pos(), "serve must run before par or spawn in the same function")
 		return
 	}
 	decl.Served = true
-	switch x := unparen(s.X).(type) {
-	case *ast.Ident:
-		if x.Ref != nil {
-			x.Ref.Served = true
-		}
-		if sym := c.lookup(x.Name); sym != nil {
-			sym.served = true
-			if sym.kind == ast.RefGlobal {
-				if d, ok := sym.decl.(*ast.VarDecl); ok {
-					d.Served = true
-				}
-			}
-		}
-	case *ast.SelectorExpr:
-		if x.Ref != nil {
-			x.Ref.Served = true
-			if x.Ref.Field != nil {
-				x.Ref.Field.Served = true
-			}
+	id.Ref.Served = true
+	sym.served = true
+	if sym.kind == ast.RefGlobal {
+		if d, ok := sym.decl.(*ast.VarDecl); ok {
+			d.Served = true
 		}
 	}
 }
@@ -1355,7 +1388,7 @@ func (c *checker) servedBase(e ast.Expr) bool {
 			return true
 		}
 		if x.Ref != nil && x.Ref.Kind == ast.RefParam {
-			if sym := c.lookup(x.Name); sym != nil && servedPtrDecl(sym.typ) != nil {
+			if sym := c.lookup(x.Name); sym != nil && servedParamDecl(sym.typ) != nil {
 				return true
 			}
 		}
@@ -1389,7 +1422,14 @@ func (c *checker) servedFieldAllowed(e ast.Expr) bool {
 		return false
 	}
 	sym := c.lookup(id.Name)
-	return sym != nil && sym.kind == ast.RefParam && servedPtrDecl(sym.typ) != nil
+	return sym != nil && sym.kind == ast.RefParam && servedParamDecl(sym.typ) != nil
+}
+
+func servedParamDecl(t ast.Type) *ast.TypeDecl {
+	if _, ok := t.(*ast.PointerType); !ok {
+		return nil
+	}
+	return servedPtrDecl(t)
 }
 
 func servedPtrDecl(t ast.Type) *ast.TypeDecl {
@@ -1444,18 +1484,6 @@ func servedStructDecl(t ast.Type) *ast.TypeDecl {
 	return nil
 }
 
-func serveAddressable(e ast.Expr) bool {
-	switch e := unparen(e).(type) {
-	case *ast.Ident:
-		return e.Ref == nil || e.Ref.Kind != ast.RefPackage
-	case *ast.SelectorExpr:
-		return serveAddressable(e.X)
-	case *ast.UnaryExpr:
-		return e.Op == token.Star
-	}
-	return false
-}
-
 func (c *checker) checkOnErr(s *ast.OnErrStmt) {
 	if s.Body == nil || len(s.Body.Stmts) == 0 {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "on err must do something")
@@ -1469,6 +1497,7 @@ func (c *checker) checkOnErr(s *ast.OnErrStmt) {
 }
 
 func (c *checker) checkGoCall(s *ast.GoCallStmt) {
+	c.started = true
 	if c.servedBody() {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "spawn inside a served method; the lock is already held")
 	}
@@ -1607,6 +1636,9 @@ func (c *checker) isErrorAstType(t ast.Type) bool {
 }
 
 func (c *checker) checkFor(f *ast.ForStmt) {
+	if f.Par {
+		c.started = true
+	}
 	if f.Par && c.servedBody() {
 		c.p.errorf(c.fc.file.Path, f.Pos(), "par for inside a served method; the lock is already held")
 	}
@@ -1805,7 +1837,7 @@ func (c *checker) servedBody() bool {
 		return c.fn.decl.Owner.Served
 	}
 	for _, p := range c.fn.decl.Params {
-		if servedPtrDecl(p.Type) != nil {
+		if servedParamDecl(p.Type) != nil {
 			return true
 		}
 	}
@@ -1820,12 +1852,61 @@ func (c *checker) heldServedExpr(e ast.Expr) bool {
 		}
 		if x.Ref != nil && x.Ref.Kind == ast.RefParam {
 			sym := c.lookup(x.Name)
-			return sym != nil && servedPtrDecl(sym.typ) != nil
+			return sym != nil && servedParamDecl(sym.typ) != nil
 		}
 	case *ast.UnaryExpr:
 		return x.Op == token.Amp && c.heldServedExpr(x.X)
 	}
 	return false
+}
+
+func referenceType(t ast.Type) bool {
+	switch t := t.(type) {
+	case *ast.PointerType, *ast.SliceType, *ast.MapType:
+		return true
+	case *ast.NamedType:
+		if t.Decl != nil && t.Decl.Kind == ast.TypeAlias {
+			return referenceType(t.Decl.Target)
+		}
+	case *ast.GenericType:
+		return referenceType(t.Base)
+	}
+	return false
+}
+
+func (c *checker) escapesServe(e ast.Expr) bool {
+	if c.heldServedExpr(e) {
+		return true
+	}
+	if !referenceType(c.exprType(e)) {
+		return false
+	}
+	switch x := unparen(e).(type) {
+	case *ast.Ident:
+		if x.Ref != nil && x.Ref.Kind == ast.RefField && c.fn != nil && c.fn.decl != nil &&
+			c.fn.decl.Owner != nil && c.fn.decl.Owner.Served {
+			return true
+		}
+	case *ast.SelectorExpr:
+		return c.heldServedExpr(x.X)
+	case *ast.IndexExpr:
+		return c.escapesServe(x.X)
+	case *ast.UnaryExpr:
+		return x.Op == token.Star && c.escapesServe(x.X)
+	}
+	return false
+}
+
+func (c *checker) servedValueCopy(e ast.Expr) bool {
+	if _, ok := unparen(e).(*ast.CompositeLit); ok {
+		return false
+	}
+	t := c.exprType(e)
+	if t == nil || c.isPointerType(t) {
+		return false
+	}
+	d := servedStructDecl(t)
+	return d != nil && d.Served
 }
 
 func (c *checker) servedAliasExpr(e ast.Expr) bool {
@@ -1882,6 +1963,9 @@ func (c *checker) checkVarDecl(v *ast.VarDecl) {
 		types = append(types, c.resolveExpr(val, true))
 		c.checkVoidValue(val)
 		c.checkAssign(declType, val)
+		if c.servedValueCopy(val) {
+			c.p.errorf(c.fc.file.Path, val.Pos(), "a served type is not copyable; use a pointer")
+		}
 	}
 	if len(v.Values) == 1 {
 		if call, ok := orCall(v.Values[0]); ok {
@@ -1989,6 +2073,7 @@ func (c *checker) arenaInWorker() bool {
 }
 
 func (c *checker) checkPar(body *ast.Block, _ map[string]bool) {
+	c.started = true
 	if c.servedBody() {
 		c.p.errorf(c.fc.file.Path, body.Pos(), "par inside a served method; the lock is already held")
 	}

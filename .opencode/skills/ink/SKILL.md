@@ -317,25 +317,36 @@ fn main() void {
 };
 ```
 
-- `serve c;` gives the object one hidden lock and marks it served. It must run
-  at the top level of a function, before the object is shared; not inside
-  `if`/`for`, `par` or `spawn`.
+- `serve c;` gives the object one hidden lock and marks the type served. Write it
+  immediately after creation, at the top level of a function, before any use,
+  alias, `par` or `spawn`. Not inside `if`/`for`, `par` or `spawn`.
+- Serve a whole local or package variable. A field (`serve o.inner`) is not a
+  serve target; make the field's type served instead. Serve a package variable
+  only in `main` or a test.
 - Every method call on a served object is serialized. A free function with a
   served `*T` parameter is serialized as a whole; calls from inside a served
   method use the already-held lock.
 - Fields of a served object are internal: outside its methods, use methods or a
-  free function with `*T`. A served object is not copyable; use a pointer.
+  free function with `*T`. The served type is not copyable, including an
+  instance that was never served: pass `*T`, never a value.
+- A method may not return a pointer, slice, map or other reference to its own
+  state (`return self`, `return items`); return a copy or a value.
 - `par` workers may call methods on a served object; the calls serialize.
   One lock per object. For independent parts, use separate objects.
 - `par`/`spawn` inside a served method or a free function with `*T` is rejected:
   the lock is already held. Do not alias `self` or a served parameter
   (`var p = self`); call it directly.
 - A served object cannot be passed to a Go function or builtin; a served type
-  must come from the same package. Generic types and methods with a context are
-  not served.
-- `serve` does not make several method calls atomic and does not prevent
-  deadlock between two served objects. A method that needs a composed update
-  does it in one method.
+  must come from the same package. Generic types and methods that need an injected
+  context are not served.
+- A factory may return a served object, but `serve` is checked syntactically:
+  serve the returned variable at the call site before `par`. A returned
+  reference hidden behind a helper call is outside the check; keep such
+  accessors out of the served type.
+- `serve` is idempotent; serving the same variable twice is harmless. It does
+  not make several method calls atomic and does not prevent deadlock between
+  two served objects. A method that needs a composed update does it in one
+  method.
 
 
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go
@@ -359,6 +370,7 @@ fn main() void {
 | `go-errors` | drop `use errors;`; use `?`, `on err`, `check` |
 | `go-sync` | drop `use sync;`; use `par`/`spawn` and `serve` for shared state |
 | `serve-field` | fields are internal; use a method or a free function with `*T` |
+| `serve-escape` | a served object cannot go to Go or a builtin; use a method |
 | `fmt-errorf` | drop `fmt.Errorf`; use `check(cond, "msg")` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |
