@@ -5,7 +5,9 @@ reference, canonical forms, diagnostic codes and concurrency limits are in
 `ink guide`; in OpenCode load the `ink` skill instead.
 
 `ink guide` is the only reference: it is printed by the binary and this file is
-its short form. `docs/` exists only in the compiler repository; a project
+its short form. Go boundary in one line: `use` a Go package directly; a local Go
+package is only a binding for cgo/`unsafe`/ABI or an API Ink cannot name, never
+app logic. `docs/` exists only in the compiler repository; a project
 created by `ink new` has no `docs/` or `examples/`, so do not look there.
 
 ## Loop
