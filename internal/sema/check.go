@@ -165,7 +165,7 @@ func builtinReserved(name string) bool {
 
 func isBuiltinFunc(name string) bool {
 	switch name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new", "asset", "check", "print":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "make", "new", "asset", "check", "print", "sprint":
 		return true
 	}
 	return false

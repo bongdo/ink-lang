@@ -141,9 +141,10 @@ fn pair() i32, bool { return 1, true; };
   last path element unless aliased, so a Go package whose name differs from its
   directory needs one: `use github.com/gen2brain/raylib-go/raylib as rl;`.
   `use pkg as _;` is a blank import for a driver or an `init` side effect.
-  `use errors;`, `use sync;`, `use sync/atomic;` and `fmt.Errorf` are rejected:
-  errors are `?`, `on err` and `check`; concurrency is `par` and `spawn`; a
-  lock belongs behind a Go adapter.
+  `use errors;`, `use sync;`, `use sync/atomic;`, `fmt.Errorf`,
+  `fmt.Println` and `fmt.Sprint` are rejected: errors are `?`, `on err` and
+  `check`; output is `print`, formatting is `sprint`; concurrency is `par` and
+  `spawn`. `use fmt` is still fine for `Sprintf`, `Fprintf` and the rest.
 - `T!` marks a fallible result. `void!` may fail with no value. Multi-result:
   `(A, B)!`.
 - `call()?` propagates the error to the caller. `?` may sit anywhere in an
@@ -159,8 +160,9 @@ fn pair() i32, bool { return 1, true; };
   `par` bodies.
 - `check(cond, "msg");` returns a fresh error when `cond` is false. It is the
   only way to create an error in app code and needs a fallible function or a
-  `par` listener. `print(...)` writes a line to stdout like `fmt.Println`, has
-  no error, and needs no `_ =`.
+  `par` listener. `print(...)` writes a line to stdout like `fmt.Println`;
+  `sprint(x)` returns `str` like `fmt.Sprint(x)`. Both are builtins: no
+  `use fmt`, no error, no `_ =`.
 - Manual `if err != nil { return err; }` propagation is rejected; use `?`.
   `errors` is not available in `.ink`: create with `check`, propagate with
   `?`, handle with `on err`, and classify through an Ink enum or a Go adapter.
@@ -205,10 +207,10 @@ fn pair() i32, bool { return 1, true; };
   constructor too: `map[K, V] {}` is empty, `map[K, V](nil)` is nil, and
   nothing allocates implicitly. `check(cond, "msg")` makes a fresh error and
   `error` is only a type.
-- Go functions keep their Go signatures: `fmt.Println` returns `(int, error)`,
-  so a bare call is an error; write `print(...)` for a line of output,
-  `_ = fmt.Println(...)` to discard the error deliberately, or `...?` to
-  propagate it.
+- Go functions keep their Go signatures: a bare `fmt.Fprintf` call returns
+  `(int, error)`, so handle it with `_ =` or `?`. `fmt.Println` and `fmt.Sprint`
+  are rejected: write `print(...)` for a line and `sprint(x)` for a string.
+  Use `use fmt` only for the remaining formatters (`Sprintf`, `Fprintf`, …).
 - `asset("web/index.html")` returns `(u8[], bool)`: file bytes and found.
   Files come from `ink build -embed web`; without the flag it reports false.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at
@@ -256,7 +258,7 @@ for (var i, x in xs) { ... };
   `i32(n)`, `f64(dt)`. An untyped `const` defaults to `int`.
 - A conversion is the type as a function: `i32(x)`, `f64(n)`, `str(b)` for
   bytes, `bytes(s)`, `runes(s)`. `str(65)` follows Go's `string(rune)` and is
-  `"A"`, not `"65"`; format numbers with `fmt.Sprint(n)`.
+  `"A"`, not `"65"`; format numbers with `sprint(n)`.
 - Identifiers are ASCII: `a-z`, `A-Z`, `0-9`, `_`. An identifier does not
   start with a digit. Builtin type and function names (`i32`, `len`, `min`, …)
   are reserved and cannot be shadowed anywhere.
@@ -391,6 +393,8 @@ fn main() void {
 | `serve-return` | a served method cannot return a reference to its own state |
 | `serve-state` | copy values out; do not alias served state |
 | `serve-copy` | a served type is not copyable; pass `*T` |
+| `fmt-println` | drop `fmt.Println`; use `print(...)` |
+| `fmt-sprint` | drop `fmt.Sprint`; use `sprint(x)` |
 | `fmt-errorf` | drop `fmt.Errorf`; use `check(cond, "msg")` |
 | `nil-untyped` | give `nil` a type: `var p: *T = nil;` or `nil[T]` |
 | `contract` | keep the block inside a struct; list existing exported fields; use each named view |
@@ -410,7 +414,7 @@ fn main() void {
 | `init-cycle` | break the cycle: initialize in `main` or in a function |
 | `map-addressable` | copy out, mutate, write back: `var p = m[k]; p.F = v; m[k] = p;` |
 | `conformance-unchecked` | warning: the method set is not nameable; `go build` is the backstop |
-| `str-number` | `str(n)` is a rune; format numbers with `strconv.Itoa`, `strconv.FormatFloat` or `fmt.Sprint` |
+| `str-number` | `str(n)` is a rune; format numbers with `sprint(n)` |
 | `go-vet` | `go vet` finding in generated code; fix the Ink line it points at |
 | `nil-map-write` | warning: the map is nil; initialize it with `map[K,V] {}` |
 | `unused-import` | remove the import or use it |

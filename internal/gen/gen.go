@@ -357,6 +357,7 @@ var stdImports = map[string]string{
 	"reflect": "reflect",
 	"testing": "testing",
 	"errors":  "errors",
+	"strconv": "strconv",
 }
 
 type importSpec struct {

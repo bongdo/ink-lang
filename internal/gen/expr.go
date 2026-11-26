@@ -241,7 +241,7 @@ func builtinName(c *ast.CallExpr) (string, bool) {
 		return "", false
 	}
 	switch id.Name {
-	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes":
+	case "len", "cap", "append", "copy", "delete", "has", "panic", "assert", "assert_eq", "min", "max", "runes", "bytes", "sprint":
 		return id.Name, true
 	}
 	return "", false
@@ -341,6 +341,32 @@ func (w *writer) builtinCall(name string, c *ast.CallExpr, args []string) string
 	case "print":
 		w.f.needPkg("fmt")
 		return w.f.std("fmt") + ".Println(" + strings.Join(args, ", ") + ")"
+	case "sprint":
+		if len(args) == 1 {
+			switch t := w.f.g.p.ExprTypes[c.Args[0]].(type) {
+			case *ast.NamedType:
+				std := func(pkg string) string {
+					w.f.needPkg(pkg)
+					return w.f.std(pkg)
+				}
+				switch t.Name {
+				case "str":
+					return args[0]
+				case "i8", "i16", "i32", "i64", "int", "rune":
+					return std("strconv") + ".FormatInt(int64(" + args[0] + "), 10)"
+				case "u8", "u16", "u32", "u64", "uint", "byte":
+					return std("strconv") + ".FormatUint(uint64(" + args[0] + "), 10)"
+				case "f32":
+					return std("strconv") + ".FormatFloat(float64(" + args[0] + "), 'g', -1, 32)"
+				case "f64":
+					return std("strconv") + ".FormatFloat(" + args[0] + ", 'g', -1, 64)"
+				case "bool":
+					return std("strconv") + ".FormatBool(" + args[0] + ")"
+				}
+			}
+		}
+		w.f.needPkg("rt")
+		return "_s_rt.Sprint(" + strings.Join(args, ", ") + ")"
 	case "make":
 		if len(c.TypeArgs) == 1 {
 			elem := w.typeStr(c.TypeArgs[0])

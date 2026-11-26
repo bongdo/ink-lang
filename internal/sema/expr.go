@@ -257,6 +257,14 @@ func (c *checker) resolvePackageMember(s *ast.SelectorExpr, id *ast.Ident, _ ast
 	if imp.Path == "fmt" && s.Name == "Errorf" {
 		c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Errorf is not available in Ink; use check(cond, \"msg\")")
 	}
+	if imp.Path == "fmt" {
+		switch s.Name {
+		case "Println":
+			c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Println is replaced by print(...); use the builtin")
+		case "Sprint":
+			c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Sprint is replaced by sprint(x); use the builtin")
+		}
+	}
 	if imp.Local != nil {
 		if fn := imp.Local.Funcs[s.Name]; fn != nil {
 			if !exported(s.Name) && imp.Local != c.fc.pkg {
@@ -360,6 +368,9 @@ func (c *checker) resolveCall(call *ast.CallExpr) ast.Type {
 			}
 			if fun.Name == "print" {
 				return c.resolvePrint(call)
+			}
+			if fun.Name == "sprint" {
+				return c.resolveSprint(call)
 			}
 			info, result = c.builtinInfo(fun.Name)
 		case ast.RefFunc:
@@ -556,6 +567,22 @@ func (c *checker) resolvePrint(call *ast.CallExpr) ast.Type {
 	}
 	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 0, Builtin: "print"}
 	return nil
+}
+
+func (c *checker) resolveSprint(call *ast.CallExpr) ast.Type {
+	strT := &ast.NamedType{Name: "str", GoName: "string"}
+	if len(call.Args) != 1 {
+		c.p.errorf(c.fc.file.Path, call.Pos(), "sprint takes one value")
+	}
+	for _, a := range call.Args {
+		c.resolveExpr(a, false)
+		c.checkVoidValue(a)
+		if servedObject(c.exprType(a)) {
+			c.p.errorf(c.fc.file.Path, a.Pos(), "served object cannot be passed to Go or a builtin; use a method")
+		}
+	}
+	call.Info = &ast.CallInfo{Kind: ast.CallBuiltin, Results: 1, ResultTypes: []ast.Type{strT}, Builtin: "sprint"}
+	return strT
 }
 
 func (c *checker) resolveMake(call *ast.CallExpr) ast.Type {
