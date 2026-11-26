@@ -156,6 +156,11 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	}
 	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served, Tainted: sym.tainted}
 	id.Ref = ref
+	if sym.kind == ast.RefGlobal && !sym.served {
+		if d := servedStructDecl(sym.typ); d != nil && d.Served {
+			c.p.errorf(c.fc.file.Path, id.Pos(), "global %s has a served type; serve it in main or a test", id.Name)
+		}
+	}
 	if sym.kind == ast.RefPackage {
 		c.fc.mark(id.Name)
 	}
@@ -968,6 +973,11 @@ func (c *checker) resolveFields(e *ast.CompositeLit, fields []*ast.Field, owner 
 		c.resolveExpr(en.Value, false)
 		c.checkVoidValue(en.Value)
 		c.checkAssign(f.Type, en.Value)
+		if d := servedStructDecl(f.Type); d != nil && d.Served && c.isPointerType(f.Type) {
+			if _, isNil := unparen(en.Value).(*ast.NilLit); !isNil && !c.servedAliasExpr(en.Value) {
+				c.p.errorf(c.fc.file.Path, en.Value.Pos(), "a field holding a served object needs a served object or nil")
+			}
+		}
 	}
 }
 

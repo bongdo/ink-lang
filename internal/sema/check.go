@@ -1540,8 +1540,16 @@ func (c *checker) unservedServedObject(e ast.Expr) bool {
 }
 
 func (c *checker) markCopyTaint(e ast.Expr) {
-	call, ok := unparen(e).(*ast.CallExpr)
-	if !ok || call.Info == nil || call.Info.Builtin != "copy" || len(call.Args) < 2 {
+	ast.Inspect(e, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			c.taintCopy(call)
+		}
+		return true
+	})
+}
+
+func (c *checker) taintCopy(call *ast.CallExpr) {
+	if call.Info == nil || call.Info.Builtin != "copy" || len(call.Args) < 2 {
 		return
 	}
 	if !c.escapesServe(call.Args[1]) {
@@ -2273,7 +2281,13 @@ func (c *checker) servedAliasExpr(e ast.Expr) bool {
 	case *ast.Ident:
 		return x.Ref != nil && x.Ref.Served
 	case *ast.SelectorExpr:
-		return x.Ref != nil && x.Ref.Served
+		if x.Ref != nil && x.Ref.Served {
+			return true
+		}
+		if x.Ref != nil && x.Ref.Field != nil && c.isPointerType(x.Ref.Field.Type) {
+			d := servedStructDecl(x.Ref.Field.Type)
+			return d != nil && d.Served
+		}
 	case *ast.UnaryExpr:
 		return x.Op == token.Amp && c.servedAliasExpr(x.X)
 	}
@@ -2932,6 +2946,14 @@ func (w *parWalker) call(e *ast.CallExpr) {
 	}
 	for _, a := range e.Args {
 		w.expr(a)
+	}
+	if sel, ok := e.Fun.(*ast.SelectorExpr); ok && w.c.unservedServedObject(sel.X) {
+		w.c.p.errorf(w.c.fc.file.Path, sel.X.Pos(), "par call on an unserved object; serve it first")
+	}
+	for _, a := range e.Args {
+		if w.c.unservedServedObject(a) {
+			w.c.p.errorf(w.c.fc.file.Path, a.Pos(), "par call with an unserved object; serve it first")
+		}
 	}
 	if id, ok := e.Fun.(*ast.Ident); ok {
 		w.mutatingBuiltin(e, id)

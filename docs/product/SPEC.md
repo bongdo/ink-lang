@@ -596,7 +596,10 @@ handles.
   pointer accepts only a served object or `nil`. Serving the same object twice
   is an error.
 - `spawn` and `par` require a served object; an unserved instance of a served
-  type is rejected before it can bypass the lock. A same-package factory may return a
+  type is rejected before it can bypass the lock. Every global of a served type
+  must be served in `main` or a test before it is used.
+- A struct literal or assignment to a field that holds a served pointer accepts
+  only a served object or `nil`; a fresh unserved object is rejected. A same-package factory may return a
   served object, but servedness is checked syntactically: serve the returned
   variable at the call site before `par`. `serve` does not make several method
   calls atomic and does not prevent deadlock between two served objects. A

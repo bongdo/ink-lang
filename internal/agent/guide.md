@@ -349,7 +349,10 @@ fn main() void {
   pointer accepts only a served object or `nil`. Serving the same object twice
   is an error.
 - `spawn` and `par` require a served object; an unserved instance of a served
-  type is rejected before it can bypass the lock. It does not make several method
+  type is rejected before it can bypass the lock. Every global of a served type
+  must be served in `main` or a test before it is used.
+- A struct literal field that holds a served pointer accepts only `&servedVar`
+  or `nil`; a fresh unserved object is rejected. It does not make several method
   calls atomic and does not prevent deadlock between two served objects. A
   method that needs a composed update does it in one method.
 
