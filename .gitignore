@@ -10,3 +10,4 @@ tests/cases/*/bin/
 examples/*/bin/
 result
 .direnv/
+dist/
