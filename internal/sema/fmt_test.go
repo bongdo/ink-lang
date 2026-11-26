@@ -1,25 +1,38 @@
 package sema
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestFmtPrintlnRejected(t *testing.T) {
+func wantWarning(t *testing.T, p *Program, sub string) {
+	t.Helper()
+	for _, e := range p.Errors {
+		if e.Warning && strings.Contains(e.Msg, sub) {
+			return
+		}
+	}
+	t.Fatalf("want warning %q, got %v", sub, p.Errors)
+}
+
+func TestFmtPrintlnWarns(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
 fn main() void {
     fmt.Println("x");
 };
 `})
-	wantError(t, p, "fmt.Println is replaced by print")
+	wantWarning(t, p, "fmt.Println is replaced by print")
 }
 
-func TestFmtSprintRejected(t *testing.T) {
+func TestFmtSprintWarns(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `use fmt;
 
 fn main() void {
     print(fmt.Sprint(1));
 };
 `})
-	wantError(t, p, "fmt.Sprint is replaced by sprint")
+	wantWarning(t, p, "fmt.Sprint is replaced by sprint")
 }
 
 func TestFmtSprintfAllowed(t *testing.T) {

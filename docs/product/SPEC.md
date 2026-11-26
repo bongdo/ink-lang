@@ -328,7 +328,7 @@ code points are needed.
 
 Conversions use the type as a function: `i32(x)`, `u64(x)`, `f64(x)`,
 `str(runes)`, `bytes(text)`. `str` on an integer follows Go's `string(rune)`:
-`str(65)` is `"A"`, not `"65"`; format numbers with `fmt.Sprint`.
+`str(65)` is `"A"`, not `"65"`; format numbers with `sprint(n)`.
 
 Multiple names are allowed for multi-result calls:
 
@@ -426,7 +426,9 @@ Forms:
   It needs a fallible function or a `par` listener and is the only error
   constructor in app code.
 - `print(...)` — write a line to stdout like `fmt.Println`; it has no error
-  result and needs no `_ =`.
+  result and needs no `_ =`. `sprint(x)` returns `str` like `fmt.Sprint(x)`.
+  Both are builtins; `fmt.Println`/`fmt.Sprint` warn and `use fmt` is for the
+  remaining formatters (`Sprintf`, `Fprintf`, …).
 - `panic(...)` — Go's panic, not an error handler (§8.6).
 
 An inline handler may continue instead of leaving the scope; the expression

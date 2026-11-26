@@ -189,7 +189,7 @@ func TestCheckRunsVet(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/vet\n\ngo 1.27\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	src := "use fmt;\n\nfn main() void! {\n    fmt.Println(str(42))\n?;\n    return;\n};\n"
+	src := "fn main() void {\n    print(str(42));\n};\n"
 	if err := os.WriteFile(filepath.Join(dir, "main.ink"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestCheckRunsVet(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("diags: %+v", diags)
 	}
-	if d := diags[0]; d.Code != "str-number" || d.Line != 4 {
+	if d := diags[0]; d.Code != "str-number" || d.Line != 2 {
 		t.Fatalf("diag: %+v", d)
 	}
 }

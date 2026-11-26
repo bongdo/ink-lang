@@ -19,7 +19,7 @@ struct User {
 
 fn main() void! {
     var u = User { Name: "Alice", age: 30 };
-    fmt.Println(u.Greet())?;
+    print(u.Greet());
 };
 ```
 

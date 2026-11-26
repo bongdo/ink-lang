@@ -141,10 +141,10 @@ fn pair() i32, bool { return 1, true; };
   last path element unless aliased, so a Go package whose name differs from its
   directory needs one: `use github.com/gen2brain/raylib-go/raylib as rl;`.
   `use pkg as _;` is a blank import for a driver or an `init` side effect.
-  `use errors;`, `use sync;`, `use sync/atomic;`, `fmt.Errorf`,
-  `fmt.Println` and `fmt.Sprint` are rejected: errors are `?`, `on err` and
-  `check`; output is `print`, formatting is `sprint`; concurrency is `par` and
-  `spawn`. `use fmt` is still fine for `Sprintf`, `Fprintf` and the rest.
+  `use errors;`, `use sync;` and `use sync/atomic;` are rejected, and
+  `fmt.Errorf` is an error. `fmt.Println`/`fmt.Sprint` are warnings: use
+  `print(...)` and `sprint(x)`; `use fmt` is still fine for `Sprintf`,
+  `Fprintf` and the rest.
 - `T!` marks a fallible result. `void!` may fail with no value. Multi-result:
   `(A, B)!`.
 - `call()?` propagates the error to the caller. `?` may sit anywhere in an
@@ -209,8 +209,8 @@ fn pair() i32, bool { return 1, true; };
   `error` is only a type.
 - Go functions keep their Go signatures: a bare `fmt.Fprintf` call returns
   `(int, error)`, so handle it with `_ =` or `?`. `fmt.Println` and `fmt.Sprint`
-  are rejected: write `print(...)` for a line and `sprint(x)` for a string.
-  Use `use fmt` only for the remaining formatters (`Sprintf`, `Fprintf`, …).
+  warn: write `print(...)` for a line and `sprint(x)` for a string. Use
+  `use fmt` only for the remaining formatters (`Sprintf`, `Fprintf`, …).
 - `asset("web/index.html")` returns `(u8[], bool)`: file bytes and found.
   Files come from `ink build -embed web`; without the flag it reports false.
 - `arena { ... };` takes memory from a reusable scratch buffer and returns it at

@@ -260,9 +260,9 @@ func (c *checker) resolvePackageMember(s *ast.SelectorExpr, id *ast.Ident, _ ast
 	if imp.Path == "fmt" {
 		switch s.Name {
 		case "Println":
-			c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Println is replaced by print(...); use the builtin")
+			c.p.warnf(c.fc.file.Path, s.Pos(), "fmt.Println is replaced by print(...); use the builtin")
 		case "Sprint":
-			c.p.errorf(c.fc.file.Path, s.Pos(), "fmt.Sprint is replaced by sprint(x); use the builtin")
+			c.p.warnf(c.fc.file.Path, s.Pos(), "fmt.Sprint is replaced by sprint(x); use the builtin")
 		}
 	}
 	if imp.Local != nil {

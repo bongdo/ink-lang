@@ -661,8 +661,8 @@ fn main() void! {
 	diags := c.waitDiagnostics(uri, func(params *PublishDiagnosticsParams) bool {
 		return params.Version != nil && *params.Version == 1
 	})
-	if len(diags.Diagnostics) != 0 {
-		t.Fatalf("unexpected diagnostics: %+v", diags.Diagnostics)
+	if len(diags.Diagnostics) != 1 || diags.Diagnostics[0].Code != "fmt-println" {
+		t.Fatalf("want fmt-println warning, got: %+v", diags.Diagnostics)
 	}
 	data := []byte(src)
 	dot := strings.Index(src, "fmt.") + len("fmt.")
