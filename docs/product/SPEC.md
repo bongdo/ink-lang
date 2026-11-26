@@ -567,43 +567,36 @@ handles.
 
 ### 8.4 Served objects
 
-- `serve obj;` gives a struct object one hidden lock and a served flag. It must
-  run at the top level of a function, immediately after creation, before any
-  use, alias, `par` or `spawn`; it cannot appear inside `if`/`for`, `par` or
-  `spawn`.
-- The target is a whole local or package variable, not a field. A package
-  variable is served in `main` or a test, before other goroutines start.
-- Every method call on a served object is serialized. A free function with a
+- `serve obj;` marks the struct type served and adds one hidden lock to it. It
+  is a top-level statement on a whole local or package variable; it cannot
+  appear inside `if`/`for`, `par` or `spawn`, and `serve o.inner` is not a
+  target.
+- Every instance of a served type carries the lock, including one created after
+  the `serve` statement or never named by it. A missed `serve` is not a data
+  race; write it near the first creation to document intent.
+- Every method call on a served type is serialized. A free function with a
   served `*T` parameter is serialized as a whole; when it is called from inside
   a served method, the already-held lock is used.
 - Fields of a served object are internal: outside its methods, use methods or a
-  free function with `*T`. The served type is not copyable, including an
-  instance that was never served: pass `*T`, never a value.
+  free function with `*T`. The served type is not copyable: pass `*T`, never a
+  value.
 - A method may not return a pointer, slice, map or other reference to its own
   state, nor a value that contains one; `append` of served state, wrapper
   structs and converting served state to `any`/an interface are rejected.
   Return a value with no reference fields, or copy the data into fresh storage.
 - `par` workers may call methods on a served object; those calls serialize.
-  There is one lock per object; independent parts are separate objects.
+  There is one lock per type; independent parts are separate types.
 - `par`/`spawn` inside a served method or a `*T` free function is rejected: the
   lock is already held. Aliasing `self` or a served parameter is rejected.
+- `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
+  Reset fields in a method instead.
 - A served object cannot be passed to Go or a builtin. A served type must come
   from the same package; generic types, generic methods and methods that need an
   injected context are not served.
-- `serve` must directly follow the target's declaration or assignment.
-  Reassigning a served variable needs `serve` again on the next line; `*p = T {}`
-  that overwrites a served object is rejected. A field that holds a served
-  pointer accepts only a served object or `nil`. Serving the same object twice
-  is an error.
-- `spawn` and `par` require a served object; an unserved instance of a served
-  type is rejected before it can bypass the lock. Every global of a served type
-  must be served in `main` or a test before it is used.
-- A field, map value or slice element that holds a served pointer accepts only
-  a served object or `nil`; a fresh unserved object is rejected. A same-package factory may return a
-  served object, but servedness is checked syntactically: serve the returned
-  variable at the call site before `par`. `serve` does not make several method
-  calls atomic and does not prevent deadlock between two served objects. A
-  composed update belongs in one method.
+- A same-package factory may return a served object. A type from another
+  package cannot be served; keep its lock behind the package that owns it.
+- `serve` does not make several method calls atomic and does not prevent
+  deadlock between two served objects. A composed update belongs in one method.
 
 ### 8.5 `on err` and error order
 

@@ -156,26 +156,7 @@ func (c *checker) resolveIdent(id *ast.Ident) ast.Type {
 	}
 	ref := &ast.Ref{Kind: sym.kind, Name: id.Name, Field: sym.field, Func: sym.fn, Type: sym.typD, Use: sym.use, Decl: sym.decl, TypeVal: sym.typ, Path: c.fc.file.Path, Served: sym.served, Tainted: sym.tainted}
 	id.Ref = ref
-	if sym.kind == ast.RefGlobal && c.inServeTarget == 0 {
-		if d := servedStructDecl(sym.typ); d != nil && d.Served {
-			ok := false
-			if v, isVar := sym.decl.(*ast.VarDecl); isVar {
-				inMain := c.fn != nil && c.fn.decl != nil && c.fn.decl.Name == "main"
-				inTest := c.fn != nil && c.fn.test != nil
-				switch {
-				case inMain:
-					ok = v.ServedMain
-				case inTest:
-					ok = v.ServedTest
-				default:
-					ok = v.ServedMain && v.ServedTest
-				}
-			}
-			if !ok {
-				c.p.errorf(c.fc.file.Path, id.Pos(), "global %s has a served type; serve it in main and in every test that uses it", id.Name)
-			}
-		}
-	}
+
 	if sym.kind == ast.RefPackage {
 		c.fc.mark(id.Name)
 	}
@@ -933,7 +914,6 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 			c.checkVoidValue(en.KeyExpr)
 			c.checkVoidValue(en.Value)
 			c.checkAssign(ty.Value, en.Value)
-			c.checkServedPointer(ty.Value, en.Value)
 		}
 	case *ast.SliceType, *ast.ArrayType:
 		var elem ast.Type
@@ -948,7 +928,6 @@ func (c *checker) resolveComposite(e *ast.CompositeLit) ast.Type {
 			c.resolveExpr(en.Value, false)
 			c.checkVoidValue(en.Value)
 			c.checkAssign(elem, en.Value)
-			c.checkServedPointer(elem, en.Value)
 		}
 	case *ast.GenericType:
 		for _, en := range e.Entries {
@@ -990,7 +969,6 @@ func (c *checker) resolveFields(e *ast.CompositeLit, fields []*ast.Field, owner 
 		c.resolveExpr(en.Value, false)
 		c.checkVoidValue(en.Value)
 		c.checkAssign(f.Type, en.Value)
-		c.checkServedPointer(f.Type, en.Value)
 	}
 }
 

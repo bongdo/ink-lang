@@ -142,12 +142,8 @@ func (g *generator) servedMethod(w *writer, fd *ast.FuncDecl, recv *ast.TypeDecl
 	w.directive(fd)
 	w.line("func (" + self + " *" + typeNameOf(recv) + ") " + name + "(" + pstr + ")" + res + " {")
 	w.indent++
-	w.line("if " + self + "._s_served {")
-	w.indent++
 	w.line(self + "._s_mu.Lock()")
 	w.line("defer " + self + "._s_mu.Unlock()")
-	w.indent--
-	w.line("}")
 	if len(fd.Results) > 0 || fd.Err {
 		w.line("return " + call)
 	} else {
@@ -185,12 +181,8 @@ func (g *generator) servedFree(w *writer, fd *ast.FuncDecl, sa servedArg) {
 	w.directive(fd)
 	w.line("func " + name + "(" + pstr + ")" + res + " {")
 	w.indent++
-	w.line("if " + arg + "._s_served {")
-	w.indent++
 	w.line(arg + "._s_mu.Lock()")
 	w.line("defer " + arg + "._s_mu.Unlock()")
-	w.indent--
-	w.line("}")
 	if len(fd.Results) > 0 || fd.Err {
 		w.line("return " + call)
 	} else {

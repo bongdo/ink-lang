@@ -87,7 +87,7 @@ fn main() void {
 	wantError(t, p, "serve does not support generic types")
 }
 
-func TestServeTwiceRejected(t *testing.T) {
+func TestServeTwiceAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": serveUser + `
 fn main() void {
     var u = User { Name: "Alice", age: 30 };
@@ -95,7 +95,7 @@ fn main() void {
     serve u;
 };
 `})
-	wantError(t, p, "u is already served")
+	noErrors(t, p)
 }
 
 func TestServeReturnReferenceRejected(t *testing.T) {
@@ -261,7 +261,7 @@ fn main() void {
 	wantError(t, p, "do not alias served state")
 }
 
-func TestServeReassignNeedsServe(t *testing.T) {
+func TestServeReassignAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": `struct Counter {
     n: i32,
 
@@ -277,7 +277,7 @@ fn main() void {
     c.Inc();
 };
 `})
-	wantError(t, p, "served object reassigned")
+	noErrors(t, p)
 }
 
 func TestServeDerefResetRejected(t *testing.T) {
@@ -324,7 +324,7 @@ fn main() void {
 	wantError(t, p, "a served type is not copyable")
 }
 
-func TestServeAfterParRejected(t *testing.T) {
+func TestServeAfterParAllowed(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": serveUser + `
 fn main() void {
     var u = User { Name: "Alice", age: 30 };
@@ -334,7 +334,7 @@ fn main() void {
     serve u;
 };
 `})
-	wantError(t, p, "serve must run before par or spawn")
+	noErrors(t, p)
 }
 
 func TestServeFieldRejected(t *testing.T) {
@@ -354,7 +354,7 @@ fn main() void {
 	wantError(t, p, "serve needs a whole object")
 }
 
-func TestServeGlobalOutsideMainRejected(t *testing.T) {
+func TestServeGlobalFromHelper(t *testing.T) {
 	p := checkSrc(t, map[string]string{".": serveUser + `
 var u = User { Name: "Alice", age: 30 };
 
@@ -367,7 +367,7 @@ fn main() void {
     print(u.Greet());
 };
 `})
-	wantError(t, p, "serve a package variable in main or a test")
+	noErrors(t, p)
 }
 
 func TestServeMethodWithServedParamRejected(t *testing.T) {

@@ -317,49 +317,40 @@ fn main() void {
 };
 ```
 
-- `serve c;` gives the object one hidden lock and marks the type served. Write it
-  immediately after creation, at the top level of a function, before any use,
-  alias, `par` or `spawn`. Not inside `if`/`for`, `par` or `spawn`.
-- Serve a whole local or package variable. A field (`serve o.inner`) is not a
-  serve target; make the field's type served instead. Serve a package variable
-  only in `main` or a test.
-- Every method call on a served object is serialized. A free function with a
+- `serve c;` marks the type served and adds a hidden lock to it. It is a
+  top-level statement (not inside `if`/`for`, `par` or `spawn`) on a whole
+  local or package variable; `serve o.inner` is not a target.
+- Every instance of a served type carries the lock, even one created after the
+  `serve` statement or never named by it. A missed `serve` is not a data race.
+  Write it once near the first creation to document intent.
+- Every method call on a served type is serialized. A free function with a
   served `*T` parameter is serialized as a whole; calls from inside a served
   method use the already-held lock.
 - Fields of a served object are internal: outside its methods, use methods or a
-  free function with `*T`. The served type is not copyable, including an
-  instance that was never served: pass `*T`, never a value.
+  free function with `*T`. The served type is not copyable: pass `*T`, never a
+  value.
 - A method may not return a pointer, slice, map or other reference to its own
   state (`return self`, `return items`, `append(items, ...)`), nor a value that
   contains one (`Wrap { items: items }`). Converting served state to `any` or
   another interface is rejected. Return a value with no reference fields, or
   copy the data into fresh storage.
 - `par` workers may call methods on a served object; the calls serialize.
-  One lock per object. For independent parts, use separate objects.
+  One lock per object or type; independent parts are separate types.
 - `par`/`spawn` inside a served method or a free function with `*T` is rejected:
   the lock is already held. Do not alias `self` or a served parameter
   (`var p = self`); call it directly.
+- `*p = T {}` that overwrites a served object is rejected: it zeroes the mutex.
+  Reset fields in a method instead.
 - A served object cannot be passed to a Go function or builtin; a served type
   must come from the same package. Generic types and methods that need an injected
   context are not served.
-- A same-package factory may return a served object, but `serve` is checked
-  syntactically: serve the returned variable at the call site before `par`.
-  A type from another package cannot be served; keep its lock behind the
-  package that owns it. A reference hidden behind a helper call is outside the
-  check; keep such accessors out of the served type.
-- `serve` must directly follow the target's declaration or assignment.
-  Reassigning a served variable needs `serve` again on the next line; `*p = T {}`
-  that overwrites a served object is rejected. A field that holds a served
-  pointer accepts only a served object or `nil`. Serving the same object twice
-  is an error.
-- `spawn` and `par` require a served object; an unserved instance of a served
-  type is rejected before it can bypass the lock. Every global of a served type
-  must be served in `main` or a test before it is used.
-- A field, map value or slice element that holds a served pointer accepts only
-  a served object or `nil`; a fresh unserved object is rejected. Serve elements
-  into locals first. It does not make several method
-  calls atomic and does not prevent deadlock between two served objects. A
-  method that needs a composed update does it in one method.
+- A same-package factory may return a served object. A type from another
+  package cannot be served; keep its lock behind the package that owns it. A
+  reference hidden behind a helper call is outside the check; keep such
+  accessors out of the served type.
+- `serve` does not make several method calls atomic and does not prevent
+  deadlock between two served objects. A method that needs a composed update
+  does it in one method.
 
 
 - No hidden context: `ctx` is an ordinary value, passed explicitly to the Go

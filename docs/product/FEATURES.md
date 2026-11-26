@@ -87,7 +87,7 @@ place with status.
 | `on err { ... }` — scope listener for `par`/`par for` errors; the scope continues | ✅ |
 | `spawn f(...) on err { ... };` — task-local handler, no captures, no `fail` | ✅ |
 | `go` | — removed; use `par` or `spawn` |
-| `serve obj;` — one hidden lock per object; methods and `*T` free functions serialize | ✅ |
+| `serve obj;` — marks the type; every instance carries one hidden lock; methods and `*T` free functions serialize | ✅ |
 | `sync`, `sync/atomic` in `.ink` | — rejected; use `serve` for shared object state |
 | `within D { ... }` | — removed; use `context.WithTimeout` |
 | deterministic error order, lowest ordinal wins | ✅ |

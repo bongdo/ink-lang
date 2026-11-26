@@ -29,19 +29,14 @@ not re-file.
 | `T or error`, `or return` and `or fail` are rejected. | `T!` and `?` replaced them; diagnostics point at the old form. |
 | `go` is rejected and `within` is removed. | Structured concurrency is `par`; `spawn` is detached. A deadline is `context.WithTimeout`, passed as an ordinary value. |
 | `spawn f(args)` is owned by the program, not by the calling function. | A detached task may outlive a request handler. State travels through its arguments; its errors are its own, so a fallible task needs `spawn f(...) on err { ... };` at the launch site. |
-| `serve obj;` gives one lock per object. | It serializes reads and writes, including reads; split independent state into separate objects. It does not make several method calls atomic. |
+| `serve obj;` marks the type served; every instance carries one lock. | A missed `serve` is not a race. It serializes reads and writes, including reads; split independent state into separate types. It does not make several method calls atomic. |
 | Fields of a served object are internal. | Use methods inside the type, or pass `*T` to a free function. The alternative is a silent race. |
 | A served pointer stored in another struct stays internal. | Field access through `Holder { ptr: &c }` is rejected; the pointee's fields are still internal. |
 | A served method may not return a reference to its own state. | Wrapper structs, `append` of served state, shallow values with slice fields and conversion to `any`/an interface are rejected. Return reference-free values or copy into fresh storage. |
-| A served type is not copyable, not only the served object. | The hidden mutex is a field of the type; `go vet` rejects any copy. Pass `*T`. |
+| A served type is not copyable. | The hidden mutex is a field of the type; `go vet` rejects any copy. Pass `*T`. |
 | `serve` targets a whole variable, not a field. | Serve the field's type at its creation, or add a method. |
-| A package variable is served in `main` or a test only. | Other functions may run after goroutines start; the flag write would race. |
-| A same-package factory may return a served object. | Servedness is checked syntactically; serve the returned variable at the call site before `par`. A type from another package cannot be served: keep its lock behind the package that owns it. |
-| `serve` must directly follow the target's declaration or assignment. | Nothing runs between creation and serving, so no goroutine can touch the object first. |
-| Reassigning a served variable needs a new `serve`. | The replacement object starts unserved; methods would skip the lock. |
+| A same-package factory may return a served object. | Every instance locks, so the call site does not need another `serve`. A type from another package cannot be served: keep its lock behind the package that owns it. |
 | `*p = T {}` on a served object is rejected. | It overwrites the hidden mutex while a wrapper may hold it (`sync: unlock of unlocked mutex`). Reset fields in a method. |
-| A field, map value or slice element holding a served pointer accepts only a served object or `nil`. | Replacing it with a fresh unserved object makes every later method call skip the lock. |
-| `spawn`/`par` reject an unserved instance of a served type. | The instance has no flag set, so its methods would not lock. Serve it first. Every global of a served type must be served in `main` or a test. |
 | `par`/`spawn` inside a served method is rejected. | The method already holds the object's lock; workers would deadlock or race. Use one method or a separate object. |
 | Aliasing `self` inside a served method is rejected. | A wrapper call on the alias would take the same lock again. Call `self.M()` directly. |
 | A served type must come from the same package. | Hidden lock fields are unexported; cross-package `serve` would not compile. |
