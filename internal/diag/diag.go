@@ -78,6 +78,7 @@ var rules = []struct {
 	{"serve-return", "returning a reference to served state", "return a copy or a value", false},
 	{"serve-state", "do not alias served state", "copy the values or call methods on self", false},
 	{"serve-copy", "a served type is not copyable", "pass a pointer to the served type", false},
+	{"local-go", "imports a local Go package", "write the logic in Ink; use serve for shared state, a Go adapter only for a real library", false},
 	{"go-errors", "import errors is not available", "use ? and on err; check(cond, \"msg\") creates the error", false},
 	{"go-sync", "is not available in Ink; use par and spawn", "par joins workers; spawn detaches. Locks belong in a Go adapter", false},
 	{"fmt-errorf", "fmt.Errorf is not available", "use check(cond, \"msg\"); add context in a Go adapter", false},

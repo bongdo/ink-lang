@@ -383,6 +383,7 @@ fn main() void {
 | `error-ctor` | write `check(false, "msg")`; `error` is a type |
 | `go-errors` | drop `use errors;`; use `?`, `on err`, `check` |
 | `go-sync` | drop `use sync;`; use `par`/`spawn` and `serve` for shared state |
+| `local-go` | a local Go package is a nudge: write it in Ink; a Go adapter is for a real library only |
 | `serve-field` | fields are internal; use a method or a free function with `*T` |
 | `serve-escape` | a served object cannot go to Go or a builtin; use a method |
 | `serve-target` | serve a whole variable; a field is not a target |

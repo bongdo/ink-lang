@@ -420,6 +420,9 @@ func (p *Program) resolveUses() {
 						p.errorf(f.Path, u.Pos(), "import %s is not available in Ink; use par and spawn", u.Path)
 						u.Used = true
 					}
+					if p.Module != "" && (u.Path == p.Module || strings.HasPrefix(u.Path, p.Module+"/")) {
+						p.warnf(f.Path, u.Pos(), "imports a local Go package %s; write it in Ink and use serve for shared state", u.Path)
+					}
 				}
 				if u.Alias == "_" {
 					if u.Local {
