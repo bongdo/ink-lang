@@ -14,6 +14,7 @@ import (
 	"github.com/bongdo/ink/internal/driver"
 	"github.com/bongdo/ink/internal/lsp"
 	"github.com/bongdo/ink/internal/mcp"
+	"github.com/bongdo/ink/internal/uml"
 )
 
 func main() {
@@ -46,6 +47,8 @@ func main() {
 		os.Exit(test(args))
 	case "fmt":
 		os.Exit(fmtCmd(args))
+	case "uml":
+		os.Exit(umlCmd(args))
 	case "lsp":
 		os.Exit(serve(args))
 	case "mcp":
@@ -77,6 +80,7 @@ usage:
   ink check [--json] [--fast] [--race]
   ink test [go test flags]
   ink fmt [-l] [-w] [--json] [paths]
+  ink uml
   ink lsp [--root dir]
   ink mcp [--root dir]
   ink new <dir>
@@ -340,6 +344,27 @@ func fmtCmd(args []string) int {
 		fmt.Fprintln(os.Stderr, "ink:", err)
 		return 1
 	}
+	return 0
+}
+
+func umlCmd(args []string) int {
+	if len(args) > 0 {
+		if args[0] == "-h" || args[0] == "--help" {
+			usage()
+			return 0
+		}
+		fmt.Fprintln(os.Stderr, "ink uml: takes no arguments; redirect stdout to save")
+		return 2
+	}
+	p, code := open()
+	if p == nil {
+		return code
+	}
+	if p.HasErrors() {
+		p.PrintErrors(os.Stderr)
+		return 1
+	}
+	fmt.Print(uml.PlantUML(p.Parsed, filepath.Base(p.Root)))
 	return 0
 }
 

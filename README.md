@@ -95,6 +95,7 @@ the current `par` analysis have annotated snippets in
 | `ink check [--json] [--fast] [--race]` | parse, check and type-check without building; `--fast` skips the generated-Go typecheck, `--race` type-checks with Go's `-race` build (compile-time only) |
 | `ink test [go test flags]` | run `test` blocks with `go test`; `-race` and other flags pass through |
 | `ink fmt [-l] [-w] [--json] [paths]` | canonical formatter; `-l` lists unformatted files, `--json` prints them as an array |
+| `ink uml` | print a PlantUML class diagram of the project's types, functions and local imports |
 | `ink lsp` | language server on stdio |
 | `ink new <dir>` | scaffold a project and install `AGENTS.md` |
 | `ink init [dir]` | add `go.mod` and `AGENTS.md` to an existing directory if absent |
